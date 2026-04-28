@@ -1,0 +1,97 @@
+transition_id,precursor_mz,product_mz,collision_eV,cone_V,Type,Lipid,Polarity
+1-methyl histamine - intense MRM,126.1,109.1,14,25,Analyte,,Positive
+1-methyl histamine - specific MRM,126.1,68,24,25,Analyte,,Positive
+3-Ketosphinganine,300.1002,270.3,16,10,Analyte,,Positive
+4-Hydroxyproline_MRM2 || 3-Hydroxyproline_MRM2,132,86,13,20,Analyte,,Positive
+5-acetylserotonin - MRM1,219.1,160,15,25,Analyte,,Positive
+5-acetylserotonin - MRM2,219.1,115,35,25,Analyte,,Positive
+5-Oxoproline,130.1,55.9,30,25,Analyte,,Positive
+AC(20:4),447.65,85,35,40,Analyte,,Positive
+Acetylcarnitine,204.1,85,55,30,Analyte,,Positive
+Acetylcholine,146.1,60,12,10,Analyte,,Positive
+Adenosine,268.2,119,40,30,Analyte,,Positive
+Aminoadipate,162.1001,55,32,30,Analyte,,Positive
+Arginine,175.1,60,30,40,Analyte,,Positive
+Aspartate,134.1,74,12,30,Analyte,,Positive
+Betaine,118.18,118.13,5,20,Analyte,,Positive
+Bilirubin,585.5,120,45,15,Analyte,,Positive
+Carnitine,162.1003,85,30,30,Analyte,,Positive
+CE(16:0),625.6,369.4,25,25,Analyte,,Positive
+CE(18:1),651.6,369.4,25,25,Analyte,,Positive
+CE(20:4) - [M+H]+,673.6,369.4,25,25,Analyte,,Positive
+CE(22:6),714.6,369.4,25,25,Analyte,,Positive
+Cer(d18:1/16:0) - [M+H]+,538.519,264.4,25,30,Analyte,,Positive
+Cer(d18:1/18:0) - [M+H]+,566.5507,264.4,25,30,Analyte,,Positive
+Cer(d18:1/20:0) - [M+H]+,594.582,264.4,35,30,Analyte,,Positive
+Cer(d18:1/22:0) - [M+H]+,622.6133,264.4,35,30,Analyte,,Positive
+Cer(d18:1/24:1) - [M+H]+,648.6,264.4,30,30,Analyte,,Positive
+CerP(d18:1/16:0) -[M+H]+,618.4857,264.4,35,30,Analyte,,Positive
+Cysteine,122.1,76,15,20,Analyte,,Positive
+deoxyDhCer(m18:0/24:1) -[M+H]+,634.64,268.4,32,50,Analyte,,Positive
+DG(16:0_16:0),586.5,313.3,20,25,Analyte,,Positive
+DG(16:0_18:1),612.6,313.3,20,25,Analyte,,Positive
+DG(16:0_18:1),612.6,313.3,20,25,Analyte,,Positive
+DG(18:0_20:4),662.6,341.3,20,25,Analyte,,Positive
+DG(18:1_18:1),638.6,339.3,20,25,Analyte,,Positive
+DG(18:1_20:4),660.6,339.3,20,25,Analyte,,Positive
+DhCer(d18:0/16:0) -[M+H]+,540.535,266.4,25,30,Analyte,,Positive
+Ergothioneine,230.1,127.1,20,15,Analyte,,Positive
+g_Aminobutyrate (GABA)_MRM1,104.0001,86.9,10,20,Analyte,,Positive
+Glutamate_WATERS,148.1001,84,13,20,Analyte,,Positive
+Glutamine,147.1,84,13,20,Analyte,,Positive
+Glutathione oxidized,613.3,231.1,35,30,Analyte,,Positive
+Glutathione reduced,308.3,76,25,25,Analyte,,Positive
+GMP_MRM2,364,152.12,20,20,Analyte,,Positive
+Heptadecanoylcarnitine,414.3,85,30,30,Analyte,,Positive
+Hex3Cer(d18:1/16:0)- [M+H]+,1024.6778,264.4,55,30,Analyte,,Positive
+HexCer(d18:1/16:0) - [M+H]+,700.572,264.4,30,30,Analyte,,Positive
+HexCer(d18:1/18:0) - [M+H]+,728.6035,264.4,30,30,Analyte,,Positive
+HexCer(d18:1/22:0) - [M+H]+,784.6661,264.4,35,30,Analyte,,Positive
+HexCer(d18:1/24:0) - [M+H]+,812.6974,264.4,35,30,Analyte,,Positive
+HexCer(d18:1/24:1) - [M+H]+,810.6817,264.4,35,30,Analyte,,Positive
+Histamine_MRM2,112.1,95,11,20,Analyte,,Positive
+Inosine,269.2,119.1,38,25,Analyte,,Positive
+INOSINIC ACID,349.19,137.14,15,20,Analyte,,Positive
+Isovalerylcarnitine,246.2,85,35,30,Analyte,,Positive
+LacCer(d18:1/20:0) -[M+H]+,918.6876,264.4,40,35,Analyte,,Positive
+LacCer(d18:1/24:0) - [M+H]+,974.7502,264.4,40,35,Analyte,,Positive
+LacCer(d18:1/24:1) -[M+H]+,972.7346,264.4,42,40,Analyte,,Positive
+Leucine/Isoleucine || CREATINE,132.11,44.01,15,20,Analyte,,Positive
+LysoSM(d18:1),465.2,86,45,30,Analyte,,Positive
+Methionine_WATERS,150.1,104,10,20,Analyte,,Positive
+Methylthioadenosine,298.1,119,40,30,Analyte,,Positive
+MG(18:1),357.3,265.3,12,15,Analyte,,Positive
+MG(20:4),379.3,287.2,12,15,Analyte,,Positive
+Myristoleoylcarnitine,370.3,85,40,30,Analyte,,Positive
+Myristoylcarnitine,372.3,85,40,30,Analyte,,Positive
+N_AcetylSpermidine,188.1,72,18,20,Analyte,,Positive
+N-AcetylHistamine,154.1,68,30,20,Analyte,,Positive
+Nicotinamide,123.1,53,30,30,Analyte,,Positive
+Oleoylcarnitine,426.4,85,50,30,Analyte,,Positive
+Palmitoleoylcarnitine,398.3,85,45,30,Analyte,,Positive
+Palmitoylcarnitine,400.3,85,45,30,Analyte,,Positive
+PhenylAlanine_WATERS,166.1,120.1,10,20,Analyte,,Positive
+Proline,116.1,70.1,15,20,Analyte,,Positive
+PropionylCarnitine,218,60,15,20,Analyte,,Positive
+S_AdenosylMethionine (SAM),399.1,136.1,25,20,Analyte,,Positive
+S1P(d18:1),380.2,264.4,20,20,Analyte,,Positive
+S1P(d18:2),378.2,262.4,20,20,Analyte,,Positive
+Serotonin_MRM2,177.1,159.9,10,25,Analyte,,Positive
+SM(d18:1/16:0) -[M+H]+,703.5748,264.4,35,40,Analyte,,Positive
+SM(d18:1/18:0) - [M+H]+,731.6061,184.2,35,40,Analyte,,Positive
+SM(d18:1/20:0) - [M+H]+,759.6374,184.2,35,40,Analyte,,Positive
+SM(d18:1/22:0) - [M+H]+,787.6687,184.2,35,40,Analyte,,Positive
+SM(d18:1/24:0) - [M+H]+,815.7,184.2,35,40,Analyte,,Positive
+SM(d18:1/24:1) - [M+H]+,813.6844,184.2,35,40,Analyte,,Positive
+Spa(18:2),298.3,250.3,15,20,Analyte,,Positive
+Spa1P(d18:0),382.2,266.4,20,20,Analyte,,Positive
+Sphinganine(d18:0),302.3,284.3,10,20,Analyte,,Positive
+Sphingosine(d18:1),300.3001,282.3,10,20,Analyte,,Positive
+Stearoylcarnitine,428.4,85,40,30,Analyte,,Positive
+Taurine,126,44,25,40,Analyte,,Positive
+TG (48:1) - 18:1,822.7,523.5,25,25,Analyte,,Positive
+TG (52:4) - 18:1,872.8,573.5,25,25,Analyte,,Positive
+TG(52:4) - 20:4,872.8,551.5,25,25,Analyte,,Positive
+TG(54:7) - 20:4,894.8,573.5,25,25,Analyte,,Positive
+Tryptophan,205.1,118,35,20,Analyte,,Positive
+Tyrosine,182.1,91,50,30,Analyte,,Positive
