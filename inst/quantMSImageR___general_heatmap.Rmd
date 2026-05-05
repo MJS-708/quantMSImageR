@@ -1,0 +1,691 @@
+---
+title: "MSI study report"
+author: "Matt Smith"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+    html_document :
+      code_folding: hide
+      number_sections: false
+      toc: true
+      toc_float: 
+        collapsed: false
+        smooth_scroll: true
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+# set default options
+knitr::opts_chunk$set(echo = FALSE,
+               message = FALSE,
+               warning = FALSE,
+               fig.align="center",
+               dpi = 120,
+               fig.retina = 3)
+
+# Define a function to safely plot or show a blank plot
+safe_plot <- function(p) {
+  tryCatch({
+    plot(p)
+  }, error = function(e) {
+    message("Plot failed: ", e$message)
+    plot.new()
+    title("Blank plot (error occurred)")
+  })
+}
+
+make_sim_mat <- function(out, metric = "Dice") {
+  mets <- sort(unique(c(out$metA, out$metB)))
+  
+  # wide upper-triangle -> matrix
+  w <- out %>%
+    select(metA, metB, value = all_of(metric)) %>%
+    filter(metA != metB) %>%
+    mutate(metA = factor(metA, levels = mets),
+           metB = factor(metB, levels = mets)) %>%
+    tidyr::complete(metA, metB) %>%   # ensure full square
+    pivot_wider(names_from = metB, values_from = value)
+  
+  mat <- as.matrix(w[,-1])
+  rownames(mat) <- as.character(w$metA)
+  
+  # symmetrize (upper/lower may be NA depending on how 'out' was built)
+  mat_t <- t(mat)
+  mat_sym <- ifelse(is.na(mat), mat_t, mat)
+  mat_sym <- ifelse(is.na(mat_sym), mat, mat_sym)
+  
+  diag(mat_sym) <- 1
+  mat_sym
+}
+
+cluster_from_sim <- function(sim_mat, method = "average") {
+  # handle any remaining NA (choose one strategy)
+  # option A: treat missing as 0 similarity
+  sim_mat[is.na(sim_mat)] <- 0
+  
+  d <- as.dist(1 - sim_mat)
+  hclust(d, method = method)
+}
+
+plot_tri_heatmap <- function(out, metric = "Dice", ord) {
+  
+  tmp <- out %>%
+    select(metA, metB, value = all_of(metric)) %>%
+    filter(metA != metB) %>%
+    mutate(
+      metA = factor(metA, levels = ord),
+      metB = factor(metB, levels = ord),
+      i = as.integer(metA),
+      j = as.integer(metB)
+    ) %>%
+    filter(j > i)
+  
+  ggplot(tmp, aes(x = metA, y = metB, fill = value)) +
+    geom_tile(color = "grey85", linewidth = 0.1) +
+    scale_x_discrete(limits = ord, drop = FALSE) +
+    scale_y_discrete(limits = ord, drop = FALSE) +
+    scale_fill_gradientn(
+      colours = c("#053061","#92C5DE","white","#F4A582","#67001F"),
+      limits = c(min(tmp$value, na.rm = TRUE)-0.1, max(tmp$value, na.rm = TRUE)+0.1),
+      na.value = "white"
+    ) +
+    labs(fill = "Colocalization") +
+    coord_fixed() +
+    theme_minimal(base_size = 10) +
+    theme(
+      axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
+      axis.title = element_blank(),
+      panel.grid = element_blank(),
+      legend.position = "right"
+    )
+}
+
+```
+
+
+# 1. Study
+
+DESI-MRM mass spectrometry imaging of tissue sections, processed with quantMSImageR.
+
+## 1.1 Sample mapping
+
+Acquisition filenames, run IDs used throughout this report, and group labels.
+Where a group contains biological replicates, each section is assigned a unique
+`_1`, `_2`, … suffix (shown individually in heatmaps and ion images; pooled by
+group label in comparison plots).
+
+```{r sample-map, echo = FALSE}
+if (exists("sample_map")) {
+  # Hide empty polarity columns for cleaner display
+  sm_show <- sample_map
+  if (all(sm_show$pos_files == "")) sm_show$pos_files <- NULL
+  if (all(sm_show$neg_files == "")) sm_show$neg_files <- NULL
+  DT::datatable(sm_show, rownames = FALSE,
+                options = list(pageLength = 25, scrollX = TRUE))
+} else {
+  cat("*(sample_map not available — run via run_study.R to populate)*")
+}
+```
+
+## 1.2 Features / transitions
+
+MRM transitions and analyte metadata from the ion library.
+
+```{r import, echo = FALSE}
+
+DT::datatable(data.frame(fData(combined)))
+
+```
+
+# 2. Heatmap {.tabset .tabset-fade}
+
+Z-scored nth-percentile intensity per feature across samples (clipped to [−1, 1]).
+Rows are features; columns are individual sections ordered by group.
+
+```{r hm, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=7.5, fig.height=6}
+
+for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
+  
+  cat( paste('## ', as.character(quant_value*100), "th quantile heatmap", '\n' ) )
+  
+  p = quantile_hm(MSIobject = combined,
+                  quant_val = quant_value,
+                  heatmap_order = heatmap_order,
+                  heatmap_labs = heatmap_labs)
+  
+  print(p)  # Explicitly print the heatmap object
+  
+  cat('\n \n')
+   
+}
+
+```
+
+```{r cmp-heading, results="asis", echo=FALSE}
+if (length(heatmap_order) > 1)
+  cat("# 3. Comparison plots {.tabset .tabset-fade}\n\n## Box + violin (side-by-side)\n\n")
+```
+
+```{r box_violin_dropdown, results="asis", echo=FALSE, include=TRUE, warning=FALSE, message=FALSE, fig.width=11, fig.height=5.5, eval=length(heatmap_order) > 1}
+
+val_slot <- "intensity"
+
+stopifnot(length(heatmap_order) == length(heatmap_labs))
+
+# Map run -> group label (can repeat)
+run_to_lab <- setNames(heatmap_labs, heatmap_order)
+
+# Unique display labels for plotting (avoid duplicated factor levels)
+`%||%` <- function(a, b) if (is.null(a)) b else a
+
+make_unique_labels <- function(labs) {
+  out <- character(length(labs))
+  seen <- list()
+  for (i in seq_along(labs)) {
+    x <- labs[i]
+    k <- (seen[[x]] %||% 0) + 1
+    seen[[x]] <- k
+    if (sum(labs == x) > 1) out[i] <- sprintf("%s (%d)", x, k) else out[i] <- x
+  }
+  out
+}
+
+plot_labs <- make_unique_labels(heatmap_labs)
+run_to_plotlab <- setNames(plot_labs, heatmap_order)
+plot_levels <- plot_labs  # already in heatmap_order order, unique
+
+# Baseline label from calling script if present; else default to first label
+if (!exists("baseline_label") || is.null(baseline_label) || !nzchar(baseline_label)) {
+  baseline_label <- heatmap_labs[1]
+}
+if (!(baseline_label %in% heatmap_labs)) {
+  stop(sprintf("baseline_label '%s' not found in heatmap_labs", baseline_label))
+}
+
+# feature names for titles
+met_names <- tryCatch(featureNames(combined), error = function(e) NULL)
+if (is.null(met_names)) met_names <- as.character(mz(combined))
+
+# safe ids for dropdown blocks
+make_safe_id <- function(x) gsub("[^A-Za-z0-9_\\-]", "_", x)
+safe_ids <- vapply(met_names, make_safe_id, character(1))
+
+# ---- Detect features with any signal in selected runs ----
+is_detected <- vapply(seq_along(met_names), function(mz_ind) {
+  any(vapply(heatmap_order, function(fn) {
+    p <- combined$run == fn
+    v <- spectraData(combined)[[val_slot]][mz_ind, p]
+    any(is.finite(v)) && any(v[is.finite(v)] != 0)
+  }, logical(1)))
+}, logical(1))
+
+not_detected  <- met_names[!is_detected]
+detected_mets <- met_names[is_detected]
+detected_inds <- which(is_detected)
+detected_ids  <- safe_ids[is_detected]
+
+# Alphabetical dropdown
+ord <- order(tolower(detected_mets))
+detected_mets <- detected_mets[ord]
+detected_inds <- detected_inds[ord]
+detected_ids  <- detected_ids[ord]
+
+# ---- Dropdown + JS ----
+cat('
+<label for="cmp_select" style="font-weight:600;">Select metabolite:</label>
+<select id="cmp_select" style="margin: 0 0 12px 8px; padding: 4px 6px;"
+        onchange="showCmp(this.value)">
+')
+
+if (length(detected_mets) == 0) {
+  cat('<option value="">No detected metabolites</option>')
+} else {
+  for (i in seq_along(detected_mets)) {
+    sel <- if (i == 1) " selected" else ""
+    cat(sprintf('<option value="%s"%s>%s</option>\n', detected_ids[i], sel, detected_mets[i]))
+  }
+}
+
+cat('</select>
+
+<script>
+function showCmp(id){
+  var blocks = document.querySelectorAll(".cmp_block");
+  for (var i=0; i<blocks.length; i++) { blocks[i].style.display = "none"; }
+  var el = document.getElementById("cmp_" + id);
+  if (el) el.style.display = "block";
+}
+</script>
+')
+
+# ============================
+# Collect FC rows during plotting
+# FC computed by GROUP label ("Ctrl", "HDM"), pooling runs per group
+# ============================
+fc_rows <- list()
+
+if (length(detected_mets) > 0) {
+  
+  for (i in seq_along(detected_mets)) {
+    
+    mz_ind <- detected_inds[i]
+    met    <- detected_mets[i]
+    mid    <- detected_ids[i]
+    
+    # Build long df with plot label (unique per run) and group label (pooled for FC)
+    df <- bind_rows(lapply(heatmap_order, function(fn) {
+      p <- combined$run == fn
+      v <- spectraData(combined)[[val_slot]][mz_ind, p]
+      v <- v[is.finite(v)]
+      tibble(
+        run = fn,
+        plot_label  = run_to_plotlab[[fn]],
+        group_label = run_to_lab[[fn]],
+        intensity = v
+      )
+    }))
+    
+    if (nrow(df) == 0) next
+    
+    # factor for plotting (unique, ordered)
+    df$plot_label <- factor(df$plot_label, levels = plot_levels)
+    # group factor pools replicates (e.g. HDM_M_1 + HDM_M_2 → HDM_M) for boxplots
+    df$group_label <- factor(df$group_label, levels = unique(heatmap_labs))
+    
+    # ---- FC computation: quantiles per GROUP label ----
+    q_tbl <- df %>%
+      group_by(group_label) %>%
+      summarise(
+        q25 = unname(quantile(intensity, 0.25, na.rm = TRUE)),
+        q50 = unname(quantile(intensity, 0.50, na.rm = TRUE)),
+        q75 = unname(quantile(intensity, 0.75, na.rm = TRUE)),
+        q90 = unname(quantile(intensity, 0.90, na.rm = TRUE)),
+        .groups = "drop"
+      )
+    
+    base_row <- q_tbl %>% filter(group_label == baseline_label)
+    
+    if (nrow(base_row) == 1) {
+      
+      base_q25 <- base_row$q25
+      base_q50 <- base_row$q50
+      base_q75 <- base_row$q75
+      base_q90 <- base_row$q90
+      
+      if (all(is.finite(c(base_q25, base_q50, base_q75, base_q90))) &&
+          all(c(base_q25, base_q50, base_q75, base_q90) != 0)) {
+        
+        fc_one <- q_tbl %>%
+          filter(group_label != baseline_label) %>%
+          transmute(
+            metabolite = met,
+            
+            # FC (requested order)
+            FC_q50 = q50 / base_q50,
+            FC_q90 = q90 / base_q90,
+            FC_q75 = q75 / base_q75,
+            FC_q25 = q25 / base_q25,
+            
+            # log2FC (same order)
+            log2FC_q50 = log2(q50 / base_q50),
+            log2FC_q90 = log2(q90 / base_q90),
+            log2FC_q75 = log2(q75 / base_q75),
+            log2FC_q25 = log2(q25 / base_q25),
+            
+            baseline = baseline_label,
+            compare  = as.character(group_label),
+            
+            # the rest (QC/debugging)
+            baseline_q25 = base_q25,
+            baseline_q50 = base_q50,
+            baseline_q75 = base_q75,
+            baseline_q90 = base_q90,
+            
+            compare_q25 = q25,
+            compare_q50 = q50,
+            compare_q75 = q75,
+            compare_q90 = q90
+          )
+        
+        fc_rows[[length(fc_rows) + 1]] <- fc_one
+      }
+    }
+    
+    # ---- Visualization clipping (global p90 across pixels shown) ----
+    p90_vis  <- quantile(df$intensity, 0.90, na.rm = TRUE)
+    pmin_vis <- min(df$intensity, na.rm = TRUE)
+    
+    p_box <- ggplot(df, aes(x = group_label, y = intensity, fill = group_label)) +
+      theme_classic() +
+      geom_boxplot(outlier.shape = NA, width = 0.6, alpha = 0.7) +
+      coord_cartesian(ylim = c(pmin_vis, p90_vis)) +
+      labs(x = NULL, y = "Intensity (≤ p90)") +
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+            legend.position = "none")
+
+    p_violin <- ggplot(df, aes(x = group_label, y = intensity, fill = group_label)) +
+      theme_classic() +
+      geom_violin(trim = TRUE, alpha = 0.6) +
+      geom_boxplot(width = 0.15, outlier.shape = NA, alpha = 0.8) +
+      coord_cartesian(ylim = c(pmin_vis, p90_vis)) +
+      labs(x = NULL, y = "Intensity (≤ p90)") +
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+            legend.position = "none")
+    
+    p_both <- (p_box + ggtitle("Boxplot")) | (p_violin + ggtitle("Violin + box")) +
+      patchwork::plot_annotation(title = met)
+    
+    display_style <- if (i == 1) "block" else "none"
+    cat(sprintf('<div class="cmp_block" id="cmp_%s" style="display:%s;">\n', mid, display_style))
+    print(p_both)
+    cat("</div>\n")
+  }
+}
+
+# ---- Not-detected list (QC) ----
+if (length(not_detected) > 0) {
+  cat("<details style='margin-top:12px;'><summary><b>Not detected metabolites</b></summary><ul>")
+  for (x in not_detected) cat(sprintf("<li>%s</li>", x))
+  cat("</ul></details>")
+}
+
+# ---- FC table (built during plotting) ----
+fc_tbl <- dplyr::bind_rows(fc_rows)
+
+cat("<hr><h3>Fold change table (quantiles)</h3>")
+
+if (nrow(fc_tbl) == 0) {
+  cat("<p><b>No fold-changes computed.</b> Likely baseline quantiles were 0/NA for many metabolites, or one group had no pixels.</p>")
+} else {
+  
+  # requested column order first, then keep the rest
+  wanted <- c(
+    "metabolite",
+    "FC_q50", "FC_q90", "FC_q75", "FC_q25",
+    "log2FC_q50", "log2FC_q90", "log2FC_q75", "log2FC_q25",
+    "baseline", "compare"
+  )
+  keep_first <- intersect(wanted, colnames(fc_tbl))
+  fc_tbl <- fc_tbl %>% dplyr::select(dplyr::all_of(keep_first), dplyr::everything())
+  
+  cat(sprintf(
+    "<p style='margin-top:-6px;'>Baseline: <b>%s</b>. FC computed as compare/baseline using Q25, Q50 (median), Q75, and Q90 of pooled pixel intensities.</p>",
+    baseline_label
+  ))
+  
+  DT::datatable(
+    fc_tbl,
+    options = list(pageLength = 25, scrollX = TRUE),
+    rownames = FALSE
+  )
+}
+
+```
+
+# 4. Correlation {.tabset .tabset-fade}
+
+Spatial co-localisation metrics computed pairwise across all features.
+
+- **Pearson's r** — linear relationship between pixel intensities of two ions.
+- **Manders Overlap Coefficient (MOC)** — degree of pixel-intensity overlap; M1 is the fraction of ion 1 intensity that overlaps with ion 2, M2 the reverse (asymmetric).
+- **Dice score** — overlap of the binary segmentation masks derived from M1 and M2.
+
+Metrics are reported for all samples pooled (**All**) and for each group separately, allowing differences in co-localisation structure between groups to be identified.
+
+```{r cor-compute, echo=FALSE, include=FALSE, warning=FALSE, message=FALSE}
+
+# Metabolite names (use featureNames if available; fallback to mz labels)
+met_names <- tryCatch(featureNames(combined), error = function(e) NULL)
+if (is.null(met_names)) met_names <- as.character(mz(combined))
+mz_vals   <- mz(combined)
+name_to_idx <- setNames(seq_along(met_names), met_names)
+
+# --- Helper: compute per-pair correlation long table for a given MSI object ---
+compute_coloc_table <- function(obj) {
+  if (ncol(obj) == 0) return(NULL)
+  raw <- do.call(
+    rbind,
+    lapply(seq_along(mz_vals), function(j) {
+      tryCatch({
+        tmp <- data.frame(Cardinal::colocalized(obj, mz = mz_vals[j]),
+                          check.names = FALSE)
+        data.frame(
+          metA = met_names[j],
+          metB = rownames(tmp),
+          cor  = tmp$cor,
+          MOC  = tmp$MOC,
+          M1   = tmp$M1,
+          M2   = tmp$M2,
+          Dice = tmp$Dice,
+          stringsAsFactors = FALSE,
+          check.names = FALSE
+        )
+      }, error = function(e) NULL)
+    })
+  )
+  if (is.null(raw) || nrow(raw) == 0) return(NULL)
+  raw <- raw |>
+    dplyr::mutate(
+      idxA = unname(name_to_idx[metA]),
+      idxB = unname(name_to_idx[metB])
+    ) |>
+    dplyr::filter(!is.na(idxA), !is.na(idxB), idxA != idxB)
+  pairs <- raw |>
+    dplyr::mutate(
+      idx1 = pmin(idxA, idxB),
+      idx2 = pmax(idxA, idxB),
+      met1 = met_names[idx1],
+      met2 = met_names[idx2],
+      pair_id = paste0(idx1, "__", idx2)
+    ) |>
+    dplyr::filter(idx1 < idx2) |>
+    dplyr::distinct(pair_id, .keep_all = TRUE) |>
+    dplyr::select(metA = met1, metB = met2, cor, MOC, M1, M2, Dice,
+                  idxA = idx1, idxB = idx2, pair_id) |>
+    dplyr::filter(is.finite(cor), is.finite(MOC),
+                  is.finite(M1), is.finite(M2), is.finite(Dice))
+  list(long = raw, pairs = pairs)
+}
+
+# --- Build one correlation dataset per group + one for "All" ---
+cor_datasets <- list()
+cor_datasets[["All"]] <- compute_coloc_table(combined)
+
+unique_groups <- unique(heatmap_labs)
+if (length(unique_groups) > 1) {
+  for (grp in unique_groups) {
+    grp_runs <- heatmap_order[heatmap_labs == grp]
+    grp_obj  <- combined[, pData(combined)$run %in% grp_runs]
+    cor_datasets[[grp]] <- compute_coloc_table(grp_obj)
+  }
+}
+# Drop failed groups
+cor_datasets <- cor_datasets[!vapply(cor_datasets, is.null, logical(1))]
+
+```
+
+## 4.1 Correlation table {.tabset .tabset-fade}
+
+```{r cor-tbl, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=7.5, fig.height=6}
+
+for (grp_name in names(cor_datasets)) {
+  cat("### ", grp_name, "\n\n", sep = "")
+  tbl <- cor_datasets[[grp_name]]$pairs
+  print(htmltools::tagList(
+    DT::datatable(tbl, options = list(pageLength = 15, scrollX = TRUE))
+  ))
+  cat("\n\n")
+}
+
+```
+
+## 4.2 Correlation heat map {.tabset .tabset-fade}
+
+```{r cor-hm, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=7.5, fig.height=6}
+
+for (grp_name in names(cor_datasets)) {
+
+  cat("### ", grp_name, " {.tabset .tabset-fade}\n\n", sep = "")
+
+  long_df <- cor_datasets[[grp_name]]$long
+
+  for (cor_type in c("cor", "MOC", "M1", "M2", "Dice")) {
+
+    cat("#### ", cor_type, "\n\n", sep = "")
+
+    sim_mat <- tryCatch(make_sim_mat(long_df, cor_type), error = function(e) NULL)
+    if (is.null(sim_mat) || nrow(sim_mat) < 2) {
+      cat("*(insufficient data)*\n\n"); next
+    }
+    hc  <- cluster_from_sim(sim_mat)
+    ord <- hc$labels[hc$order]
+
+    p <- plot_tri_heatmap(long_df, cor_type, ord)
+    print(p)
+    cat("\n\n")
+  }
+}
+
+```
+
+# 5. Ion images {.tabset .tabset-fade}
+
+Ion images of all tissue sections. Three rendering modes per feature:
+
+1. **Histogram normalised** — contrast enhanced per section; best for visualising spatial distribution within a section.
+2. **Raw intensities** — no normalisation or scaling; dominated by hotspots but preserves absolute differences between sections.
+3. **Global 95th-percentile scale** — intensities capped at the p95 across all sections; balances spatial detail with cross-section intensity comparability.
+
+```{r ion-img-dropdown, results="asis", echo=FALSE, include=TRUE, warning=FALSE, fig.width=7.5, fig.height=6}
+# ---- Helper to make safe HTML ids ----
+make_safe_id <- function(x) gsub("[^A-Za-z0-9_\\-]", "_", x)
+
+features <- as.character(fData(combined)$name)
+feature_ids <- vapply(features, make_safe_id, character(1))
+
+ord <- order(tolower(features))
+
+# sorted display vectors
+features_sorted    <- features[ord]
+feature_ids_sorted <- feature_ids[ord]
+
+# ---- Dropdown + JS ----
+cat('
+<label for="ion_select" style="font-weight:600;">Select feature:</label>
+<select id="ion_select" style="margin: 0 0 12px 8px; padding: 4px 6px;"
+        onchange="showIonFeature(this.value)">
+')
+
+for (i in seq_along(features_sorted)) {
+  sel <- if (i == 1) ' selected' else ''
+  cat(sprintf('<option value="%s"%s>%s</option>\n',
+              feature_ids_sorted[i], sel, features_sorted[i]))
+}
+
+cat('</select>
+
+<script>
+function showIonFeature(id){
+  var blocks = document.querySelectorAll(".ion_feature_block");
+  for (var i=0; i<blocks.length; i++) { blocks[i].style.display = "none"; }
+  var el = document.getElementById("ion_" + id);
+  if (el) el.style.display = "block";
+}
+</script>
+')
+
+# ---- Render each feature block (hidden except first) ----
+for (i in seq_along(ord)) {
+
+  idx <- ord[i]  # <-- original row index in combined/fData/spectraData
+
+  feature <- features_sorted[i]
+  fid     <- feature_ids_sorted[i]
+  mz_val  <- fData(combined)$mz[idx]
+
+  display_style <- if (i == 1) "block" else "none"
+  cat(sprintf('<div class="ion_feature_block" id="ion_%s" style="display:%s;">\n',
+              fid, display_style))
+  # Use a styled <p> instead of <h3> so the feature name does not populate the TOC
+  cat(sprintf("<p style='margin-top:10px;font-size:1.17em;font-weight:600;'>%s</p>\n", feature))
+
+  # q95 from non-NA pixels only; as.numeric() forces out of matter-array to plain R vector
+  all_ints <- as.numeric(spectraData(combined[idx, ])[["intensity"]])
+  q95      <- suppressWarnings(quantile(all_ints, 0.95, na.rm = TRUE))
+  has_signal <- any(is.finite(all_ints))   # FALSE when feature absent in every sample
+
+  # Helper: blank grid page with message (keeps device in grid mode after Cardinal's grid rendering)
+  blank_grid <- function(msg) {
+    grid::grid.newpage()
+    grid::grid.text(msg, gp = grid::gpar(fontsize = 11, col = "grey40"))
+  }
+
+  # Plot 1: Histogram normalization & scaled
+  if (!has_signal) {
+    blank_grid("Histogram normalization & scaled\n(No signal in any sample)")
+  } else {
+    tryCatch({
+      p1 <- image(combined, enhance = "histogram", scale = TRUE, mz = mz_val,
+                  free = "xy", axes = FALSE, grid = FALSE) |>
+        matter::set_title("Histogram normalization & scaled")
+      plot(p1)
+    }, error = function(e) {
+      blank_grid("Histogram normalization & scaled\n(No signal or error)")
+    })
+  }
+
+  # Plot 2: Scaled to 95th quantile
+  # Subset to single feature, convert matter-backed array to plain matrix, cap at q95,
+  # replace entire slot (sub-slice assignment does not persist in matter backend).
+  if (!has_signal) {
+    blank_grid("Scaled to 95th quantile\n(No signal in any sample)")
+  } else {
+    tryCatch({
+      combined_q95 <- combined[idx, ]
+      ints_q95 <- as.matrix(spectraData(combined_q95)[["intensity"]])
+      if (is.finite(q95)) ints_q95[!is.na(ints_q95) & ints_q95 > q95] <- q95
+      spectraData(combined_q95)[["intensity"]] <- ints_q95
+      p2 <- image(combined_q95, scale = FALSE, zlim = c(0, q95), mz = mz_val,
+                  free = "xy", axes = FALSE, grid = FALSE) |>
+        matter::set_title("Scaled to 95th quantile")
+      plot(p2)
+    }, error = function(e) {
+      blank_grid("Scaled to 95th quantile\n(No signal or error)")
+    })
+  }
+
+  # Plot 3: No scaling or normalization (global colorscale across all samples)
+  # Same pattern: subset → plain matrix → replace full slot → scale=FALSE + zlim.
+  if (!has_signal) {
+    blank_grid("No scaling or normalization\n(No signal in any sample)")
+  } else {
+    tryCatch({
+      combined_p3 <- combined[idx, ]
+      ints_p3 <- as.matrix(spectraData(combined_p3)[["intensity"]])
+      glim <- max(ints_p3, na.rm = TRUE)
+      spectraData(combined_p3)[["intensity"]] <- ints_p3
+      p3 <- image(combined_p3, scale = FALSE, zlim = c(0, glim), mz = mz_val,
+                  free = "xy", axes = FALSE, grid = FALSE) |>
+        matter::set_title("No scaling or normalization")
+      plot(p3)
+    }, error = function(e) {
+      blank_grid("No scaling or normalization\n(No signal or error)")
+    })
+  }
+
+  cat("</div>\n")
+}
+```
+
+# 6. Session Information
+
+Packages used for the creation of this file
+
+```{r session, echo = FALSE, warning=FALSE}
+
+sessionInfo()
+
+```
+
+

@@ -1,0 +1,107 @@
+# =============================================================================
+# quantMSImageR DESI-MRM study configuration template
+# =============================================================================
+# Run with:
+#   Rscript path/to/run_study.R path/to/this_config.yaml
+#
+# All paths use forward slashes (works on Windows and Linux/macOS).
+# =============================================================================
+
+study: "my_study_name"  # used as fallback report filename prefix
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+paths:
+  data_path:    "D:/__STUDIES/my_study/data/DESI-MRM/raw"
+  out_path:     "D:/__STUDIES/my_study/results/DESI-MRM"
+  image_dir:    "D:/__STUDIES/my_study/data/DESI-MRM/images"
+  lib_ion_path: "D:/__STUDIES/ion_library.csv"
+  # markdown_rmd is only needed when render_report: true
+  markdown_rmd: "C:/Users/matsmi/OneDrive - Karolinska Institutet/Dokument/Bioinformatics/_markdown_files/quantMSImageR___general_heatmap.Rmd"
+
+# ---------------------------------------------------------------------------
+# Sample manifest  (one entry per sample, in heatmap display order)
+#
+# Use pos: and/or neg: for each sample.  Each may be a single string or a
+# YAML list of strings (multiple acquisitions are combined within polarity
+# before any cross-polarity binding).  Feature names are taken as-is from
+# the ion library — no prefix is added.
+# ---------------------------------------------------------------------------
+samples:
+
+  # -- positive-mode only --
+  - label: "Ctrl"
+    pos:   "acq_run_ctrl_pos"       # .raw folder name WITHOUT the .raw suffix
+
+  # -- negative-mode only --
+  - label: "Treatment"
+    neg:   "acq_run_trt_neg"
+
+  # -- both polarities, single acquisition each --
+  - label: "A1"
+    pos:   "06Aug_study_pos_A1"
+    neg:   "20Aug_study_neg_A1"
+
+  # -- both polarities, multiple acquisitions per polarity --
+  - label: "A2"
+    pos:
+      - "06Aug_study_pos_A2_rep1"
+      - "06Aug_study_pos_A2_rep2"
+    neg:
+      - "20Aug_study_neg_A2_rep1"
+      - "20Aug_study_neg_A2_rep2"
+
+# ---------------------------------------------------------------------------
+# Processing parameters
+# ---------------------------------------------------------------------------
+parameters:
+  # snr_thresh accepts a scalar or a list; a list produces one output
+  # directory tree per threshold value.
+  snr_thresh:     3       # e.g. 3  OR  [2, 3, 5]
+  tiss_fc:        0.6     # S/N threshold for tissue fold-change layer
+  thresh:         20      # cold-spot percentile removal (imageR threshold)
+  perc:           97      # hot-spot percentile suppression (imageR percentile)
+  rot_clockwise:  0       # image rotation: 0, 1 (90°), 2 (180°), 3 (270°)
+  average_method: "median"  # "mean" or "median" for noise summarisation
+  baseline_label: "Ctrl"  # group label used as FC denominator in the report
+
+# ---------------------------------------------------------------------------
+# Feature overrides  (both sections are optional — omit if not needed)
+# ---------------------------------------------------------------------------
+features:
+  # Transitions to drop entirely (matched against fData()$name exactly).
+  exclude:
+    - "IS_cholesterol-d7"
+    - "27-OH-Cholesterol || 27-OHC"
+
+  # Rename transitions for display (old name → new name).
+  # Use the exact fData()$name string as the key.
+  rename:
+    "25-OH-Cholesterol || 25-OHC": "25-OHC"
+    "7alpha-OH-Cholesterol":       "7α-OHC"
+
+# ---------------------------------------------------------------------------
+# Metabolite ratio images  (optional — omit section if not needed)
+#
+# Each entry images  numerator / denominator  pixel-wise using SNR-filtered
+# intensities.  Feature names must match fData()$name AFTER any renames above.
+# Ratio files are written to the same subdirectories as the ion images.
+# `label` is optional; omitting it produces filenames like "A_over_B.txt".
+# ---------------------------------------------------------------------------
+ratios:
+  - num:   "25-OHC"
+    den:   "Cholesterol"
+    label: "25OHC_Chol_ratio"
+  - num:   "7α-OHC"
+    den:   "Cholesterol"
+    # label defaults to "7a-OHC_over_Cholesterol"
+
+# ---------------------------------------------------------------------------
+# Output flags
+# ---------------------------------------------------------------------------
+output:
+  render_report:  true   # generate HTML QC report via quantMSImageR___general_heatmap.Rmd
+  output_txt:     true   # write per-feature text-image matrices to image_dir
+  output_ratios:  true   # write ratio txt images (requires ratios: section above)
+  report_fn:      "my_study_pos04_SNR3"  # output HTML filename prefix
