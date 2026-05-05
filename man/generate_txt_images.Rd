@@ -15,11 +15,20 @@ generate_txt_images(
   perc = 97,
   rot_clockwise = 0,
   average_method = "median",
-  output_txt = TRUE
+  output_txt = TRUE,
+  exclude = NULL,
+  rename = NULL,
+  ratios = NULL,
+  output_ratios = TRUE
 )
 }
 \arguments{
-\item{fns}{Character vector of acquisition names (without \code{.raw} suffix).}
+\item{fns}{Character vector of acquisition names (without \code{.raw} suffix)
+for single-polarity studies. For dual-polarity studies pass a list where
+each element is either a plain string (single acquisition) or a named list
+with fields \code{pos}, \code{neg}, \code{label}, and optionally \code{prefix_pos}/\code{prefix_neg}
+(see \code{\link[=bind_polarities]{bind_polarities()}}). \code{run_study.R} builds this list automatically
+from the YAML \code{samples} section.}
 
 \item{data_path}{Path to the folder that contains the \code{.raw} acquisition
 directories.}
@@ -31,8 +40,10 @@ is created inside it.}
 columns: \code{transition_id}, \code{precursor_mz}, \code{product_mz}, \code{collision_eV},
 \code{cone_V}, \code{Polarity}, \code{Type}.}
 
-\item{snr_thresh}{Numeric. Minimum signal-to-noise ratio; pixels below this
-threshold are set to \code{NA} (default \code{3}).}
+\item{snr_thresh}{Numeric scalar \strong{or vector}. One or more minimum
+signal-to-noise thresholds; pixels below each threshold are set to \code{NA}.
+When a vector is supplied, one complete output directory tree is created
+per threshold value (default \code{3}).}
 
 \item{tiss_fc}{Numeric. SNR threshold used for the tissue fold-change layer
 (default \code{0.6}).}
@@ -52,13 +63,42 @@ every acquisition (default \code{"median"}).}
 
 \item{output_txt}{Logical. When \code{FALSE}, processing runs but no files are
 written to disk (default \code{TRUE}).}
+
+\item{exclude}{Character vector of feature names to drop before processing.
+Names must match \code{fData()$name} exactly (default \code{NULL} — keep all).}
+
+\item{rename}{Named character vector or list mapping old feature names to new
+display names, e.g. \code{c("old name" = "new name")}. Applied to all combined
+objects after loading; the new names appear in file names and the heatmap
+(default \code{NULL} — no renaming).}
+
+\item{ratios}{Optional list of metabolite ratio pairs. Each element must be
+a named list with fields:
+\describe{
+\item{\code{num}}{Name of the numerator feature (matches \code{fData()$name}
+\strong{after} any \code{rename} overrides are applied).}
+\item{\code{den}}{Name of the denominator feature.}
+\item{\code{label}}{\emph{(optional)} Output filename prefix. Defaults to
+\code{"<num>_over_<den>"}.}
+}
+Ratio images (numerator / denominator, pixel-wise) are written to the
+same SNR-filtered subdirectories as the individual ion images, immediately
+after them. Pixels where the denominator is zero or either ion is \code{NA} are
+set to \code{NA} (default \code{NULL} — no ratios).}
+
+\item{output_ratios}{Logical. When \code{FALSE}, ratio txt files are not written
+even if \code{ratios} pairs are defined. Has no effect when \code{output_txt} is
+\code{FALSE} (default \code{TRUE}).}
 }
 \value{
-Invisibly returns a named list with four processed
-\code{quant_MSImagingExperiment} objects:
+Invisibly returns a named list:
 \describe{
 \item{\code{combined}}{Raw combined object (background pixels retained).}
-\item{\code{combined_snr}}{SNR-filtered intensity; sub-threshold pixels \code{NA}.}
+\item{\code{combined_snr}}{SNR-filtered intensity for the \strong{first} threshold
+in \code{snr_thresh}; sub-threshold pixels \code{NA}. Provided for
+backward compatibility.}
+\item{\code{combined_snr_list}}{Named list of SNR-filtered objects, one per
+threshold in \code{snr_thresh}, named \code{"snr<value>"} (e.g. \code{"snr3"}).}
 \item{\code{combined_FC}}{Tissue fold-change layer (\code{snr} slot).}
 \item{\code{combined_NAbackground}}{Raw intensity with background set to \code{NA}.}
 }

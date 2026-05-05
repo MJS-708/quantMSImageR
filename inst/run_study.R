@@ -117,7 +117,7 @@ sample_map <- data.frame(
 # Drop section column if unused across the whole study
 if (all(sample_map$section == "")) sample_map$section <- NULL
 
-snr_thresh     <- cfg$parameters$snr_thresh     %||% 3
+snr_thresh     <- as.numeric(unlist(cfg$parameters$snr_thresh %||% 3))
 tiss_fc        <- cfg$parameters$tiss_fc        %||% 0.6
 thresh         <- cfg$parameters$thresh         %||% 20
 perc           <- cfg$parameters$perc           %||% 97
@@ -125,14 +125,22 @@ rot_clockwise  <- cfg$parameters$rot_clockwise  %||% 0
 average_method <- cfg$parameters$average_method %||% "median"
 baseline_label <- cfg$parameters$baseline_label %||% heatmap_labs[1]
 
-render_report  <- cfg$output$render_report %||% TRUE
-output_txt     <- cfg$output$output_txt    %||% TRUE
-report_fn      <- cfg$output$report_fn     %||% paste0(cfg$study, "_SNR", snr_thresh)
+render_report  <- cfg$output$render_report  %||% TRUE
+output_txt     <- cfg$output$output_txt     %||% TRUE
+output_ratios  <- cfg$output$output_ratios  %||% TRUE
+report_fn <- as.character(cfg$output$report_fn %||%
+  if (length(snr_thresh) == 1L)
+    paste0(cfg$study, "_SNR", snr_thresh[1])
+  else
+    paste0(cfg$study, "_multiSNR"))[1]
 
 # Feature overrides (optional)
 feat_exclude <- cfg$features$exclude %||% NULL
 feat_rename  <- if (!is.null(cfg$features$rename))
                   as.list(unlist(cfg$features$rename)) else NULL
+
+# Ratio pairs (optional): list of {num, den, label} entries from YAML
+feat_ratios  <- cfg$ratios %||% NULL
 
 # ---------------------------------------------------------------------------
 # Process acquisitions (always runs; controls output via flags)
@@ -150,7 +158,9 @@ result <- generate_txt_images(
   average_method = average_method,
   output_txt     = output_txt,
   exclude        = feat_exclude,
-  rename         = feat_rename
+  rename         = feat_rename,
+  ratios         = feat_ratios,
+  output_ratios  = output_ratios
 )
 
 # ---------------------------------------------------------------------------
@@ -166,7 +176,8 @@ if (render_report) {
   dir.create(out_path, recursive = TRUE, showWarnings = FALSE)
 
   # Expose objects and metadata expected by the Rmd
-  combined       <- result$combined_snr
+  combined    <- result$combined_snr
+  ratios_cfg  <- feat_ratios   # ratio pairs for section 6
   # heatmap_order, heatmap_labs, baseline_label already in scope
 
   rmarkdown::render(

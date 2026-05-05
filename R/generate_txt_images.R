@@ -24,8 +24,10 @@
 #' @param lib_ion_path Full path to the MRM ion-library CSV. Must contain
 #'   columns: `transition_id`, `precursor_mz`, `product_mz`, `collision_eV`,
 #'   `cone_V`, `Polarity`, `Type`.
-#' @param snr_thresh Numeric. Minimum signal-to-noise ratio; pixels below this
-#'   threshold are set to `NA` (default `3`).
+#' @param snr_thresh Numeric scalar **or vector**. One or more minimum
+#'   signal-to-noise thresholds; pixels below each threshold are set to `NA`.
+#'   When a vector is supplied, one complete output directory tree is created
+#'   per threshold value (default `3`).
 #' @param tiss_fc Numeric. SNR threshold used for the tissue fold-change layer
 #'   (default `0.6`).
 #' @param thresh Numeric. Cold-spot percentile passed to `imageR()` as
@@ -45,12 +47,31 @@
 #'   display names, e.g. `c("old name" = "new name")`. Applied to all combined
 #'   objects after loading; the new names appear in file names and the heatmap
 #'   (default `NULL` — no renaming).
+#' @param ratios Optional list of metabolite ratio pairs. Each element must be
+#'   a named list with fields:
+#'   \describe{
+#'     \item{`num`}{Name of the numerator feature (matches `fData()$name`
+#'       **after** any `rename` overrides are applied).}
+#'     \item{`den`}{Name of the denominator feature.}
+#'     \item{`label`}{*(optional)* Output filename prefix. Defaults to
+#'       `"<num>_over_<den>"`.}
+#'   }
+#'   Ratio images (numerator / denominator, pixel-wise) are written to the
+#'   same SNR-filtered subdirectories as the individual ion images, immediately
+#'   after them. Pixels where the denominator is zero or either ion is `NA` are
+#'   set to `NA` (default `NULL` — no ratios).
+#' @param output_ratios Logical. When `FALSE`, ratio txt files are not written
+#'   even if `ratios` pairs are defined. Has no effect when `output_txt` is
+#'   `FALSE` (default `TRUE`).
 #'
-#' @return Invisibly returns a named list with four processed
-#'   `quant_MSImagingExperiment` objects:
+#' @return Invisibly returns a named list:
 #'   \describe{
 #'     \item{`combined`}{Raw combined object (background pixels retained).}
-#'     \item{`combined_snr`}{SNR-filtered intensity; sub-threshold pixels `NA`.}
+#'     \item{`combined_snr`}{SNR-filtered intensity for the **first** threshold
+#'       in `snr_thresh`; sub-threshold pixels `NA`. Provided for
+#'       backward compatibility.}
+#'     \item{`combined_snr_list`}{Named list of SNR-filtered objects, one per
+#'       threshold in `snr_thresh`, named `"snr<value>"` (e.g. `"snr3"`).}
 #'     \item{`combined_FC`}{Tissue fold-change layer (`snr` slot).}
 #'     \item{`combined_NAbackground`}{Raw intensity with background set to `NA`.}
 #'   }
@@ -70,10 +91,13 @@ generate_txt_images <- function(
   average_method = "median",
   output_txt     = TRUE,
   exclude        = NULL,
-  rename         = NULL
+  rename         = NULL,
+  ratios         = NULL,
+  output_ratios  = TRUE
 ) {
 
   average_method <- match.arg(average_method, c("mean", "median"))
+  snr_thresh_vec <- sort(unique(as.numeric(unlist(snr_thresh))))
 
   # ----- Internal helpers ------------------------------------------------
 
@@ -114,6 +138,21 @@ generate_txt_images <- function(
     if (!all(is.finite(rng)) || diff(rng) == 0)
       return(matrix(0, nrow(mat), ncol(mat)))
     (mat - rng[1]) / diff(rng) * 100
+  }
+
+  # Apply hot-spot suppression and cold-spot removal to a plain matrix
+  # (mirrors the imageR scale="suppress" + threshold logic for derived matrices
+  # such as ratios that are not stored in an MSI slot).
+  suppress_mat <- function(mat, cold_pct, hot_pct) {
+    if (nrow(mat) == 0) return(mat)
+    vals <- mat
+    cap <- quantile(vals, hot_pct / 100, na.rm = TRUE)
+    if (is.finite(cap))
+      vals[!is.na(vals) & vals > cap] <- cap
+    floor_val <- quantile(vals, cold_pct / 100, na.rm = TRUE)
+    if (is.finite(floor_val))
+      vals[!is.na(vals) & vals < floor_val] <- 0
+    vals
   }
 
   safe_feat_name <- function(x) {
@@ -186,6 +225,7 @@ generate_txt_images <- function(
     obj
   }
 
+
   # ----- Normalise fns → fn_list / fn_labels ----------------------------
   # fns: character vector (backward-compat) OR list where each element is
   # a string (single acq) or named list with pos/neg/label fields.
@@ -196,9 +236,9 @@ generate_txt_images <- function(
 
   # ----- Load and process acquisitions -----------------------------------
 
-  combined     <- NULL
-  combined_snr <- NULL
-  combined_FC  <- NULL
+  combined          <- NULL
+  combined_FC       <- NULL
+  combined_snr_list <- vector("list", length(snr_thresh_vec))
 
   for (ind in seq_along(fn_list)) {
     fn_entry <- fn_list[[ind]]
@@ -236,21 +276,32 @@ generate_txt_images <- function(
       noise = "tissue_pixels", tissue = "tissue_pixels",
       snr_thresh = tiss_fc, average = average_method
     )
-    tissue_snr <- int2snr(
-      MSIobject = tissue, val_slot = "intensity", sample_type = "sample_name",
-      noise = "noise_pixels", tissue = "tissue_pixels",
-      snr_thresh = snr_thresh, average = average_method
-    )
-    tissue_snr <- applySNR(MSIobject = tissue_snr, val_slot = "intensity")
+
+    # Compute one SNR-filtered object per requested threshold
+    for (si in seq_along(snr_thresh_vec)) {
+      tissue_snr <- int2snr(
+        MSIobject = tissue, val_slot = "intensity", sample_type = "sample_name",
+        noise = "noise_pixels", tissue = "tissue_pixels",
+        snr_thresh = snr_thresh_vec[si], average = average_method
+      )
+      tissue_snr <- applySNR(MSIobject = tissue_snr, val_slot = "intensity")
+
+      if (is.null(combined_snr_list[[si]])) {
+        combined_snr_list[[si]] <- tissue_snr
+      } else {
+        al <- align_features(combined_snr_list[[si]], tissue_snr)
+        combined_snr_list[[si]] <- combine_MSIs(al$obj1, al$obj2)
+      }
+    }
 
     if (is.null(combined)) {
-      combined     <- tissue
-      combined_snr <- tissue_snr
-      combined_FC  <- tissue_fc
+      combined    <- tissue
+      combined_FC <- tissue_fc
     } else {
-      combined     <- combine_MSIs(combined,     tissue)
-      combined_snr <- combine_MSIs(combined_snr, tissue_snr)
-      combined_FC  <- combine_MSIs(combined_FC,  tissue_fc)
+      al          <- align_features(combined,    tissue)
+      combined    <- combine_MSIs(al$obj1, al$obj2)
+      al_fc       <- align_features(combined_FC, tissue_fc)
+      combined_FC <- combine_MSIs(al_fc$obj1, al_fc$obj2)
     }
   }
 
@@ -260,17 +311,18 @@ generate_txt_images <- function(
     sample_type = "sample_name"
   )
 
-  # Apply display-name overrides to all four objects
+  # Apply display-name overrides to all objects
   if (!is.null(rename) && length(rename) > 0) {
     combined              <- apply_renames(combined,              rename)
-    combined_snr          <- apply_renames(combined_snr,          rename)
+    combined_snr_list     <- lapply(combined_snr_list, function(o) apply_renames(o, rename))
     combined_FC           <- apply_renames(combined_FC,           rename)
     combined_NAbackground <- apply_renames(combined_NAbackground, rename)
   }
 
   out <- list(
     combined              = combined,
-    combined_snr          = combined_snr,
+    combined_snr          = combined_snr_list[[1]],
+    combined_snr_list     = setNames(combined_snr_list, paste0("snr", snr_thresh_vec)),
     combined_FC           = combined_FC,
     combined_NAbackground = combined_NAbackground
   )
@@ -279,69 +331,131 @@ generate_txt_images <- function(
 
   # ----- Generate text-image files ---------------------------------------
 
-  for (fn_label in fn_labels) {
+  for (snr_i in seq_along(snr_thresh_vec)) {
+    snr_t          <- snr_thresh_vec[snr_i]
+    combined_snr_i <- combined_snr_list[[snr_i]]
 
-    combined_snr_tmp  <- combined_snr[,         pData(combined_snr)$run          == fn_label]
-    combined_FC_tmp   <- combined_FC[,           pData(combined_FC)$run           == fn_label]
-    combined_back_tmp <- combined_NAbackground[, pData(combined_NAbackground)$run == fn_label]
+    for (fn_label in fn_labels) {
 
-    image_path <- file.path(image_dir, fn_label)
-    dirs <- list(
-      snr_filt  = file.path(image_path, sprintf("intensity_SNRfiltered%s",                       snr_thresh)),
-      snr_norm  = file.path(image_path, sprintf("response_SNRfiltered%s_NORM",                   snr_thresh)),
-      tissue_fc = file.path(image_path, sprintf("tissue-FC%s",                                   tiss_fc)),
-      raw       = file.path(image_path, "intensity_raw"),
-      hs_filt   = file.path(image_path, sprintf("intensity_SNRfiltered%s_hs%s_cs%s_removal",     snr_thresh, perc, thresh)),
-      hs_norm   = file.path(image_path, sprintf("response_SNRfiltered%s_hs%s_cs%s_NORM",         snr_thresh, perc, thresh)),
-      combined  = file.path(image_path, sprintf("response_SNRfiltered%s_hs%s_cs%s_COMBINED",     snr_thresh, perc, thresh))
-    )
-    for (d in dirs) dir.create(d, recursive = TRUE, showWarnings = FALSE)
+      combined_snr_tmp  <- combined_snr_i[,        pData(combined_snr_i)$run        == fn_label]
+      combined_FC_tmp   <- combined_FC[,            pData(combined_FC)$run           == fn_label]
+      combined_back_tmp <- combined_NAbackground[,  pData(combined_NAbackground)$run == fn_label]
 
-    n_features <- nrow(fData(combined_snr))
+      image_path <- file.path(image_dir, fn_label)
+      dirs <- list(
+        snr_filt  = file.path(image_path, sprintf("intensity_SNRfiltered%s",                   snr_t)),
+        snr_norm  = file.path(image_path, sprintf("response_SNRfiltered%s_NORM",               snr_t)),
+        tissue_fc = file.path(image_path, sprintf("tissue-FC%s",                               tiss_fc)),
+        raw       = file.path(image_path, "intensity_raw"),
+        hs_filt   = file.path(image_path, sprintf("intensity_SNRfiltered%s_hs%s_cs%s_removal", snr_t, perc, thresh)),
+        hs_norm   = file.path(image_path, sprintf("response_SNRfiltered%s_hs%s_cs%s_NORM",     snr_t, perc, thresh)),
+        combined  = file.path(image_path, sprintf("response_SNRfiltered%s_hs%s_cs%s_COMBINED", snr_t, perc, thresh))
+      )
+      for (d in dirs) dir.create(d, recursive = TRUE, showWarnings = FALSE)
 
-    for (feat_ind in seq_len(n_features)) {
+      feat_names_all <- fData(combined_snr_i)$name
+      n_features     <- length(feat_names_all)
 
-      feat_name <- safe_feat_name(fData(combined_snr)$name[feat_ind])
+      # --- Ion images ---
+      for (feat_ind in seq_len(n_features)) {
 
-      # SNR-filtered raw intensities
-      mat_snr <- make_txt_mat(combined_snr_tmp, feat_ind, "intensity",
-                               "DESI-MRM response - S/N filtered", 0, 100)
-      write_if_nonempty(mat_snr, file.path(dirs$snr_filt, paste0(feat_name, ".txt")))
+        feat_name <- safe_feat_name(feat_names_all[feat_ind])
 
-      # 0-100 normalised SNR
-      scaled_snr <- normalize_0_100(mat_snr)
-      write_if_nonempty(scaled_snr, file.path(dirs$snr_norm, paste0(feat_name, ".txt")))
+        # SNR-filtered raw intensities
+        mat_snr <- make_txt_mat(combined_snr_tmp, feat_ind, "intensity",
+                                 "DESI-MRM response - S/N filtered", 0, 100)
+        write_if_nonempty(mat_snr, file.path(dirs$snr_filt, paste0(feat_name, ".txt")))
 
-      # COMBINED: embed global max in [1,1] for cross-sample colour scaling
-      if (nrow(scaled_snr) > 0) {
-        global_max <- max(
-          as.numeric(spectraData(combined_snr[feat_ind, ])[["intensity"]]),
-          na.rm = TRUE
-        )
-        scaled_snr_combined       <- scaled_snr
-        scaled_snr_combined[1, 1] <- global_max
-        write_if_nonempty(scaled_snr_combined,
-                          file.path(dirs$combined, paste0(feat_name, ".txt")))
+        # 0-100 normalised SNR
+        scaled_snr <- normalize_0_100(mat_snr)
+        write_if_nonempty(scaled_snr, file.path(dirs$snr_norm, paste0(feat_name, ".txt")))
+
+        # COMBINED: embed global max in [1,1] for cross-sample colour scaling
+        if (nrow(scaled_snr) > 0) {
+          global_max <- max(
+            as.numeric(spectraData(combined_snr_i[feat_ind, ])[["intensity"]]),
+            na.rm = TRUE
+          )
+          scaled_snr_combined       <- scaled_snr
+          scaled_snr_combined[1, 1] <- global_max
+          write_if_nonempty(scaled_snr_combined,
+                            file.path(dirs$combined, paste0(feat_name, ".txt")))
+        }
+
+        # tissue_fc and raw don't vary with SNR threshold — write only on first pass
+        if (snr_i == 1L) {
+          mat_fc <- make_txt_mat(combined_FC_tmp, feat_ind, "snr",
+                                  "Ratio to tissue", 0, 100)
+          write_if_nonempty(mat_fc, file.path(dirs$tissue_fc, paste0(feat_name, ".txt")))
+
+          mat_raw <- make_txt_mat(combined_back_tmp, feat_ind, "intensity",
+                                   "DESI-MRM response", 0, 100)
+          write_if_nonempty(mat_raw, file.path(dirs$raw, paste0(feat_name, ".txt")))
+        }
+
+        # SNR-filtered + hot/cold-spot removal
+        mat_hs <- make_txt_mat(combined_snr_tmp, feat_ind, "intensity",
+                                "DESI-MRM response - S/N filtered", thresh, perc)
+        write_if_nonempty(mat_hs, file.path(dirs$hs_filt, paste0(feat_name, ".txt")))
+
+        # 0-100 normalised hs/cs version
+        scaled_hs <- normalize_0_100(mat_hs)
+        write_if_nonempty(scaled_hs, file.path(dirs$hs_norm, paste0(feat_name, ".txt")))
       }
 
-      # Ratio-to-tissue (FC layer)
-      mat_fc <- make_txt_mat(combined_FC_tmp, feat_ind, "snr",
-                              "Ratio to tissue", 0, 100)
-      write_if_nonempty(mat_fc, file.path(dirs$tissue_fc, paste0(feat_name, ".txt")))
+      # --- Ratio images (written right after ion images) ---
+      if (output_ratios && !is.null(ratios) && length(ratios) > 0) {
+        for (rp in ratios) {
+          num_name    <- as.character(rp$num)
+          den_name    <- as.character(rp$den)
+          ratio_label <- if (!is.null(rp$label) && nzchar(as.character(rp$label)))
+                           safe_feat_name(as.character(rp$label))
+                         else
+                           paste0(safe_feat_name(num_name), "_over_",
+                                  safe_feat_name(den_name))
 
-      # Raw DESI-MRM response (background → NA)
-      mat_raw <- make_txt_mat(combined_back_tmp, feat_ind, "intensity",
-                               "DESI-MRM response", 0, 100)
-      write_if_nonempty(mat_raw, file.path(dirs$raw, paste0(feat_name, ".txt")))
+          num_idx <- which(feat_names_all == num_name)
+          den_idx <- which(feat_names_all == den_name)
 
-      # SNR-filtered + hot/cold-spot removal
-      mat_hs <- make_txt_mat(combined_snr_tmp, feat_ind, "intensity",
-                              "DESI-MRM response - S/N filtered", thresh, perc)
-      write_if_nonempty(mat_hs, file.path(dirs$hs_filt, paste0(feat_name, ".txt")))
+          if (length(num_idx) == 0) {
+            message(sprintf("  Ratio '%s': numerator '%s' not found — skipping",
+                            ratio_label, num_name))
+            next
+          }
+          if (length(den_idx) == 0) {
+            message(sprintf("  Ratio '%s': denominator '%s' not found — skipping",
+                            ratio_label, den_name))
+            next
+          }
 
-      # 0-100 normalised hs/cs version
-      scaled_hs <- normalize_0_100(mat_hs)
-      write_if_nonempty(scaled_hs, file.path(dirs$hs_norm, paste0(feat_name, ".txt")))
+          # Extract raw pixel matrices with no hs/cs scaling (percentile=100,
+          # threshold=0) so the ratio reflects true signal proportions.
+          num_raw <- make_txt_mat(combined_snr_tmp, num_idx[1], "intensity",
+                                   "ratio_num", 0, 100)
+          den_raw <- make_txt_mat(combined_snr_tmp, den_idx[1], "intensity",
+                                   "ratio_den", 0, 100)
+
+          if (nrow(num_raw) == 0 || nrow(den_raw) == 0) next
+
+          ratio_mat <- num_raw / den_raw
+          ratio_mat[!is.finite(ratio_mat)] <- NA
+
+          # SNR-filtered ratio (raw)
+          write_if_nonempty(ratio_mat,
+                            file.path(dirs$snr_filt, paste0(ratio_label, ".txt")))
+
+          # 0-100 normalised
+          write_if_nonempty(normalize_0_100(ratio_mat),
+                            file.path(dirs$snr_norm, paste0(ratio_label, ".txt")))
+
+          # hs/cs-suppressed ratio and its normalised version
+          ratio_hs <- suppress_mat(ratio_mat, thresh, perc)
+          write_if_nonempty(ratio_hs,
+                            file.path(dirs$hs_filt, paste0(ratio_label, ".txt")))
+          write_if_nonempty(normalize_0_100(ratio_hs),
+                            file.path(dirs$hs_norm, paste0(ratio_label, ".txt")))
+        }
+      }
     }
   }
 

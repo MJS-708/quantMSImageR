@@ -56,7 +56,9 @@ samples:
 # Processing parameters
 # ---------------------------------------------------------------------------
 parameters:
-  snr_thresh:     3       # minimum S/N ratio; pixels below → NA
+  # snr_thresh accepts a scalar or a list; a list produces one output
+  # directory tree per threshold value.
+  snr_thresh:     3       # e.g. 3  OR  [2, 3, 5]
   tiss_fc:        0.6     # S/N threshold for tissue fold-change layer
   thresh:         20      # cold-spot percentile removal (imageR threshold)
   perc:           97      # hot-spot percentile suppression (imageR percentile)
@@ -80,9 +82,26 @@ features:
     "7alpha-OH-Cholesterol":       "7α-OHC"
 
 # ---------------------------------------------------------------------------
+# Metabolite ratio images  (optional — omit section if not needed)
+#
+# Each entry images  numerator / denominator  pixel-wise using SNR-filtered
+# intensities.  Feature names must match fData()$name AFTER any renames above.
+# Ratio files are written to the same subdirectories as the ion images.
+# `label` is optional; omitting it produces filenames like "A_over_B.txt".
+# ---------------------------------------------------------------------------
+ratios:
+  - num:   "25-OHC"
+    den:   "Cholesterol"
+    label: "25OHC_Chol_ratio"
+  - num:   "7α-OHC"
+    den:   "Cholesterol"
+    # label defaults to "7a-OHC_over_Cholesterol"
+
+# ---------------------------------------------------------------------------
 # Output flags
 # ---------------------------------------------------------------------------
 output:
-  render_report: true   # generate HTML QC report via quantMSImageR___general_heatmap.Rmd
-  output_txt:    true   # write per-feature text-image matrices to image_dir
-  report_fn:     "my_study_pos04_SNR3"  # output HTML filename prefix
+  render_report:  true   # generate HTML QC report via quantMSImageR___general_heatmap.Rmd
+  output_txt:     true   # write per-feature text-image matrices to image_dir
+  output_ratios:  true   # write ratio txt images (requires ratios: section above)
+  report_fn:      "my_study_pos04_SNR3"  # output HTML filename prefix
