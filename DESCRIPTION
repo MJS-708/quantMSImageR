@@ -36,7 +36,8 @@ Imports:
     htmltools (>= 0.5.0),
     purrr (>= 1.0.0),
     matter (>= 2.0.0),
-    CardinalIO (>= 1.0.0)
+    CardinalIO (>= 1.0.0),
+    openxlsx (>= 4.2.0)
 Suggests:
     testthat (>= 3.0.0),
     knitr (>= 1.40),
@@ -47,7 +48,9 @@ Collate:
     'align_features.R'
     'applySNR.R'
     'back2NA.R'
+    'bind_panels.R'
     'bind_polarities.R'
+    'build_feature_meta.R'
     'read_mrm.R'
     'combine_MSI_features.R'
     'combine_MSIs.R'

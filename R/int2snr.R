@@ -18,7 +18,14 @@ setMethod("int2snr", "quant_MSImagingExperiment",
             average <- match.arg(average)
 
             if(!any(pData(MSIobject)[[sample_type]] == noise)){
-              print("No noise pixels. Return same values")
+              # No noise pixels to compute SNR against — fall back to a
+              # non-filtering snr slot (copy of intensity). Adding the slot
+              # here is required so that downstream applySNR() and combine_MSIs()
+              # (cbind) see a consistent set of spectra arrays across sections.
+              warning("int2snr: no '", noise, "' pixels in sample_type='",
+                      sample_type, "'. Returning intensity as snr (no SNR filtering).",
+                      call. = FALSE)
+              spectra(MSIobject, "snr") <- spectra(MSIobject, val_slot)
               return(MSIobject)
             }
 
@@ -35,6 +42,11 @@ setMethod("int2snr", "quant_MSImagingExperiment",
 
               # Save noise response vector
               noise_vec = spectraData(MSIobject)[[val_slot]][mz_ind, noise_pixels]
+
+              # Skip features with no usable noise signal — typical of panel-
+              # padded rows (a transition that exists in the other acquisition's
+              # MRM panel but not this one). snr stays NA for these features.
+              if (all(is.na(noise_vec) | noise_vec == 0)) next
 
               #Deal with 0 values in noise vector - 10% of lowest
               noise_vec[which(noise_vec ==0)] = NA

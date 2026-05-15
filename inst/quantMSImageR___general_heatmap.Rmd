@@ -68,23 +68,41 @@ cluster_from_sim <- function(sim_mat, method = "average") {
   hclust(d, method = method)
 }
 
-plot_tri_heatmap <- function(out, metric = "Dice", ord) {
-  
+plot_tri_heatmap <- function(out, metric = "Dice", ord,
+                              feature_groups = NULL, group_colors = NULL,
+                              group_legend_name = "Met-1") {
+
+  # Reorder features by Met-1 group (preserves the within-group ordering
+  # supplied via `ord`). Without groups we leave `ord` untouched.
+  if (!is.null(feature_groups)) {
+    fg_ord <- as.character(feature_groups[ord])
+    fg_ord[is.na(fg_ord) | !nzchar(fg_ord)] <- "Other"
+    ord <- ord[order(match(fg_ord, unique(fg_ord)), seq_along(ord))]
+  }
+
+  n <- length(ord)
+
+  # Use integer positions on a continuous scale so we can paint annotation
+  # tiles outside the [1, n] data range (left strip at x = 0, bottom strip
+  # at y = 0).
   tmp <- out %>%
     select(metA, metB, value = all_of(metric)) %>%
     filter(metA != metB) %>%
     mutate(
-      metA = factor(metA, levels = ord),
-      metB = factor(metB, levels = ord),
-      i = as.integer(metA),
-      j = as.integer(metB)
+      i = match(as.character(metA), ord),
+      j = match(as.character(metB), ord)
     ) %>%
-    filter(j > i)
-  
-  ggplot(tmp, aes(x = metA, y = metB, fill = value)) +
+    filter(!is.na(i), !is.na(j), j > i)
+
+  has_groups <- !is.null(feature_groups)
+  pad_lo     <- if (has_groups) -0.5 else 0.5
+
+  p <- ggplot(tmp, aes(x = i, y = j, fill = value)) +
     geom_tile(color = "grey85", linewidth = 0.1) +
-    scale_x_discrete(limits = ord, drop = FALSE) +
-    scale_y_discrete(limits = ord, drop = FALSE) +
+    scale_x_continuous(breaks = seq_len(n), labels = ord,
+                        limits = c(pad_lo, n + 0.5), expand = c(0, 0)) +
+    scale_y_continuous(breaks = seq_len(n), labels = ord,
+                        limits = c(pad_lo, n + 0.5), expand = c(0, 0)) +
     scale_fill_gradientn(
       colours = c("#053061","#92C5DE","white","#F4A582","#67001F"),
       limits = c(min(tmp$value, na.rm = TRUE)-0.1, max(tmp$value, na.rm = TRUE)+0.1),
@@ -94,11 +112,57 @@ plot_tri_heatmap <- function(out, metric = "Dice", ord) {
     coord_fixed() +
     theme_minimal(base_size = 10) +
     theme(
-      axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
+      axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5,
+                                  colour = "black"),
+      axis.text.y = element_text(colour = "black"),
       axis.title = element_blank(),
       panel.grid = element_blank(),
       legend.position = "right"
     )
+
+  if (has_groups) {
+    fg_per_ord <- as.character(feature_groups[ord])
+    fg_per_ord[is.na(fg_per_ord) | !nzchar(fg_per_ord)] <- "Other"
+    if (is.null(group_colors)) {
+      lvls <- unique(fg_per_ord)
+      group_colors <- setNames(
+        grDevices::hcl.colors(max(length(lvls), 2), palette = "Set 2")[seq_along(lvls)],
+        lvls
+      )
+    }
+
+    strip_df <- data.frame(
+      pos = seq_len(n),
+      hex = unname(group_colors[fg_per_ord]),
+      stringsAsFactors = FALSE
+    )
+
+    p <- p +
+      # LEFT strip — vertical column of tiles at x = 0
+      geom_tile(data = strip_df, aes(x = 0, y = pos),
+                fill = strip_df$hex, color = "grey60", linewidth = 0.2,
+                inherit.aes = FALSE) +
+      # BOTTOM strip — horizontal row of tiles at y = 0
+      geom_tile(data = strip_df, aes(x = pos, y = 0),
+                fill = strip_df$hex, color = "grey60", linewidth = 0.2,
+                inherit.aes = FALSE)
+
+    # Phantom layer purely to render a Met-1 legend without clashing with
+    # the heatmap's `fill` scale.
+    legend_df <- data.frame(
+      .group = factor(names(group_colors), levels = names(group_colors)),
+      stringsAsFactors = FALSE
+    )
+    p <- p +
+      geom_point(data = legend_df,
+                 aes(x = NA_real_, y = NA_real_, colour = .group),
+                 inherit.aes = FALSE, size = 4, na.rm = TRUE) +
+      scale_colour_manual(values = group_colors, name = group_legend_name,
+                           drop = FALSE) +
+      guides(colour = guide_legend(override.aes = list(shape = 15, size = 5)))
+  }
+
+  p
 }
 
 ```
@@ -143,21 +207,37 @@ DT::datatable(data.frame(fData(combined)))
 Z-scored nth-percentile intensity per feature across samples (clipped to [−1, 1]).
 Rows are features; columns are individual sections ordered by group.
 
-```{r hm, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=7.5, fig.height=6}
+```{r hm, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=12, fig.height=7}
+
+# Build row split vector from per-feature metadata (joined by m/z in run_study.R)
+.row_split <- NULL
+if (exists("feature_meta") && !is.null(feature_meta) &&
+    exists("heatmap_row_split") && !is.null(heatmap_row_split) &&
+    heatmap_row_split %in% colnames(feature_meta)) {
+  .row_split <- as.character(feature_meta[[heatmap_row_split]])
+  # Unmatched / blank entries become a single "Other" group instead of NAs
+  .row_split[is.na(.row_split) | !nzchar(trimws(.row_split))] <- "Other"
+}
 
 for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
-  
+
   cat( paste('## ', as.character(quant_value*100), "th quantile heatmap", '\n' ) )
-  
+
   p = quantile_hm(MSIobject = combined,
                   quant_val = quant_value,
                   heatmap_order = heatmap_order,
-                  heatmap_labs = heatmap_labs)
-  
+                  heatmap_labs = heatmap_labs,
+                  row_split = .row_split,
+                  row_split_name = if (exists("heatmap_row_split") &&
+                                       !is.null(heatmap_row_split) &&
+                                       nzchar(heatmap_row_split))
+                                     heatmap_row_split else "Pathway",
+                  column_split_name = "Group")
+
   print(p)  # Explicitly print the heatmap object
-  
+
   cat('\n \n')
-   
+
 }
 
 ```
@@ -173,34 +253,20 @@ val_slot <- "intensity"
 
 stopifnot(length(heatmap_order) == length(heatmap_labs))
 
-# Map run -> group label (can repeat)
+# Map run_id -> group label (group label can repeat across replicates)
 run_to_lab <- setNames(heatmap_labs, heatmap_order)
 
-# Unique display labels for plotting (avoid duplicated factor levels)
 `%||%` <- function(a, b) if (is.null(a)) b else a
-
-make_unique_labels <- function(labs) {
-  out <- character(length(labs))
-  seen <- list()
-  for (i in seq_along(labs)) {
-    x <- labs[i]
-    k <- (seen[[x]] %||% 0) + 1
-    seen[[x]] <- k
-    if (sum(labs == x) > 1) out[i] <- sprintf("%s (%d)", x, k) else out[i] <- x
-  }
-  out
-}
-
-plot_labs <- make_unique_labels(heatmap_labs)
-run_to_plotlab <- setNames(plot_labs, heatmap_order)
-plot_levels <- plot_labs  # already in heatmap_order order, unique
 
 # Baseline label from calling script if present; else default to first label
 if (!exists("baseline_label") || is.null(baseline_label) || !nzchar(baseline_label)) {
   baseline_label <- heatmap_labs[1]
 }
 if (!(baseline_label %in% heatmap_labs)) {
-  stop(sprintf("baseline_label '%s' not found in heatmap_labs", baseline_label))
+  stop(sprintf(
+    "baseline_label '%s' not found in heatmap_labs.\nAvailable labels: %s",
+    baseline_label, paste(unique(heatmap_labs), collapse = ", ")
+  ))
 }
 
 # feature names for titles
@@ -273,24 +339,22 @@ if (length(detected_mets) > 0) {
     met    <- detected_mets[i]
     mid    <- detected_ids[i]
     
-    # Build long df with plot label (unique per run) and group label (pooled for FC)
+    # Build long df: one row per pixel, tagged with run_id and group label.
     df <- bind_rows(lapply(heatmap_order, function(fn) {
       p <- combined$run == fn
       v <- spectraData(combined)[[val_slot]][mz_ind, p]
       v <- v[is.finite(v)]
       tibble(
         run = fn,
-        plot_label  = run_to_plotlab[[fn]],
         group_label = run_to_lab[[fn]],
         intensity = v
       )
     }))
-    
+
     if (nrow(df) == 0) next
-    
-    # factor for plotting (unique, ordered)
-    df$plot_label <- factor(df$plot_label, levels = plot_levels)
-    # group factor pools replicates (e.g. HDM_M_1 + HDM_M_2 → HDM_M) for boxplots
+
+    # x-axis: one slot per run (ordered by group); fill: pooled group label
+    df$run         <- factor(df$run, levels = heatmap_order)
     df$group_label <- factor(df$group_label, levels = unique(heatmap_labs))
     
     # ---- FC computation: quantiles per GROUP label ----
@@ -356,22 +420,22 @@ if (length(detected_mets) > 0) {
     p90_vis  <- quantile(df$intensity, 0.90, na.rm = TRUE)
     pmin_vis <- min(df$intensity, na.rm = TRUE)
     
-    p_box <- ggplot(df, aes(x = group_label, y = intensity, fill = group_label)) +
+    p_box <- ggplot(df, aes(x = run, y = intensity, fill = group_label)) +
       theme_classic() +
       geom_boxplot(outlier.shape = NA, width = 0.6, alpha = 0.7) +
       coord_cartesian(ylim = c(pmin_vis, p90_vis)) +
-      labs(x = NULL, y = "Intensity (≤ p90)") +
+      labs(x = NULL, y = "Intensity (≤ p90)", fill = "Group") +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-            legend.position = "none")
+            legend.position = "right")
 
-    p_violin <- ggplot(df, aes(x = group_label, y = intensity, fill = group_label)) +
+    p_violin <- ggplot(df, aes(x = run, y = intensity, fill = group_label)) +
       theme_classic() +
       geom_violin(trim = TRUE, alpha = 0.6) +
       geom_boxplot(width = 0.15, outlier.shape = NA, alpha = 0.8) +
       coord_cartesian(ylim = c(pmin_vis, p90_vis)) +
-      labs(x = NULL, y = "Intensity (≤ p90)") +
+      labs(x = NULL, y = "Intensity (≤ p90)", fill = "Group") +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-            legend.position = "none")
+            legend.position = "right")
     
     p_both <- (p_box + ggtitle("Boxplot")) | (p_violin + ggtitle("Violin + box")) +
       patchwork::plot_annotation(title = met)
@@ -393,13 +457,7 @@ if (length(not_detected) > 0) {
 # ---- FC table (built during plotting) ----
 fc_tbl <- dplyr::bind_rows(fc_rows)
 
-cat("<hr><h3>Fold change table (quantiles)</h3>")
-
-if (nrow(fc_tbl) == 0) {
-  cat("<p><b>No fold-changes computed.</b> Likely baseline quantiles were 0/NA for many metabolites, or one group had no pixels.</p>")
-} else {
-  
-  # requested column order first, then keep the rest
+if (nrow(fc_tbl) > 0) {
   wanted <- c(
     "metabolite",
     "FC_q50", "FC_q90", "FC_q75", "FC_q25",
@@ -408,22 +466,22 @@ if (nrow(fc_tbl) == 0) {
   )
   keep_first <- intersect(wanted, colnames(fc_tbl))
   fc_tbl <- fc_tbl %>% dplyr::select(dplyr::all_of(keep_first), dplyr::everything())
-  
+}
+
+cat("<hr>")
+if (nrow(fc_tbl) == 0) {
+  cat("<p><b>No fold-changes computed.</b> Likely baseline quantiles were 0/NA for many metabolites, or one group had no pixels.</p>")
+} else {
+  .xlsx_name <- paste0(if (exists("report_fn")) report_fn else "tables", "_tables.xlsx")
   cat(sprintf(
-    "<p style='margin-top:-6px;'>Baseline: <b>%s</b>. FC computed as compare/baseline using Q25, Q50 (median), Q75, and Q90 of pooled pixel intensities.</p>",
-    baseline_label
+    "<p>Baseline: <b>%s</b>. FC (Q25/Q50/Q75/Q90) written to <code>%s</code> — sheet <em>Fold_Change</em>.</p>",
+    baseline_label, .xlsx_name
   ))
-  
-  DT::datatable(
-    fc_tbl,
-    options = list(pageLength = 25, scrollX = TRUE),
-    rownames = FALSE
-  )
 }
 
 ```
 
-# 4. Correlation {.tabset .tabset-fade}
+# 4. Correlation
 
 Spatial co-localisation metrics computed pairwise across all features.
 
@@ -431,7 +489,11 @@ Spatial co-localisation metrics computed pairwise across all features.
 - **Manders Overlap Coefficient (MOC)** — degree of pixel-intensity overlap; M1 is the fraction of ion 1 intensity that overlaps with ion 2, M2 the reverse (asymmetric).
 - **Dice score** — overlap of the binary segmentation masks derived from M1 and M2.
 
-Metrics are reported for all samples pooled (**All**) and for each group separately, allowing differences in co-localisation structure between groups to be identified.
+Metrics are reported for all samples pooled (**All**) and for each group separately.
+
+Numeric tables (fold-change and pairwise correlation per group) are written to
+`r paste0(if (exists("report_fn")) report_fn else "tables", "_tables.xlsx")`
+in the report's output directory — see sheets `Fold_Change`, `Cor_All`, `Cor_<group>`.
 
 ```{r cor-compute, echo=FALSE, include=FALSE, warning=FALSE, message=FALSE}
 
@@ -505,24 +567,27 @@ cor_datasets <- cor_datasets[!vapply(cor_datasets, is.null, logical(1))]
 
 ```
 
-## 4.1 Correlation table {.tabset .tabset-fade}
+## Correlation heat map {.tabset .tabset-fade}
 
-```{r cor-tbl, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=7.5, fig.height=6}
+```{r cor-hm, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=10, fig.height=8}
 
-for (grp_name in names(cor_datasets)) {
-  cat("### ", grp_name, "\n\n", sep = "")
-  tbl <- cor_datasets[[grp_name]]$pairs
-  print(htmltools::tagList(
-    DT::datatable(tbl, options = list(pageLength = 15, scrollX = TRUE))
-  ))
-  cat("\n\n")
+# Per-feature -> Met-1 mapping for grouping/colouring the triangular heatmaps.
+# Reuses feature_meta built in run_study.R; falls back to no grouping if absent.
+.feat_groups <- NULL
+.met_palette <- NULL
+if (exists("feature_meta") && !is.null(feature_meta) &&
+    exists("heatmap_row_split") && !is.null(heatmap_row_split) &&
+    nzchar(heatmap_row_split) &&
+    heatmap_row_split %in% colnames(feature_meta)) {
+  .fg <- as.character(feature_meta[[heatmap_row_split]])
+  .fg[is.na(.fg) | !nzchar(trimws(.fg))] <- "Other"
+  .feat_groups <- setNames(.fg, rownames(feature_meta))
+  .lvls <- unique(.fg)
+  .met_palette <- setNames(
+    grDevices::hcl.colors(max(length(.lvls), 2), palette = "Set 2")[seq_along(.lvls)],
+    .lvls
+  )
 }
-
-```
-
-## 4.2 Correlation heat map {.tabset .tabset-fade}
-
-```{r cor-hm, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=7.5, fig.height=6}
 
 for (grp_name in names(cor_datasets)) {
 
@@ -541,12 +606,58 @@ for (grp_name in names(cor_datasets)) {
     hc  <- cluster_from_sim(sim_mat)
     ord <- hc$labels[hc$order]
 
-    p <- plot_tri_heatmap(long_df, cor_type, ord)
+    p <- plot_tri_heatmap(long_df, cor_type, ord,
+                           feature_groups = .feat_groups,
+                           group_colors   = .met_palette,
+                           group_legend_name = if (!is.null(heatmap_row_split) &&
+                                                   nzchar(heatmap_row_split))
+                                                 heatmap_row_split else "Met-1")
     print(p)
     cat("\n\n")
   }
 }
 
+```
+
+```{r write-xlsx, echo=FALSE, include=FALSE, message=FALSE, warning=FALSE}
+.out <- if (exists("out_path") && nzchar(out_path)) out_path else "."
+.fn  <- if (exists("report_fn") && nzchar(report_fn)) report_fn else "tables"
+dir.create(.out, recursive = TRUE, showWarnings = FALSE)
+.xlsx_path <- normalizePath(file.path(.out, paste0(.fn, "_tables.xlsx")),
+                             mustWork = FALSE, winslash = "/")
+
+.sheets_added <- character()
+wb <- openxlsx::createWorkbook()
+
+if (exists("fc_tbl") && is.data.frame(fc_tbl) && nrow(fc_tbl) > 0) {
+  openxlsx::addWorksheet(wb, "Fold_Change")
+  openxlsx::writeDataTable(wb, "Fold_Change", fc_tbl,
+                            startRow = 1, tableStyle = "TableStyleLight9")
+  openxlsx::setColWidths(wb, "Fold_Change", cols = seq_len(ncol(fc_tbl)),
+                          widths = "auto")
+  .sheets_added <- c(.sheets_added, "Fold_Change")
+}
+
+if (exists("cor_datasets") && length(cor_datasets) > 0) {
+  for (.grp in names(cor_datasets)) {
+    .tbl <- cor_datasets[[.grp]]$pairs
+    if (is.null(.tbl) || !is.data.frame(.tbl) || nrow(.tbl) == 0) next
+    .sname <- substr(paste0("Cor_", gsub("[^A-Za-z0-9_]", "_", .grp)), 1, 31)
+    openxlsx::addWorksheet(wb, .sname)
+    openxlsx::writeDataTable(wb, .sname, .tbl,
+                              startRow = 1, tableStyle = "TableStyleLight9")
+    openxlsx::setColWidths(wb, .sname, cols = seq_len(ncol(.tbl)),
+                            widths = "auto")
+    .sheets_added <- c(.sheets_added, .sname)
+  }
+}
+
+if (length(.sheets_added) > 0) {
+  tryCatch(openxlsx::saveWorkbook(wb, .xlsx_path, overwrite = TRUE),
+           error = function(e) message("Failed to write xlsx: ", conditionMessage(e)))
+  message("Tables xlsx written to: ", .xlsx_path,
+          " — sheets: ", paste(.sheets_added, collapse = ", "))
+}
 ```
 
 # 5. Ion images {.tabset .tabset-fade}
@@ -560,6 +671,15 @@ Ion images of all tissue sections. Three rendering modes per feature:
 ```{r ion-img-dropdown, results="asis", echo=FALSE, include=TRUE, warning=FALSE, fig.width=7.5, fig.height=6}
 # ---- Helper to make safe HTML ids ----
 make_safe_id <- function(x) gsub("[^A-Za-z0-9_\\-]", "_", x)
+
+# Reorder pixels (columns of `combined`) so panels appear grouped by label.
+# combined has one column per PIXEL (not per sample), so we must compute the
+# sort key per pixel — using its run -> group label — not per sample.
+.pix_run <- as.character(pData(combined)$run)
+.pix_grp <- run_to_lab[.pix_run]
+.img_ord <- order(match(.pix_grp, unique(heatmap_labs)),
+                  match(.pix_run, heatmap_order))
+combined_img <- combined[, .img_ord]
 
 features <- as.character(fData(combined)$name)
 feature_ids <- vapply(features, make_safe_id, character(1))
@@ -621,12 +741,12 @@ for (i in seq_along(ord)) {
     grid::grid.text(msg, gp = grid::gpar(fontsize = 11, col = "grey40"))
   }
 
-  # Plot 1: Histogram normalization & scaled
+  # Plot 1: Histogram normalization & scaled (columns ordered by group)
   if (!has_signal) {
     blank_grid("Histogram normalization & scaled\n(No signal in any sample)")
   } else {
     tryCatch({
-      p1 <- image(combined, enhance = "histogram", scale = TRUE, mz = mz_val,
+      p1 <- image(combined_img, enhance = "histogram", scale = TRUE, mz = mz_val,
                   free = "xy", axes = FALSE, grid = FALSE) |>
         matter::set_title("Histogram normalization & scaled")
       plot(p1)
@@ -635,14 +755,14 @@ for (i in seq_along(ord)) {
     })
   }
 
-  # Plot 2: Scaled to 95th quantile
+  # Plot 2: Scaled to 95th quantile (columns ordered by group)
   # Subset to single feature, convert matter-backed array to plain matrix, cap at q95,
   # replace entire slot (sub-slice assignment does not persist in matter backend).
   if (!has_signal) {
     blank_grid("Scaled to 95th quantile\n(No signal in any sample)")
   } else {
     tryCatch({
-      combined_q95 <- combined[idx, ]
+      combined_q95 <- combined_img[idx, ]
       ints_q95 <- as.matrix(spectraData(combined_q95)[["intensity"]])
       if (is.finite(q95)) ints_q95[!is.na(ints_q95) & ints_q95 > q95] <- q95
       spectraData(combined_q95)[["intensity"]] <- ints_q95
@@ -655,13 +775,13 @@ for (i in seq_along(ord)) {
     })
   }
 
-  # Plot 3: No scaling or normalization (global colorscale across all samples)
+  # Plot 3: No scaling or normalization (columns ordered by group)
   # Same pattern: subset → plain matrix → replace full slot → scale=FALSE + zlim.
   if (!has_signal) {
     blank_grid("No scaling or normalization\n(No signal in any sample)")
   } else {
     tryCatch({
-      combined_p3 <- combined[idx, ]
+      combined_p3 <- combined_img[idx, ]
       ints_p3 <- as.matrix(spectraData(combined_p3)[["intensity"]])
       glim <- max(ints_p3, na.rm = TRUE)
       spectraData(combined_p3)[["intensity"]] <- ints_p3

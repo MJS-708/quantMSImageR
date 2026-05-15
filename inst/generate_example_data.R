@@ -20,13 +20,21 @@ x  <- rep(seq_len(nx), each = ny)
 y  <- rep(seq_len(ny), times = nx)
 n_pix <- nx * ny
 
-# Elliptical tissue mask centred on the grid
+# Tissue mask helpers — circle or square. Each section is shaped according to
+# its `shape` field so users can visually distinguish SampleA (circle) from
+# SampleB (square) in the rendered ion images.
 cx <- (nx + 1) / 2; cy <- (ny + 1) / 2
-rx <- 7;            ry <- 6
-tissue_mask <- ((x - cx)^2 / rx^2 + (y - cy)^2 / ry^2) <= 1
+
+make_mask <- function(shape) {
+  switch(shape,
+    circle = ((x - cx)^2 + (y - cy)^2) <= 7^2,
+    square = abs(x - cx) <= 6 & abs(y - cy) <= 6,
+    stop("Unknown shape: ", shape)
+  )
+}
 
 dist_from_centre <- sqrt((x - cx)^2 + (y - cy)^2)
-max_r            <- max(rx, ry)
+max_r            <- 7
 
 # -----------------------------------------------------------------------------
 # Feature definitions  (match example_ion_library.csv)
@@ -51,9 +59,10 @@ n_feat <- nrow(features)
 # Helper: build one section RDS
 # -----------------------------------------------------------------------------
 make_section <- function(section_name, seed_offset = 0L,
-                         tissue_mean_scale = 1) {
+                         tissue_mean_scale = 1, shape = "circle") {
   set.seed(42L + seed_offset)
 
+  tissue_mask    <- make_mask(shape)
   spatial_weight <- pmax(0, 1 - dist_from_centre / (max_r + 2))
 
   imat <- matrix(NA_real_, nrow = n_feat, ncol = n_pix)
@@ -108,20 +117,20 @@ out_dir <- file.path("inst", "extdata", "example.raw")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 sections <- list(
-  list(name = "section01", offset =  10L, scale = 1.0),
-  list(name = "section02", offset =  20L, scale = 1.0),
-  list(name = "section03", offset =  30L, scale = 1.0),
-  list(name = "section04", offset = 110L, scale = 0.6),
-  list(name = "section05", offset = 120L, scale = 0.6),
-  list(name = "section06", offset = 130L, scale = 0.6)
+  list(name = "section01", offset =  10L, scale = 1.0, shape = "circle"),
+  list(name = "section02", offset =  20L, scale = 1.0, shape = "circle"),
+  list(name = "section03", offset =  30L, scale = 1.0, shape = "circle"),
+  list(name = "section04", offset = 110L, scale = 0.6, shape = "square"),
+  list(name = "section05", offset = 120L, scale = 0.6, shape = "square"),
+  list(name = "section06", offset = 130L, scale = 0.6, shape = "square")
 )
 
 for (s in sections) {
   obj <- make_section(s$name, seed_offset = s$offset,
-                      tissue_mean_scale = s$scale)
+                      tissue_mean_scale = s$scale, shape = s$shape)
   path <- file.path(out_dir, paste0(s$name, ".RDS"))
   saveRDS(obj, path)
-  message("Saved ", path)
+  message("Saved ", path, " (", s$shape, ")")
 }
 
 message("Done — example data written to ", normalizePath(out_dir))

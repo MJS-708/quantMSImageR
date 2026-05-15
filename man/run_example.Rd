@@ -4,7 +4,12 @@
 \alias{run_example}
 \title{Run the quantMSImageR example study}
 \usage{
-run_example(render_report = TRUE, output_txt = FALSE, snr_thresh = 1.5)
+run_example(
+  render_report = TRUE,
+  output_txt = FALSE,
+  snr_thresh = 1.5,
+  shapes = NULL
+)
 }
 \arguments{
 \item{render_report}{Logical. Render and open the HTML report in the RStudio
@@ -15,23 +20,35 @@ temporary directory?  Default \code{FALSE}.}
 
 \item{snr_thresh}{Numeric. SNR threshold passed to \code{\link[=generate_txt_images]{generate_txt_images()}}.
 Default \code{1.5} (relaxed for synthetic data).}
+
+\item{shapes}{Character vector of tissue shapes to include — any of
+\code{"circle"}, \code{"square"}. \code{NULL} (the default) prompts interactively when
+\code{interactive()} is \code{TRUE}, otherwise both shapes are used.}
 }
 \value{
 Invisibly returns the list produced by \code{\link[=generate_txt_images]{generate_txt_images()}}.
 }
 \description{
 Executes the full DESI-MRM pipeline on a small synthetic dataset bundled
-with the package.  The dataset contains two samples (\code{SampleA}, \code{SampleB})
-each represented by three 20×20-pixel sections, and eight oxylipin features
-(seven analytes + one internal standard, all negative-ion mode).
+with the package.  The dataset contains two samples — \code{SampleA} (circular
+tissue, sections 01–03) and \code{SampleB} (square tissue, sections 04–06) —
+acquired on a panel of eight oxylipin features (seven analytes + one
+internal standard, all negative-ion mode).
 }
 \details{
+Distinct tissue shapes per sample make the rendered ion images visually
+easy to distinguish, and the bundled ion library carries a \code{Met-1} column
+(\code{COX}, \code{LOX}, \code{IS}) that drives the row-split colour bar in the report's
+main heatmap and the diagonal colour blocks in the correlation triangles.
+
 All file paths are resolved automatically via \code{\link[=system.file]{system.file()}}, so the
 example works on any machine without editing a YAML.
 }
 \examples{
 \dontrun{
-  run_example()
+  run_example()                       # interactive shape picker
+  run_example(shapes = "circle")      # SampleA only
+  run_example(shapes = c("circle","square"))   # both, no prompt
 }
 
 }

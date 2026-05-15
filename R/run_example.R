@@ -1,9 +1,15 @@
 #' Run the quantMSImageR example study
 #'
 #' Executes the full DESI-MRM pipeline on a small synthetic dataset bundled
-#' with the package.  The dataset contains two samples (`SampleA`, `SampleB`)
-#' each represented by three 20×20-pixel sections, and eight oxylipin features
-#' (seven analytes + one internal standard, all negative-ion mode).
+#' with the package.  The dataset contains two samples — `SampleA` (circular
+#' tissue, sections 01–03) and `SampleB` (square tissue, sections 04–06) —
+#' acquired on a panel of eight oxylipin features (seven analytes + one
+#' internal standard, all negative-ion mode).
+#'
+#' Distinct tissue shapes per sample make the rendered ion images visually
+#' easy to distinguish, and the bundled ion library carries a `Met-1` column
+#' (`COX`, `LOX`, `IS`) that drives the row-split colour bar in the report's
+#' main heatmap and the diagonal colour blocks in the correlation triangles.
 #'
 #' All file paths are resolved automatically via [system.file()], so the
 #' example works on any machine without editing a YAML.
@@ -14,18 +20,49 @@
 #'   temporary directory?  Default `FALSE`.
 #' @param snr_thresh Numeric. SNR threshold passed to [generate_txt_images()].
 #'   Default `1.5` (relaxed for synthetic data).
+#' @param shapes Character vector of tissue shapes to include — any of
+#'   `"circle"`, `"square"`. `NULL` (the default) prompts interactively when
+#'   `interactive()` is `TRUE`, otherwise both shapes are used.
 #'
 #' @return Invisibly returns the list produced by [generate_txt_images()].
 #'
 #' @examples
 #' \dontrun{
-#'   run_example()
+#'   run_example()                       # interactive shape picker
+#'   run_example(shapes = "circle")      # SampleA only
+#'   run_example(shapes = c("circle","square"))   # both, no prompt
 #' }
 #'
 #' @export
 run_example <- function(render_report = TRUE,
                         output_txt    = FALSE,
-                        snr_thresh    = 1.5) {
+                        snr_thresh    = 1.5,
+                        shapes        = NULL) {
+
+  available_shapes <- c("circle", "square")
+
+  # ---- Shape selection (interactive default) -------------------------------
+  if (is.null(shapes)) {
+    if (interactive()) {
+      message("\nSelect tissue shape(s) to include:")
+      idx <- utils::menu(c("Circle  (SampleA, sections 01-03)",
+                            "Square  (SampleB, sections 04-06)",
+                            "Both    (full example)"),
+                          title = "quantMSImageR example — shape filter")
+      shapes <- switch(as.character(idx),
+                        "1" = "circle",
+                        "2" = "square",
+                        "3" = available_shapes,
+                        available_shapes)  # 0 = quit -> default to both
+    } else {
+      shapes <- available_shapes
+    }
+  }
+  shapes <- intersect(shapes, available_shapes)
+  if (!length(shapes))
+    stop("`shapes` must contain at least one of: ",
+         paste(available_shapes, collapse = ", "))
+  message("Including shape(s): ", paste(shapes, collapse = ", "))
 
   tmp_dir  <- tempfile("quantMSImageR_example_")
   dir.create(tmp_dir, recursive = TRUE)
@@ -39,43 +76,47 @@ run_example <- function(render_report = TRUE,
   data_path    <- extdata          # example.raw/ lives inside extdata/
   image_dir    <- file.path(tmp_dir, "images", "Example")
 
-  heatmap_order  <- c("SampleA_1", "SampleA_2", "SampleA_3",
-                      "SampleB_1", "SampleB_2", "SampleB_3")
-  heatmap_labs   <- c("SampleA", "SampleA", "SampleA",
-                      "SampleB", "SampleB", "SampleB")
-  baseline_label <- "SampleA"
-
-  fns <- list(
-    list(neg = "example", section = "section01", label = "SampleA_1"),
-    list(neg = "example", section = "section02", label = "SampleA_2"),
-    list(neg = "example", section = "section03", label = "SampleA_3"),
-    list(neg = "example", section = "section04", label = "SampleB_1"),
-    list(neg = "example", section = "section05", label = "SampleB_2"),
-    list(neg = "example", section = "section06", label = "SampleB_3")
+  # ---- Section catalogue, filtered by selected shape(s) --------------------
+  all_sections <- list(
+    list(section = "section01", label = "SampleA_1", shape = "circle"),
+    list(section = "section02", label = "SampleA_2", shape = "circle"),
+    list(section = "section03", label = "SampleA_3", shape = "circle"),
+    list(section = "section04", label = "SampleB_1", shape = "square"),
+    list(section = "section05", label = "SampleB_2", shape = "square"),
+    list(section = "section06", label = "SampleB_3", shape = "square")
   )
+  selected <- Filter(function(s) s$shape %in% shapes, all_sections)
+
+  fns <- lapply(selected, function(s)
+    list(neg = "example", section = s$section, label = s$label))
+
+  heatmap_order  <- vapply(selected, `[[`, character(1), "label")
+  heatmap_labs   <- sub("_[0-9]+$", "", heatmap_order)
+  baseline_label <- heatmap_labs[1]   # whichever shape comes first
 
   sample_map <- data.frame(
     run_id    = heatmap_order,
     group     = heatmap_labs,
     neg_files = "example",
-    section   = c("section01", "section02", "section03",
-                  "section04", "section05", "section06"),
+    section   = vapply(selected, `[[`, character(1), "section"),
+    shape     = vapply(selected, `[[`, character(1), "shape"),
     stringsAsFactors = FALSE
   )
 
-  # ---- Demo: show what tissue selection looks like -------------------------
-  # Load one section RDS and display feature 1 (12-HHTrE) so users can see
-  # the tissue-vs-background contrast that select_tissue_pixels() uses.
+  # ---- Demo: tissue selection ---------------------------------------------
   message("\n--- Tissue pixel selection demo ---")
   message("In a real study you would run select_tissue_pixels() before the")
   message("YAML pipeline to interactively draw a tissue ROI and save")
   message("tissue_pixels.csv.  Here the mask is already embedded in the RDS.")
-  message("Displaying section01 / feature '12-HHTrE' as an example...")
+  message("Displaying the first selected section / feature 1 as an example...")
 
-  demo_rds <- readRDS(file.path(extdata, "example.raw", "section01.RDS"))
+  demo_section <- selected[[1]]$section
+  demo_rds <- readRDS(file.path(extdata, "example.raw",
+                                  paste0(demo_section, ".RDS")))
   dev.new()
   print(image(demo_rds, enhance = "histogram", i = 1L,
-              main = "Example: 12-HHTrE — use this to draw tissue ROI\n(select_tissue_pixels() opens this window interactively)"))
+              main = sprintf("Example: %s / feature 1 (%s)\n(select_tissue_pixels() opens this window interactively)",
+                              demo_section, selected[[1]]$shape)))
 
   message("------------------------------------------------------------------\n")
 
@@ -97,8 +138,18 @@ run_example <- function(render_report = TRUE,
     if (!nzchar(rmd) || !file.exists(rmd))
       stop("HTML report template not found — reinstall quantMSImageR.")
 
-    combined  <- result$combined_snr
-    html_file <- file.path(tmp_dir, "Example_SNR1.5_response_SNRfiltered.html")
+    # Variables the Rmd looks up in its parent env
+    combined          <- result$combined_snr
+    ion_lib_meta      <- read.csv(lib_ion_path, check.names = FALSE)
+    feature_meta      <- build_feature_meta(combined, ion_lib_meta)
+    heatmap_row_split <- "Met-1"
+    out_path          <- tmp_dir
+    report_fn         <- "Example"
+    ratios_cfg        <- NULL
+
+    html_file <- file.path(tmp_dir,
+                            paste0("Example_SNR", snr_thresh,
+                                    "_response_SNRfiltered.html"))
 
     rmarkdown::render(
       rmd,
@@ -108,7 +159,6 @@ run_example <- function(render_report = TRUE,
       quiet             = TRUE
     )
 
-    # Open in RStudio viewer pane if available, otherwise default browser
     if (requireNamespace("rstudioapi", quietly = TRUE) &&
         rstudioapi::isAvailable()) {
       rstudioapi::viewer(html_file)

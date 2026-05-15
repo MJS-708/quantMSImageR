@@ -4,7 +4,15 @@
 \alias{quantile_hm}
 \title{Quantile heatmap of MSI features across samples}
 \usage{
-quantile_hm(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = NA)
+quantile_hm(
+  MSIobject,
+  quant_val,
+  heatmap_order = NA,
+  heatmap_labs = NA,
+  row_split = NULL,
+  row_split_name = "Pathway",
+  column_split_name = "Group"
+)
 }
 \arguments{
 \item{MSIobject}{A \code{quant_MSImagingExperiment} object.}
@@ -19,6 +27,17 @@ discovery order).}
 \item{heatmap_labs}{Character vector of display labels, one per entry in
 \code{heatmap_order}. Used to create column-split groups. Defaults to \code{NA}
 (no splitting).}
+
+\item{row_split}{Optional character/factor vector of length equal to the
+number of features, used to split heatmap rows into labelled groups.
+Typically derived from an ion library metadata column (e.g. \code{Met-1}).
+Defaults to \code{NULL} (no row splitting).}
+
+\item{row_split_name}{Display name for the row-split annotation legend
+(e.g. \code{"Met-1"}, \code{"Pathway"}). Defaults to \code{"Pathway"}.}
+
+\item{column_split_name}{Display name for the column-split annotation
+legend (e.g. \code{"Treatment"}, \code{"Group"}). Defaults to \code{"Group"}.}
 }
 \value{
 A \code{ComplexHeatmap::Heatmap} object (rows = features, columns = samples).

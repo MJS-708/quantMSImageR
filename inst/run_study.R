@@ -76,18 +76,56 @@ image_dir     <- file.path(cfg$paths$image_dir, cfg$study)
 lib_ion_path  <- cfg$paths$lib_ion_path
 markdown_rmd  <- cfg$paths$markdown_rmd
 
-heatmap_labs  <- vapply(cfg$samples, `[[`, character(1), "label")
+# Ion library metadata for optional row annotations in heatmap.
+# Force UTF-8 on all character columns — Excel-on-Windows often saves
+# Windows-1252, which trips trimws()/sub() in the report.
+ion_lib_meta <- if (!is.null(lib_ion_path) && nzchar(lib_ion_path %||% "") &&
+                    file.exists(lib_ion_path))
+  read.csv(lib_ion_path, check.names = FALSE) else NULL
+if (!is.null(ion_lib_meta)) {
+  .chr <- vapply(ion_lib_meta, is.character, logical(1))
+  ion_lib_meta[.chr] <- lapply(ion_lib_meta[.chr], function(x)
+    iconv(x, from = "", to = "UTF-8", sub = ""))
+}
 
-# Unique run ID per sample: same as label when all labels are unique;
-# append _1, _2, ... when a label appears more than once (biological replicates).
+heatmap_labs  <- trimws(vapply(cfg$samples, `[[`, character(1), "label"))
+
+# Warn if any labels look like near-duplicates (differ only in case / _ vs space).
+# These would form separate groups and silently break baseline matching.
+.norm <- tolower(gsub("[ _]+", "_", heatmap_labs))
+.near <- heatmap_labs[duplicated(.norm) | duplicated(.norm, fromLast = TRUE)]
+if (length(.near)) {
+  warning(sprintf(
+    "Possible label typos — these labels differ only in case/underscores/spaces: %s\n  Verify your YAML.",
+    paste(sort(unique(.near)), collapse = ", ")
+  ))
+}
+rm(.norm, .near)
+
+# Unique run ID per sample. Honour an explicit `run_id` field per sample if
+# provided; otherwise fall back to label, appending _1, _2, … when a label
+# appears more than once (biological replicates).
+.explicit_id <- vapply(cfg$samples, function(s) {
+  if (!is.null(s$run_id) && nzchar(trimws(as.character(s$run_id))))
+    trimws(as.character(s$run_id)) else NA_character_
+}, character(1))
+
 .seen <- list()
 heatmap_order <- vapply(seq_along(heatmap_labs), function(i) {
+  if (!is.na(.explicit_id[i])) return(.explicit_id[i])
   lab <- heatmap_labs[i]
   if (sum(heatmap_labs == lab) == 1L) return(lab)
   .seen[[lab]] <<- (.seen[[lab]] %||% 0L) + 1L
   paste0(lab, "_", .seen[[lab]])
 }, character(1))
-rm(.seen)
+rm(.seen, .explicit_id)
+
+# Run IDs must be unique — otherwise pData$run can't disambiguate samples.
+if (anyDuplicated(heatmap_order)) {
+  .dup <- unique(heatmap_order[duplicated(heatmap_order)])
+  stop("Duplicate run_id values: ", paste(.dup, collapse = ", "),
+       ". Provide unique `run_id:` entries in the YAML.")
+}
 
 # Build fns list: each element has pos (string or list), neg (string or list),
 # and label.  pos: / neg: may be a single string or a YAML sequence.
@@ -123,16 +161,13 @@ thresh         <- cfg$parameters$thresh         %||% 20
 perc           <- cfg$parameters$perc           %||% 97
 rot_clockwise  <- cfg$parameters$rot_clockwise  %||% 0
 average_method <- cfg$parameters$average_method %||% "median"
-baseline_label <- cfg$parameters$baseline_label %||% heatmap_labs[1]
+baseline_label    <- trimws(cfg$parameters$baseline_label %||% heatmap_labs[1])
+heatmap_row_split <- cfg$parameters$heatmap_row_split %||% NULL
 
 render_report  <- cfg$output$render_report  %||% TRUE
 output_txt     <- cfg$output$output_txt     %||% TRUE
 output_ratios  <- cfg$output$output_ratios  %||% TRUE
-report_fn <- as.character(cfg$output$report_fn %||%
-  if (length(snr_thresh) == 1L)
-    paste0(cfg$study, "_SNR", snr_thresh[1])
-  else
-    paste0(cfg$study, "_multiSNR"))[1]
+# report_fn is set per-SNR inside the render loop (see below)
 
 # Feature overrides (optional)
 feat_exclude <- cfg$features$exclude %||% NULL
@@ -168,30 +203,55 @@ result <- generate_txt_images(
 # ---------------------------------------------------------------------------
 if (render_report) {
 
-  if (is.null(markdown_rmd) || !nzchar(markdown_rmd))
-    stop("render_report is TRUE but paths$markdown_rmd is not set in the YAML.")
-  if (!file.exists(markdown_rmd))
-    stop("Rmd not found: ", markdown_rmd)
+  # Fall back to the Rmd shipped with the installed package when the YAML
+  # doesn't set paths$markdown_rmd. This keeps the single source of truth in
+  # inst/ and avoids stale user-side copies drifting from the package.
+  if (is.null(markdown_rmd) || !nzchar(markdown_rmd)) {
+    markdown_rmd <- system.file("quantMSImageR___general_heatmap.Rmd",
+                                 package = "quantMSImageR")
+  }
+  if (!nzchar(markdown_rmd) || !file.exists(markdown_rmd))
+    stop("Rmd not found: ", markdown_rmd,
+         "\n  Set paths$markdown_rmd in the YAML, or reinstall the package.")
 
   dir.create(out_path, recursive = TRUE, showWarnings = FALSE)
 
   # Expose objects and metadata expected by the Rmd
-  combined    <- result$combined_snr
-  ratios_cfg  <- feat_ratios   # ratio pairs for section 6
+  ratios_cfg <- feat_ratios   # ratio pairs for section 6
   # heatmap_order, heatmap_labs, baseline_label already in scope
 
-  rmarkdown::render(
-    markdown_rmd,
-    output_file      = file.path(
-      out_path,
-      paste0(report_fn, "_response_SNRfiltered.html")
-    ),
-    intermediates_dir = out_path,
-    knit_root_dir     = out_path
-  )
+  # Render one report per SNR threshold. Each report's `combined` object is
+  # the SNR-filtered MSI for that threshold; `report_fn` is updated per
+  # iteration so the embedded xlsx (Fold_Change, Cor_*) lands beside the
+  # matching HTML.
+  snr_objs    <- result$combined_snr_list
+  user_pinned <- !is.null(cfg$output$report_fn) && nzchar(cfg$output$report_fn)
 
-  message("Report written to: ",
-          file.path(out_path, paste0(report_fn, "_response_SNRfiltered.html")))
+  for (.i in seq_along(snr_objs)) {
+
+    combined     <- snr_objs[[.i]]
+    feature_meta <- build_feature_meta(combined, ion_lib_meta)
+
+    # File-stem for this threshold. If the user explicitly pinned report_fn
+    # AND only one threshold is requested, honour that; otherwise auto-name
+    # per SNR so multiple runs don't clobber each other.
+    report_fn <- if (user_pinned && length(snr_objs) == 1L)
+      as.character(cfg$output$report_fn)[1] else
+      paste0(cfg$study, "_SNR", snr_thresh[.i])
+
+    out_file <- file.path(out_path,
+                          paste0(report_fn, "_response_SNRfiltered.html"))
+
+    message(sprintf("Rendering report %d/%d (SNR = %s) -> %s",
+                     .i, length(snr_objs), snr_thresh[.i], out_file))
+
+    rmarkdown::render(
+      markdown_rmd,
+      output_file       = out_file,
+      intermediates_dir = out_path,
+      knit_root_dir     = out_path
+    )
+  }
 }
 
 message("Done.")

@@ -7,28 +7,23 @@
 bind_polarities(pos_obj, neg_obj, label = NULL)
 }
 \arguments{
-\item{pos_obj}{A \code{MSImagingExperiment} from a positive-mode acquisition
-(e.g. via \code{\link[=read_mrm]{read_mrm()}}).}
+\item{pos_obj}{A positive-mode \code{MSImagingExperiment}.}
 
-\item{neg_obj}{A \code{MSImagingExperiment} from a negative-mode acquisition
-covering the same pixel grid as \code{pos_obj}.}
+\item{neg_obj}{A negative-mode \code{MSImagingExperiment} of the same tissue.}
 
-\item{label}{Character. Value written to \code{pData(result)$run}; use the
-sample display label (e.g. \code{"A1"}) so the merged object integrates
-cleanly with \code{\link[=combine_MSIs]{combine_MSIs()}} and \code{\link[=quantile_hm]{quantile_hm()}}. Defaults to the
-run label already in \code{pos_obj}.}
+\item{label}{Character. Optional. Written to \code{pData(result)$run}.}
 }
 \value{
-A \code{quant_MSImagingExperiment} with features from both polarities
-and pixel metadata from \code{pos_obj}.
+Equivalent to \code{bind_panels(pos_obj, neg_obj, label)}.
 }
 \description{
-Combines two \code{MSImagingExperiment} objects (one per ionisation polarity)
-that were acquired over the same pixel grid into a single object whose
-feature set spans both polarities. Feature names are taken as-is from the
-ion library (no prefix is added). Pixel metadata (coordinates, run label,
-tissue/noise classification) is taken from the positive-mode object.
+Deprecated. Forwards to \code{\link[=bind_panels]{bind_panels()}}, which generalises the operation
+to any two acquisitions of the same tissue (different polarities, different
+MRM panels) by matching pixels on \verb{(x, y)} rather than requiring identical
+pixel grids. The strict equality check the old implementation enforced
+rarely holds in practice — pos/neg pairs nearly always have slightly
+different pixel counts due to acquisition timing.
 }
 \seealso{
-\code{\link[=read_mrm]{read_mrm()}}, \code{\link[=combine_MSIs]{combine_MSIs()}}, \code{\link[=generate_txt_images]{generate_txt_images()}}
+\code{\link[=bind_panels]{bind_panels()}}
 }

@@ -27,7 +27,7 @@ generate_txt_images(
 for single-polarity studies. For dual-polarity studies pass a list where
 each element is either a plain string (single acquisition) or a named list
 with fields \code{pos}, \code{neg}, \code{label}, and optionally \code{prefix_pos}/\code{prefix_neg}
-(see \code{\link[=bind_polarities]{bind_polarities()}}). \code{run_study.R} builds this list automatically
+(see \code{\link[=bind_panels]{bind_panels()}}). \code{run_study.R} builds this list automatically
 from the YAML \code{samples} section.}
 
 \item{data_path}{Path to the folder that contains the \code{.raw} acquisition

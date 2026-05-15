@@ -111,12 +111,17 @@ select_tissue_pixels <- function(name,
   tissue_pixels <- selectROI(obj, enhance = enhance, i = feat_idx)
 
   # ---- Build and save CSV ---------------------------------------------------
+  # Coordinates make the mask portable across MRM panels of the same physical
+  # sample — pixel counts can differ between panels because of cycle timing,
+  # but (x, y) positions identify the same tissue region.
   tpdf <- data.frame(
+    x             = Cardinal::pData(obj)$x,
+    y             = Cardinal::pData(obj)$y,
     tissue_pixels = as.logical(tissue_pixels),
     noise_pixels  = !as.logical(tissue_pixels)
   )
 
-  write.csv(tpdf, out_csv)   # row names written for compatibility with existing files
+  write.csv(tpdf, out_csv, row.names = FALSE)
 
   n_tiss  <- sum(tpdf$tissue_pixels)
   n_noise <- sum(tpdf$noise_pixels)

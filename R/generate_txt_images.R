@@ -15,7 +15,7 @@
 #'   for single-polarity studies. For dual-polarity studies pass a list where
 #'   each element is either a plain string (single acquisition) or a named list
 #'   with fields `pos`, `neg`, `label`, and optionally `prefix_pos`/`prefix_neg`
-#'   (see [bind_polarities()]). `run_study.R` builds this list automatically
+#'   (see [bind_panels()]). `run_study.R` builds this list automatically
 #'   from the YAML `samples` section.
 #' @param data_path Path to the folder that contains the `.raw` acquisition
 #'   directories.
@@ -194,11 +194,50 @@ generate_txt_images <- function(
         obj <- as(obj, "quant_MSImagingExperiment")
     } else {
       obj  <- read_mrm(name = fn_name, folder = data_path, lib_ion_path = lib_ion_path)
-      tpdf <- read.csv(sprintf("%s/%s.raw/tissue_pixels.csv", data_path, fn_name))
-      pData(obj)$sample_name <- makeFactor(
-        tissue_pixels = tpdf[["tissue_pixels"]],
-        noise_pixels  = tpdf[["noise_pixels"]]
-      )
+      tpdf_path <- sprintf("%s/%s.raw/tissue_pixels.csv", data_path, fn_name)
+      tpdf <- read.csv(tpdf_path)
+
+      has_xy <- all(c("x", "y") %in% names(tpdf))
+
+      if (has_xy) {
+        # Coordinate-based matching — portable across MRM panels of the same
+        # physical sample. Pixels in the MSI without a CSV match are labelled
+        # noise (conservative; they are excluded from tissue quantiles).
+        key_obj <- paste(pData(obj)$x, pData(obj)$y, sep = "_")
+        key_csv <- paste(tpdf$x,        tpdf$y,        sep = "_")
+        midx    <- match(key_obj, key_csv)
+        is_tiss <- rep(FALSE, ncol(obj))
+        ok      <- !is.na(midx)
+        is_tiss[ok] <- as.logical(tpdf$tissue_pixels[midx[ok]])
+
+        n_unmatched <- sum(!ok)
+        if (n_unmatched > 0)
+          message(sprintf(
+            "  '%s': %d / %d MSI pixels not present in tissue_pixels.csv — labelled as noise.",
+            fn_name, n_unmatched, ncol(obj)))
+
+        pData(obj)$sample_name <- factor(
+          ifelse(is_tiss, "tissue_pixels", "noise_pixels"),
+          levels = c("tissue_pixels", "noise_pixels")
+        )
+      } else if (nrow(tpdf) == ncol(obj)) {
+        # Legacy mask — no coordinates, row-order alignment with current MSI
+        pData(obj)$sample_name <- makeFactor(
+          tissue_pixels = tpdf[["tissue_pixels"]],
+          noise_pixels  = tpdf[["noise_pixels"]]
+        )
+      } else {
+        stop(sprintf(
+          paste0("tissue_pixels.csv for '%s' has %d rows but the loaded MSI ",
+                 "has %d pixels, and the CSV has no x/y columns to match on.\n",
+                 "  CSV: %s\n",
+                 "  Regenerate the mask with the current package version (which ",
+                 "writes x/y columns) so it remains portable across MRM panels:\n",
+                 "    select_tissue_pixels(name = \"%s\", data_path = \"%s\", overwrite = TRUE)"),
+          fn_name, nrow(tpdf), ncol(obj), tpdf_path, fn_name, data_path
+        ))
+      }
+
       obj <- as(obj, "quant_MSImagingExperiment")
     }
     obj <- trim_MSI(MSI_data = obj)
@@ -214,13 +253,18 @@ generate_txt_images <- function(
     obj
   }
 
-  # Load one or more acquisitions of the same polarity, combine, set run label
+  # Load one or more acquisitions of the same polarity and merge them into a
+  # single MSI by coordinate-matched rbind. bind_panels() handles the typical
+  # case where two MRM panels of the same tissue sample at slightly different
+  # rates and therefore produce different pixel grids — pixels are matched on
+  # (x, y), features are stacked, so each matched pixel ends up with both
+  # panels' transitions.
   load_and_prep_multiple <- function(fns_vec, label) {
     fns_vec <- as.character(unlist(fns_vec))
     objs    <- lapply(fns_vec, load_and_prep_acq)
     obj     <- objs[[1]]
     for (i in seq_along(objs)[-1])
-      obj <- combine_MSIs(obj, objs[[i]])
+      obj <- bind_panels(obj, objs[[i]], label = label)
     pData(obj)$run <- factor(rep(label, ncol(obj)))
     obj
   }
@@ -261,7 +305,7 @@ generate_txt_images <- function(
         # Both polarities: combine within each polarity then bind across
         pos_obj <- load_and_prep_multiple(pos_fns, label = fn_label)
         neg_obj <- load_and_prep_multiple(neg_fns, label = fn_label)
-        tissue  <- bind_polarities(pos_obj, neg_obj, label = fn_label)
+        tissue  <- bind_panels(pos_obj, neg_obj, label = fn_label)
       } else {
         # Single polarity (pos: OR neg: only)
         tissue <- load_and_prep_multiple(pos_fns %||% neg_fns, label = fn_label)
