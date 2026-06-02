@@ -155,7 +155,7 @@ sample_map <- data.frame(
 # Drop section column if unused across the whole study
 if (all(sample_map$section == "")) sample_map$section <- NULL
 
-snr_thresh     <- as.numeric(unlist(cfg$parameters$snr_thresh %||% 3))
+snr_thresh     <- as.numeric(unlist(cfg$parameters$snr_thresh %||% 0))
 tiss_fc        <- cfg$parameters$tiss_fc        %||% 0.6
 thresh         <- cfg$parameters$thresh         %||% 20
 perc           <- cfg$parameters$perc           %||% 97

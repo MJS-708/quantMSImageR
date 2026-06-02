@@ -27,7 +27,9 @@
 #' @param snr_thresh Numeric scalar **or vector**. One or more minimum
 #'   signal-to-noise thresholds; pixels below each threshold are set to `NA`.
 #'   When a vector is supplied, one complete output directory tree is created
-#'   per threshold value (default `3`).
+#'   per threshold value. A value of `0` skips SNR filtering entirely *and*
+#'   removes the requirement for a `tissue_pixels.csv` mask — handy for a
+#'   smoke-test pass before ROIs are drawn (default `0`).
 #' @param tiss_fc Numeric. SNR threshold used for the tissue fold-change layer
 #'   (default `0.6`).
 #' @param thresh Numeric. Cold-spot percentile passed to `imageR()` as
@@ -83,7 +85,7 @@ generate_txt_images <- function(
   data_path,
   image_dir,
   lib_ion_path,
-  snr_thresh     = 3,
+  snr_thresh     = 0,
   tiss_fc        = 0.6,
   thresh         = 20,
   perc           = 97,
@@ -98,6 +100,14 @@ generate_txt_images <- function(
 
   average_method <- match.arg(average_method, c("mean", "median"))
   snr_thresh_vec <- sort(unique(as.numeric(unlist(snr_thresh))))
+
+  # If every requested threshold is 0, the pipeline can skip the tissue mask
+  # entirely (no SNR filtering, no tissue/background separation). A single
+  # tissue_pixels.csv-free smoke-test pass is then possible, useful for
+  # checking that acquisitions load cleanly before any ROI is drawn.
+  .needs_mask <- any(snr_thresh_vec > 0)
+  if (!.needs_mask)
+    message("snr_thresh = 0: running without tissue masks (raw intensities).")
 
   # ----- Internal helpers ------------------------------------------------
 
@@ -194,6 +204,29 @@ generate_txt_images <- function(
         obj <- as(obj, "quant_MSImagingExperiment")
     } else {
       obj  <- read_mrm(name = fn_name, folder = data_path, lib_ion_path = lib_ion_path)
+
+      # Skip tissue mask entirely when no SNR > 0 is requested. Every pixel
+      # is labelled `tissue_pixels` so downstream code that reads sample_name
+      # (e.g. report quantiles) treats the whole acquisition as tissue.
+      if (!.needs_mask) {
+        pData(obj)$sample_name <- factor(
+          rep("tissue_pixels", ncol(obj)),
+          levels = c("tissue_pixels", "noise_pixels")
+        )
+        obj <- as(obj, "quant_MSImagingExperiment")
+        obj <- trim_MSI(MSI_data = obj)
+        if (!is.null(exclude) && length(exclude) > 0) {
+          keep <- !fData(obj)$name %in% exclude
+          if (!all(keep)) {
+            message(sprintf("  Excluding %d transition(s): %s",
+                            sum(!keep),
+                            paste(fData(obj)$name[!keep], collapse = ", ")))
+            obj <- obj[keep, ]
+          }
+        }
+        return(obj)
+      }
+
       tpdf_path <- sprintf("%s/%s.raw/tissue_pixels.csv", data_path, fn_name)
       tpdf <- read.csv(tpdf_path)
 
@@ -315,20 +348,26 @@ generate_txt_images <- function(
       tissue <- load_and_prep_acq(fn_entry)
     }
 
-    tissue_fc <- int2snr(
+    tissue_fc <- if (.needs_mask) int2snr(
       MSIobject = tissue, val_slot = "intensity", sample_type = "sample_name",
       noise = "tissue_pixels", tissue = "tissue_pixels",
       snr_thresh = tiss_fc, average = average_method
-    )
+    ) else tissue
 
-    # Compute one SNR-filtered object per requested threshold
+    # Compute one SNR-filtered object per requested threshold. A threshold of
+    # 0 short-circuits to the raw `tissue` object (no SNR computation).
     for (si in seq_along(snr_thresh_vec)) {
-      tissue_snr <- int2snr(
-        MSIobject = tissue, val_slot = "intensity", sample_type = "sample_name",
-        noise = "noise_pixels", tissue = "tissue_pixels",
-        snr_thresh = snr_thresh_vec[si], average = average_method
-      )
-      tissue_snr <- applySNR(MSIobject = tissue_snr, val_slot = "intensity")
+      thr <- snr_thresh_vec[si]
+      tissue_snr <- if (thr == 0) {
+        tissue
+      } else {
+        tmp <- int2snr(
+          MSIobject = tissue, val_slot = "intensity", sample_type = "sample_name",
+          noise = "noise_pixels", tissue = "tissue_pixels",
+          snr_thresh = thr, average = average_method
+        )
+        applySNR(MSIobject = tmp, val_slot = "intensity")
+      }
 
       if (is.null(combined_snr_list[[si]])) {
         combined_snr_list[[si]] <- tissue_snr
@@ -349,11 +388,11 @@ generate_txt_images <- function(
     }
   }
 
-  combined_NAbackground <- back2NA(
+  combined_NAbackground <- if (.needs_mask) back2NA(
     combined, val_slot = "intensity",
     background = "noise_pixels", tissue = "tissue_pixels",
     sample_type = "sample_name"
-  )
+  ) else combined
 
   # Apply display-name overrides to all objects
   if (!is.null(rename) && length(rename) > 0) {

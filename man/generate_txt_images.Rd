@@ -9,7 +9,7 @@ generate_txt_images(
   data_path,
   image_dir,
   lib_ion_path,
-  snr_thresh = 3,
+  snr_thresh = 0,
   tiss_fc = 0.6,
   thresh = 20,
   perc = 97,
@@ -43,7 +43,9 @@ columns: \code{transition_id}, \code{precursor_mz}, \code{product_mz}, \code{col
 \item{snr_thresh}{Numeric scalar \strong{or vector}. One or more minimum
 signal-to-noise thresholds; pixels below each threshold are set to \code{NA}.
 When a vector is supplied, one complete output directory tree is created
-per threshold value (default \code{3}).}
+per threshold value. A value of \code{0} skips SNR filtering entirely \emph{and}
+removes the requirement for a \code{tissue_pixels.csv} mask — handy for a
+smoke-test pass before ROIs are drawn (default \code{0}).}
 
 \item{tiss_fc}{Numeric. SNR threshold used for the tissue fold-change layer
 (default \code{0.6}).}
