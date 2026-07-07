@@ -65,7 +65,6 @@ Collate:
     'int2response.R'
     'int2snr.R'
     'quantile_hm.R'
-    'read_mrm_combined.R'
     'remove_blank_mzs.R'
     'run_example.R'
     'select_tissue_pixels.R'

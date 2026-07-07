@@ -2,20 +2,39 @@
 % Please edit documentation in R/read_mrm.R
 \name{read_mrm}
 \alias{read_mrm}
-\title{Function to create data matrix from MSI object}
+\title{Read a Waters DESI-MRM acquisition into an MSImagingExperiment}
 \usage{
-read_mrm(name, folder, lib_ion_path, overwrite = T)
+read_mrm(name, folder, lib_ion_path, overwrite = TRUE)
 }
 \arguments{
-\item{name}{Name of Waters raw imaging file (including the imaging/Analyte 1.txt file after processing)}
+\item{name}{Acquisition name (without the \code{.raw} suffix).}
 
-\item{folder}{Location of folder with raw imaging data in}
+\item{folder}{Path to the directory that contains the \verb{<name>.raw/} folder.}
 
-\item{lib_ion_path}{Full path to library of transitions for targeted MSI experiments. Must include headers: 'transition_id',    'precursor_mz',    'product_mz',    'collision_eV',    'cone_V',    'Polarity',    'Type'. Where 'Type' is "Analyte" for analytes in tissue and "IS" for internal standards.}
+\item{lib_ion_path}{Full path to the ion-library CSV. Must contain columns
+\code{transition_id}, \code{precursor_mz}, \code{product_mz}, \code{collision_eV}, \code{cone_V},
+\code{Polarity}, \code{Type} (\code{"Analyte"} for in-tissue analytes, \code{"IS"} for
+internal standards). Additional metadata columns are preserved by
+downstream code via \code{\link[=build_feature_meta]{build_feature_meta()}}.}
+
+\item{overwrite}{Logical. When \code{TRUE} (default) the raw text files are
+re-parsed; when \code{FALSE} and a cached \code{MSImagingExperiment.rds} exists
+inside the \code{.raw} folder, it is returned instead.}
 }
 \value{
-MSIobject with slots updated for i) matrix of average ng/pixel of m/z (rows = m/z and cols = cal level) in tissue ROIs ii) sample/ROI metadata
+An \code{MSImagingExperiment} with feature metadata joined to the ion
+library, ready to pass into \code{\link[=generate_txt_images]{generate_txt_images()}} or
+\code{\link[=select_tissue_pixels]{select_tissue_pixels()}}.
 }
 \description{
-Function to create data matrix from MSI object
+Reads one or more analyte text files from \verb{<.raw>/imaging/}, matches
+transitions to the ion library on rounded (precursor, product) m/z, and
+constructs a \link[Cardinal:MSImagingExperiment-class]{Cardinal::MSImagingExperiment}. Handles both the
+single-file case (one combined \verb{Analyte 1.txt}, the modern QuanOptimise
+default) and the multi-file case (older exports that split transitions
+across several \verb{Analyte N.txt} files) transparently.
+}
+\details{
+Results are cached to \verb{<.raw>/MSImagingExperiment.rds}; pass
+\code{overwrite = TRUE} (the default) to re-parse from the raw text files.
 }

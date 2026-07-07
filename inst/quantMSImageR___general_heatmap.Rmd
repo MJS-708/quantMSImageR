@@ -221,7 +221,7 @@ if (exists("feature_meta") && !is.null(feature_meta) &&
 
 for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
 
-  cat( paste('## ', as.character(quant_value*100), "th quantile heatmap", '\n' ) )
+  cat( paste('## ', as.character(quant_value*100), "th quantile heatmap", '\n\n' ) )
 
   p = quantile_hm(MSIobject = combined,
                   quant_val = quant_value,
@@ -234,7 +234,19 @@ for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
                                      heatmap_row_split else "Pathway",
                   column_split_name = "Group")
 
-  print(p)  # Explicitly print the heatmap object
+  # ComplexHeatmap's draw() targets the active grid device. Inside a
+  # results="asis" chunk that device is the screen, not the chunk's PNG
+  # capture, so print(p) would spill the plot to the R session window
+  # instead of into the HTML. Render to a temp PNG and embed via base64.
+  .tmp <- tempfile(fileext = ".png")
+  grDevices::png(.tmp, width = 12, height = 7, units = "in", res = 150)
+  ComplexHeatmap::draw(p)
+  grDevices::dev.off()
+  cat(sprintf(
+    '<p><img src="%s" alt="quantile %g heatmap" style="max-width:100%%;height:auto;"/></p>\n',
+    knitr::image_uri(.tmp), quant_value
+  ))
+  unlink(.tmp)
 
   cat('\n \n')
 
@@ -664,9 +676,9 @@ if (length(.sheets_added) > 0) {
 
 Ion images of all tissue sections. Three rendering modes per feature:
 
-1. **Histogram normalised** — contrast enhanced per section; best for visualising spatial distribution within a section.
-2. **Raw intensities** — no normalisation or scaling; dominated by hotspots but preserves absolute differences between sections.
-3. **Global 95th-percentile scale** — intensities capped at the p95 across all sections; balances spatial detail with cross-section intensity comparability.
+1. **Scaled to 95th quantile** — intensities capped at the p95 across all sections; balances spatial detail with cross-section intensity comparability.
+2. **Histogram normalised** — contrast enhanced per section; best for visualising spatial distribution within a section.
+3. **No scaling or normalisation** — raw intensities; dominated by hotspots but preserves absolute differences between sections.
 
 ```{r ion-img-dropdown, results="asis", echo=FALSE, include=TRUE, warning=FALSE, fig.width=7.5, fig.height=6}
 # ---- Helper to make safe HTML ids ----
@@ -741,21 +753,7 @@ for (i in seq_along(ord)) {
     grid::grid.text(msg, gp = grid::gpar(fontsize = 11, col = "grey40"))
   }
 
-  # Plot 1: Histogram normalization & scaled (columns ordered by group)
-  if (!has_signal) {
-    blank_grid("Histogram normalization & scaled\n(No signal in any sample)")
-  } else {
-    tryCatch({
-      p1 <- image(combined_img, enhance = "histogram", scale = TRUE, mz = mz_val,
-                  free = "xy", axes = FALSE, grid = FALSE) |>
-        matter::set_title("Histogram normalization & scaled")
-      plot(p1)
-    }, error = function(e) {
-      blank_grid("Histogram normalization & scaled\n(No signal or error)")
-    })
-  }
-
-  # Plot 2: Scaled to 95th quantile (columns ordered by group)
+  # Plot 1: Scaled to 95th quantile (columns ordered by group)
   # Subset to single feature, convert matter-backed array to plain matrix, cap at q95,
   # replace entire slot (sub-slice assignment does not persist in matter backend).
   if (!has_signal) {
@@ -766,12 +764,26 @@ for (i in seq_along(ord)) {
       ints_q95 <- as.matrix(spectraData(combined_q95)[["intensity"]])
       if (is.finite(q95)) ints_q95[!is.na(ints_q95) & ints_q95 > q95] <- q95
       spectraData(combined_q95)[["intensity"]] <- ints_q95
-      p2 <- image(combined_q95, scale = FALSE, zlim = c(0, q95), mz = mz_val,
+      p1 <- image(combined_q95, scale = FALSE, zlim = c(0, q95), mz = mz_val,
                   free = "xy", axes = FALSE, grid = FALSE) |>
         matter::set_title("Scaled to 95th quantile")
-      plot(p2)
+      plot(p1)
     }, error = function(e) {
       blank_grid("Scaled to 95th quantile\n(No signal or error)")
+    })
+  }
+
+  # Plot 2: Histogram normalization & scaled (columns ordered by group)
+  if (!has_signal) {
+    blank_grid("Histogram normalization & scaled\n(No signal in any sample)")
+  } else {
+    tryCatch({
+      p2 <- image(combined_img, enhance = "histogram", scale = TRUE, mz = mz_val,
+                  free = "xy", axes = FALSE, grid = FALSE) |>
+        matter::set_title("Histogram normalization & scaled")
+      plot(p2)
+    }, error = function(e) {
+      blank_grid("Histogram normalization & scaled\n(No signal or error)")
     })
   }
 

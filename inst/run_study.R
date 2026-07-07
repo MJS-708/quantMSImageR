@@ -91,16 +91,20 @@ if (!is.null(ion_lib_meta)) {
 heatmap_labs  <- trimws(vapply(cfg$samples, `[[`, character(1), "label"))
 
 # Warn if any labels look like near-duplicates (differ only in case / _ vs space).
-# These would form separate groups and silently break baseline matching.
-.norm <- tolower(gsub("[ _]+", "_", heatmap_labs))
-.near <- heatmap_labs[duplicated(.norm) | duplicated(.norm, fromLast = TRUE)]
-if (length(.near)) {
+# Biological replicates legitimately share a label, so we only flag a collision
+# when MORE THAN ONE distinct original string normalises to the same value —
+# i.e. true near-duplicates like "Ctrl_M" vs "Ctrl M".
+.norm   <- tolower(gsub("[ _]+", "_", heatmap_labs))
+.by_n   <- split(heatmap_labs, .norm)
+.typos  <- .by_n[vapply(.by_n, function(x) length(unique(x)) > 1L, logical(1))]
+if (length(.typos)) {
+  .near <- sort(unique(unlist(.typos)))
   warning(sprintf(
     "Possible label typos — these labels differ only in case/underscores/spaces: %s\n  Verify your YAML.",
-    paste(sort(unique(.near)), collapse = ", ")
+    paste(.near, collapse = ", ")
   ))
 }
-rm(.norm, .near)
+rm(.norm, .by_n, .typos)
 
 # Unique run ID per sample. Honour an explicit `run_id` field per sample if
 # provided; otherwise fall back to label, appending _1, _2, … when a label

@@ -45,9 +45,14 @@ read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE) {
   # Read in ion library
   ion_lib <- read.csv(file = lib_ion_path, header = TRUE)
 
-  # Find experimental parameters
+  # Find experimental parameters. Waters writes _extern.inf in Windows-1252
+  # (non-ASCII bytes like 0xB0 for the degree symbol), so on a UTF-8 locale
+  # readLines() emits "invalid UTF-8" warnings on the temperature lines —
+  # harmless for the keyword scans below, but noisy. Decode as latin1.
   inf_file <- sprintf("%s/%s.raw/_extern.inf", folder, name)
-  lines    <- readLines(inf_file)
+  .con     <- file(inf_file, open = "r", encoding = "latin1")
+  on.exit(close(.con), add = TRUE)
+  lines    <- readLines(.con, warn = FALSE)
   ystep    <- strsplit(lines[grep("DesiYStep", lines)], "\t")[[1]]
   ystep    <- as.numeric(ystep[length(ystep)]) * 1000
   polarity <- strsplit(lines[grep("Polarity", lines)], "\t")[[1]][2]
