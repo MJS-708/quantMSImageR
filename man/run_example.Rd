@@ -7,8 +7,9 @@
 run_example(
   render_report = TRUE,
   output_txt = FALSE,
-  snr_thresh = 1.5,
-  shapes = NULL
+  snr_thresh = 3,
+  shapes = NULL,
+  calibrate = TRUE
 )
 }
 \arguments{
@@ -19,14 +20,21 @@ viewer or default browser?  Requires pandoc. Default \code{TRUE}.}
 temporary directory?  Default \code{FALSE}.}
 
 \item{snr_thresh}{Numeric. SNR threshold passed to \code{\link[=generate_txt_images]{generate_txt_images()}}.
-Default \code{1.5} (relaxed for synthetic data).}
+Default \code{3}.}
 
 \item{shapes}{Character vector of tissue shapes to include -- any of
 \code{"circle"}, \code{"square"}. \code{NULL} (the default) prompts interactively when
 \code{interactive()} is \code{TRUE}, otherwise both shapes are used.}
+
+\item{calibrate}{Logical. Also run the absolute-quantification demo on the
+bundled synthetic calibration standards (\code{summarise_cal_levels()} ->
+\code{create_cal_curve()} -> \code{int2conc()})? In a real study this step is driven
+by the YAML \verb{calibration:} block. Default \code{TRUE}.}
 }
 \value{
-Invisibly returns the list produced by \code{\link[=generate_txt_images]{generate_txt_images()}}.
+Invisibly returns the list produced by \code{\link[=generate_txt_images]{generate_txt_images()}}, with
+an added \code{calibrated} element (a \code{quant_MSImagingExperiment} carrying
+\code{conc - pg/pixel} and \code{conc - pg/mm2} layers) when \code{calibrate = TRUE}.
 }
 \description{
 Executes the full DESI-MRM pipeline on a small synthetic dataset bundled

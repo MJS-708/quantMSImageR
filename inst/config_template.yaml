@@ -49,18 +49,8 @@ features:
     enabled: False                     # False = keep original names
     #"8-isoPGE2 || PGE2": "PGE2"
 
-# ========================= ION RATIOS =========================
-ratios:                                # pixel-wise numerator / denominator images
-  enabled: False                       # False = skip ratios
-  entries:
-    - num:   "PGE2"
-      den:   "AA"
-      label: "PGE2 --- AA"
-
 # ========================= CALIBRATION =========================
-# Absolute quantification from on-slide / on-tissue standards. When enabled,
-# builds a response-vs-amount curve per lipid and converts tissue-pixel
-# intensities to pg/pixel and pg/mm2. Writes <report_fn>_calibrated.RDS.
+# Quantification from on-slide / on-tissue standards
 calibration:
   enabled: False                       # False = skip calibration
   cal_acquisition: "cal_run_slide1"    # .raw name of the standards acquisition
@@ -70,6 +60,14 @@ calibration:
   val_slot:        "intensity"         # slot to calibrate
   background_level: "background"       # 'level' value used as the std-addition blank
   quantify_pixels: ["tissue_pixels"]   # pixel label(s) in the study to quantify
+
+# ========================= ION RATIOS =========================
+ratios:                                # pixel-wise numerator / denominator images
+  enabled: False                       # False = skip ratios
+  entries:
+    - num:   "PGE2"
+      den:   "AA"
+      label: "PGE2 --- AA"
 
 # =========================== OUTPUTS ===========================
 output:

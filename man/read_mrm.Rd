@@ -29,7 +29,7 @@ library, ready to pass into \code{\link[=generate_txt_images]{generate_txt_image
 \description{
 Reads one or more analyte text files from \verb{<.raw>/imaging/}, matches
 transitions to the ion library on rounded (precursor, product) m/z, and
-constructs a \link[Cardinal:MSImagingExperiment-class]{Cardinal::MSImagingExperiment}. Handles both the
+constructs a \link[Cardinal:MSImagingExperiment]{Cardinal::MSImagingExperiment}. Handles both the
 single-file case (one combined \verb{Analyte 1.txt}, the modern QuanOptimise
 default) and the multi-file case (older exports that split transitions
 across several \verb{Analyte N.txt} files) transparently.

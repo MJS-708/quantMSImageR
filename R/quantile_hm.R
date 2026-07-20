@@ -107,8 +107,13 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
     )
     .col_args <- list(); .col_args[[column_split_name]] <- grp_cols
     .anno_args <- list(); .anno_args[[column_split_name]] <- cs
+    # show_legend = FALSE: the group colour bar is already labelled by the
+    # column titles, so its legend is redundant -- and drawing it alongside the
+    # row-group + Z-score legends triggers a ComplexHeatmap legend/viewport bug
+    # ("depth applied to NULL") with multiple column groups.
     top_anno <- do.call(ComplexHeatmap::HeatmapAnnotation,
-      c(.anno_args, list(col = .col_args, show_annotation_name = TRUE,
+      c(.anno_args, list(col = .col_args, show_legend = FALSE,
+                          show_annotation_name = TRUE,
                           annotation_name_side = "right")))
   }
 

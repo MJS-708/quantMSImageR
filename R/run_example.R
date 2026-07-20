@@ -19,12 +19,18 @@
 #' @param output_txt Logical. Write per-feature `.txt` image matrices to a
 #'   temporary directory?  Default `FALSE`.
 #' @param snr_thresh Numeric. SNR threshold passed to [generate_txt_images()].
-#'   Default `1.5` (relaxed for synthetic data).
+#'   Default `3`.
 #' @param shapes Character vector of tissue shapes to include -- any of
-#'   `"circle"`, `"square"`. `NULL` (the default) prompts interactively when
-#'   `interactive()` is `TRUE`, otherwise both shapes are used.
+#'   `"circle"`, `"square"`. `NULL` (the default) uses both, i.e. the full
+#'   two-group example (group A circle + group B square).
+#' @param calibrate Logical. Also run the absolute-quantification demo on the
+#'   bundled synthetic calibration standards (`summarise_cal_levels()` ->
+#'   `create_cal_curve()` -> `int2conc()`)? In a real study this step is driven
+#'   by the YAML `calibration:` block. Default `TRUE`.
 #'
-#' @return Invisibly returns the list produced by [generate_txt_images()].
+#' @return Invisibly returns the list produced by [generate_txt_images()], with
+#'   an added `calibrated` element (a `quant_MSImagingExperiment` carrying
+#'   `conc - pg/pixel` and `conc - pg/mm2` layers) when `calibrate = TRUE`.
 #'
 #' @examples
 #' \dontrun{
@@ -36,28 +42,16 @@
 #' @export
 run_example <- function(render_report = TRUE,
                         output_txt    = FALSE,
-                        snr_thresh    = 1.5,
-                        shapes        = NULL) {
+                        snr_thresh    = 3,
+                        shapes        = NULL,
+                        calibrate     = TRUE) {
 
   available_shapes <- c("circle", "square")
 
-  # ---- Shape selection (interactive default) -------------------------------
-  if (is.null(shapes)) {
-    if (interactive()) {
-      message("\nSelect tissue shape(s) to include:")
-      idx <- utils::menu(c("Circle  (SampleA, sections 01-03)",
-                            "Square  (SampleB, sections 04-06)",
-                            "Both    (full example)"),
-                          title = "quantMSImageR example -- shape filter")
-      shapes <- switch(as.character(idx),
-                        "1" = "circle",
-                        "2" = "square",
-                        "3" = available_shapes,
-                        available_shapes)  # 0 = quit -> default to both
-    } else {
-      shapes <- available_shapes
-    }
-  }
+  # ---- Shape selection -----------------------------------------------------
+  # Default to the full two-group example (both shapes: group A circle + group B
+  # square). Pass `shapes = "circle"` or `"square"` to restrict to one group.
+  if (is.null(shapes)) shapes <- available_shapes
   shapes <- intersect(shapes, available_shapes)
   if (!length(shapes))
     stop("`shapes` must contain at least one of: ",
@@ -108,15 +102,20 @@ run_example <- function(render_report = TRUE,
   message("In a real study you would run select_tissue_pixels() before the")
   message("YAML pipeline to interactively draw a tissue ROI and save")
   message("tissue_pixels.csv.  Here the mask is already embedded in the RDS.")
-  message("Displaying the first selected section / feature 1 as an example...")
+  message("Showing the tissue vs background mask for the first section...")
 
   demo_section <- selected[[1]]$section
   demo_rds <- readRDS(file.path(extdata, "example.raw",
                                   paste0(demo_section, ".RDS")))
-  dev.new()
-  print(image(demo_rds, enhance = "histogram", i = 1L,
-              main = sprintf("Example: %s / feature 1 (%s)\n(select_tissue_pixels() opens this window interactively)",
-                              demo_section, selected[[1]]$shape)))
+  .pd <- as.data.frame(pData(demo_rds))
+  print(
+    ggplot2::ggplot(.pd, ggplot2::aes(x, -y, fill = sample_name)) +
+      ggplot2::geom_tile() +
+      ggplot2::coord_fixed() +
+      ggplot2::labs(title = sprintf("Tissue vs background mask: %s", demo_section),
+                    fill = NULL) +
+      ggplot2::theme_minimal()
+  )
 
   message("------------------------------------------------------------------\n")
 
@@ -182,6 +181,39 @@ run_example <- function(render_report = TRUE,
       rstudioapi::viewer(html_file)
     } else {
       utils::browseURL(html_file)
+    }
+  }
+
+  # ---- Absolute quantification demo (calibration) --------------------------
+  # Runs the calibration chain on the bundled synthetic standards data. In a
+  # real study this is driven by the YAML `calibration:` block (which loads the
+  # standards acquisition via read_mrm); the synthetic standards ship as an RDS,
+  # so here we load them directly.
+  if (calibrate) {
+    cal_dir <- file.path(extdata, "cal_example.raw")
+    cal_rds <- file.path(cal_dir, "cal_MSI.RDS")
+    if (file.exists(cal_rds)) {
+      message("\n--- Absolute quantification demo (calibration) ---")
+      cal_obj  <- as(readRDS(cal_rds), "quant_MSImagingExperiment")
+      cal_meta <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
+
+      cal_obj <- summarise_cal_levels(cal_obj, cal_meta, val_slot = "intensity",
+                                      cal_label = "Cal", id = "identifier")
+      cal_obj <- create_cal_curve(cal_obj, cal_type = "cal")
+      cal_obj <- int2conc(cal_obj, val_slot = "intensity", pixels = "Tissue")
+
+      cal_out <- file.path(tmp_dir, "Example_calibrated.RDS")
+      saveRDS(cal_obj, cal_out)
+
+      .r2 <- cal_obj@calibrationInfo@r2_df
+      message("Per-lipid calibration curve R^2:")
+      message(paste(sprintf("  %-14s R2 = %.3f", .r2$feature, .r2$r2),
+                    collapse = "\n"))
+      message("Calibrated object (pg/pixel, pg/mm2) saved to: ", cal_out)
+
+      result$calibrated <- cal_obj
+    } else {
+      message("Calibration data not found in extdata; skipping quantification demo.")
     }
   }
 

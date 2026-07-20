@@ -1,10 +1,13 @@
 ---
-title: "Quantification of MSI data with quantMSImageR"
+title: "Introduction to quantMSImageR"
 author: "Matthew J. Smith"
 date: "`r Sys.Date()`"
-output: rmarkdown::html_vignette
+package: quantMSImageR
+output:
+  BiocStyle::html_document:
+    toc_float: true
 vignette: >
-  %\VignetteIndexEntry{Quantification of MSI data with quantMSImageR}
+  %\VignetteIndexEntry{Introduction to quantMSImageR}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -12,25 +15,50 @@ vignette: >
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", warning = FALSE,
                       message = FALSE)
-
-# Whether the synthetic calibration data has been generated (gates the
-# calibration chunk). Defined here so it is always available.
-cal_dir  <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
-have_cal <- nzchar(cal_dir) && file.exists(file.path(cal_dir, "cal_MSI.RDS"))
 ```
 
 # Introduction
 
-`quantMSImageR` extends [Cardinal](https://bioconductor.org/packages/Cardinal/)
-with tools for processing and **quantifying** targeted DESI-MRM mass
-spectrometry imaging (MSI) data: signal-to-noise (SNR) filtering,
-tissue/background separation, per-feature ion images, quantile heatmaps, and
-standards-based absolute quantification.
+`quantMSImageR` extends
+[Cardinal](https://bioconductor.org/packages/Cardinal/) with tools for
+processing and **quantifying** targeted DESI-MRM mass spectrometry imaging (MSI)
+data: signal-to-noise (SNR) filtering, tissue/background separation,
+per-feature ion images, and quantile heatmaps.
 
-This vignette walks through the core workflow on the small synthetic dataset
-bundled with the package. Every acquisition is a
-`Cardinal::MSImagingExperiment`; most `quantMSImageR` functions operate on the
-`quant_MSImagingExperiment` subclass, so we coerce first.
+This vignette walks through the core imaging workflow on the small synthetic
+dataset bundled with the package. Absolute quantification against calibration
+standards is covered separately in the *Absolute quantification with
+calibration standards* vignette
+(`vignette("quantification", package = "quantMSImageR")`).
+
+Every acquisition is a `Cardinal::MSImagingExperiment`; most `quantMSImageR`
+functions operate on the `quant_MSImagingExperiment` subclass, so we coerce
+first.
+
+# Installation
+
+```{r install, eval = FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("quantMSImageR")
+```
+
+# Quick start
+
+The fastest way to see the whole pipeline is `run_example()`, which runs the
+imaging workflow on two synthetic groups (**A**, circular tissue, n = 3;
+**B**, square tissue, n = 3), renders the HTML report, and also demonstrates
+absolute quantification on the bundled calibration standards:
+
+```{r quickstart, eval = FALSE}
+library(quantMSImageR)
+res <- run_example()          # both groups; imaging report + calibration demo
+res$calibrated                # the calibrated object
+```
+
+The rest of this vignette reproduces the key steps by hand.
+
+# Loading an acquisition
 
 ```{r load}
 library(quantMSImageR)
@@ -41,33 +69,87 @@ obj <- as(readRDS(p), "quant_MSImagingExperiment")
 obj
 ```
 
-# Signal-to-noise filtering
+# Selecting tissue pixels
 
-`int2snr()` computes a per-pixel signal-to-noise ratio for each feature against
-the noise pixels, and `applySNR()` masks intensities that fall below the
-threshold. The bundled sections carry an `intensity` slot and a `sample_name`
-column labelling `tissue_pixels` / `noise_pixels`.
+Before SNR filtering, each acquisition needs a tissue mask. `select_tissue_pixels()`
+displays every feature's ion image so you can pick the one that best separates
+tissue from background, then opens an interactive ROI selector:
 
-```{r snr}
-obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
-               noise = "noise_pixels", tissue = "tissue_pixels", snr_thresh = 3)
-obj <- applySNR(obj, val_slot = "intensity")
+```{r select, eval = FALSE}
+select_tissue_pixels(
+  name         = "my_acquisition",     # .raw folder name (no suffix)
+  data_path    = "D:/studies/raw",
+  lib_ion_path = "D:/studies/ion_library.csv"
+)
 ```
 
-# Ion images and quantile heatmaps
+It writes the resulting logical mask as `tissue_pixels.csv` **inside the
+acquisition's `.raw` folder**, where `int2snr()` (below) and
+`generate_txt_images()` read it to label `tissue_pixels` vs `noise_pixels`. The
+bundled sections already carry this mask embedded in their `sample_name` column,
+so the steps below run without it.
 
-`imageR()` returns a `ggplot` ion image for a chosen feature; `quantile_hm()`
-summarises each feature to a per-sample quantile and returns a
-`ComplexHeatmap::Heatmap`.
+# Ion images
+
+`imageR()` returns a `ggplot` ion image for a chosen feature:
 
 ```{r image, fig.small = TRUE}
 imageR(obj, feat_ind = 1, sample_lab = "run", scale = "suppress")
 ```
 
-```{r heatmap, fig.small = TRUE}
-hm <- quantile_hm(obj, quant_val = 0.5,
-                  heatmap_order = "section01", heatmap_labs = "A")
-hm
+# Quantile heatmaps across samples
+
+`quantile_hm()` summarises each feature to a per-sample quantile and returns a
+`ComplexHeatmap::Heatmap`, with columns grouped by study group. We combine the
+six bundled sections (three per group) into one object with `combine_MSIs()`:
+
+```{r combine}
+sections <- sprintf("section%02d", 1:6)
+objs <- lapply(sections, function(s)
+  readRDS(system.file("extdata", "example.raw", paste0(s, ".RDS"),
+                      package = "quantMSImageR")))
+combined <- do.call(combine_MSIs, objs)
+
+groups <- c("A", "A", "A", "B", "B", "B")   # sections 01-03 = A, 04-06 = B
+```
+
+The `quant_val` argument chooses which quantile summarises each feature -- a
+median (`0.5`) reflects the bulk of the tissue, while a high quantile (`0.95`)
+emphasises hot-spots:
+
+```{r heatmap-median, fig.small = TRUE}
+quantile_hm(combined, quant_val = 0.5,
+            heatmap_order = sections, heatmap_labs = groups)
+```
+
+```{r heatmap-95, fig.small = TRUE}
+quantile_hm(combined, quant_val = 0.95,
+            heatmap_order = sections, heatmap_labs = groups)
+```
+
+# Signal-to-noise filtering
+
+`int2snr()` computes a per-pixel signal-to-noise ratio for each feature against
+the noise pixels, and `applySNR()` then sets every sub-threshold pixel to `NA`
+in the intensity slot. Compare feature 1 before and after: the low-signal
+background is removed, leaving the tissue.
+
+```{r snr-before, fig.small = TRUE}
+# before -- raw intensity (background still present)
+imageR(obj, feat_ind = 1, sample_lab = "run", val_slot = "intensity",
+       scale = "suppress")
+```
+
+```{r snr-apply}
+obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
+               noise = "noise_pixels", tissue = "tissue_pixels", snr_thresh = 3)
+obj <- applySNR(obj, val_slot = "intensity")
+```
+
+```{r snr-after, fig.small = TRUE}
+# after -- pixels with SNR < 3 are masked out
+imageR(obj, feat_ind = 1, sample_lab = "run", val_slot = "intensity",
+       scale = "suppress")
 ```
 
 # Joining ion-library metadata
@@ -79,40 +161,49 @@ row grouping in reports.
 ```{r meta}
 lib <- read.csv(system.file("extdata", "example_ion_library.csv",
                             package = "quantMSImageR"), check.names = FALSE)
-fm <- build_feature_meta(obj, lib)
+fm <- build_feature_meta(combined, lib)
 head(fm[, c("name", "Met-1")])
 ```
 
-# Absolute quantification with calibration standards
+# Running a full study from a YAML config
 
-When a calibration standards acquisition is available, `quantMSImageR` fits a
-response-versus-amount curve per lipid and converts tissue-pixel intensities to
-`pg/pixel` and `pg/mm2`. The chain is
-`summarise_cal_levels()` -> `create_cal_curve()` -> `int2conc()`.
+In practice a whole study -- multiple acquisitions, SNR sweeps, fold-change
+layers, ion ratios and optional calibration -- is driven from a single YAML
+configuration. A minimal config looks like:
 
-The synthetic calibration dataset is produced by
-`inst/generate_cal_data.R`; the chunk below runs only when it is present.
-
-```{r calibration, eval = have_cal}
-cal  <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
-           "quant_MSImagingExperiment")
-cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
-
-cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
-                            cal_label = "Cal", id = "identifier")
-cal <- create_cal_curve(cal, cal_type = "cal")
-
-# R-squared per lipid curve
-cal@calibrationInfo@r2_df
-
-# convert tissue pixels to concentration
-cal <- int2conc(cal, val_slot = "intensity", pixels = "Tissue")
-range(spectra(cal, "conc - pg/mm2"), na.rm = TRUE)
+```yaml
+study: "my_study"
+paths:
+  data_path:    "D:/study/raw"
+  out_path:     "D:/study/results"
+  image_dir:    "D:/study/images"
+  lib_ion_path: "D:/study/ion_library.csv"
+samples:
+  - pos: "acq_ctrl"
+    run_id: "S1"
+    label:  "Ctrl"
+  - pos: "acq_treated"
+    run_id: "S2"
+    label:  "Treatment"
+parameters:
+  snr_thresh: [3]
+output:
+  render_report: true
 ```
 
-In a full study this calibration is driven from the YAML configuration (a
-`calibration:` block with the standards acquisition, ROI file and metadata),
-run via `source(system.file("run_study.R", package = "quantMSImageR"))`.
+The shipped template documents every option (SNR overrides, ratios,
+calibration, …) -- open it to use as a starting point:
+
+```{r yaml-template, eval = FALSE}
+file.show(system.file("config_template.yaml", package = "quantMSImageR"))
+```
+
+Point `CONFIG_FILE` at your filled-in config and source the runner:
+
+```{r run-study, eval = FALSE}
+CONFIG_FILE <- "path/to/study_config.yaml"
+source(system.file("run_study.R", package = "quantMSImageR"))
+```
 
 # Session info
 

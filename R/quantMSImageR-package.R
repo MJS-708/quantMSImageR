@@ -12,10 +12,11 @@
 #' @importFrom grDevices dev.new rainbow
 #' @importFrom grid unit
 #' @importFrom dplyr across all_of any_of arrange bind_rows distinct filter
-#'   group_by left_join mutate pull right_join row_number select summarise ungroup
-#' @importFrom ggplot2 aes discrete_scale element_blank element_line
-#'   element_rect element_text facet_grid geom_point geom_tile ggplot labs rel
-#'   theme theme_minimal
+#' @importFrom dplyr group_by left_join mutate pull right_join row_number select
+#' @importFrom dplyr summarise ungroup
+#' @importFrom ggplot2 aes discrete_scale element_blank element_line element_rect
+#' @importFrom ggplot2 element_text facet_grid geom_point geom_tile ggplot labs
+#' @importFrom ggplot2 rel theme theme_minimal
 #' @importFrom viridis scale_fill_viridis
 #' @importFrom chemCal inverse.predict
 #' @importFrom tibble tibble column_to_rownames rownames_to_column

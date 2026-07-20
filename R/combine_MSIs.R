@@ -28,6 +28,12 @@ setMethod("combine_MSIs", "MSImagingExperiment",
 
               MSIobject = as( cbind(MSIobject, objects[[ind]]), 'MSImagingExperiment')
 
+              # Cardinal's cbind() concatenates the two objects' featureData
+              # columns, so the accumulated fData grows and would not match the
+              # next section's fData on the following iteration. The features are
+              # identical across sections, so restore the shared fData each step.
+              fData(MSIobject) = f_data
+
             }
 
             MSIobject = as(MSIobject, "quant_MSImagingExperiment")

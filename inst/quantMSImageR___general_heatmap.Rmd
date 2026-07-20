@@ -270,12 +270,20 @@ for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
   # instead of into the HTML. Render to a temp PNG and embed via base64.
   .tmp <- tempfile(fileext = ".png")
   grDevices::png(.tmp, width = 12, height = 7, units = "in", res = 150)
-  ComplexHeatmap::draw(p)
+  # Some ComplexHeatmap versions throw "depth applied to NULL" while drawing
+  # several annotation legends; merging the legends avoids that code path.
+  .ok <- tryCatch({ ComplexHeatmap::draw(p); TRUE }, error = function(e)
+           tryCatch({ ComplexHeatmap::draw(p, merge_legends = TRUE); TRUE },
+                    error = function(e2) FALSE))
   grDevices::dev.off()
-  cat(sprintf(
-    '<p><img src="%s" alt="quantile %g heatmap" style="max-width:100%%;height:auto;"/></p>\n',
-    knitr::image_uri(.tmp), quant_value
-  ))
+  if (.ok) {
+    cat(sprintf(
+      '<p><img src="%s" alt="quantile %g heatmap" style="max-width:100%%;height:auto;"/></p>\n',
+      knitr::image_uri(.tmp), quant_value
+    ))
+  } else {
+    cat("*(heatmap could not be drawn on this ComplexHeatmap version)*\n\n")
+  }
   unlink(.tmp)
 
   cat('\n \n')

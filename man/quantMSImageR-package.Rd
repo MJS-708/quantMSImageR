@@ -20,7 +20,12 @@ Useful links:
 
 }
 \author{
-\strong{Maintainer}: Matthew Smith \email{mattyjsmith123@gmail.com} (\href{https://orcid.org/0000-0002-7357-2670}{ORCID})
+\strong{Maintainer}: Matthew J. Smith \email{mattyjsmith123@gmail.com} (\href{https://orcid.org/0000-0002-7357-2670}{ORCID})
+
+Authors:
+\itemize{
+  \item Matthew J. Smith \email{mattyjsmith123@gmail.com} (\href{https://orcid.org/0000-0002-7357-2670}{ORCID})
+}
 
 }
 \keyword{internal}
