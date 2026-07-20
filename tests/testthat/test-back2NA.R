@@ -1,7 +1,6 @@
 require(testthat)
 require(quantMSImageR)
 
-context("back2NA: background pixels set to NA")
 
 make_obj <- function(sample_ids) {
   fdata <- MassDataFrame(mz = 1:2, name = c("feat_1", "feat_2"))

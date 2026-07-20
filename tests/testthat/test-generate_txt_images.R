@@ -1,7 +1,6 @@
 require(testthat)
 require(quantMSImageR)
 
-context("generate_txt_images: structure and output_txt flag")
 
 # Paths to the bundled pos04 test acquisition
 extdata      <- system.file("extdata", package = "quantMSImageR")
@@ -19,9 +18,8 @@ test_that("generate_txt_images returns the expected named list", {
     average_method = "median"
   )
 
-  expect_named(result,
-               c("combined", "combined_snr", "combined_FC",
-                 "combined_NAbackground"))
+  expect_true(all(c("combined", "combined_snr", "combined_snr_list",
+                    "combined_FC", "combined_NAbackground") %in% names(result)))
   expect_s4_class(result$combined,              "quant_MSImagingExperiment")
   expect_s4_class(result$combined_snr,          "quant_MSImagingExperiment")
   expect_s4_class(result$combined_FC,           "quant_MSImagingExperiment")

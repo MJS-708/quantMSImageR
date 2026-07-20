@@ -48,6 +48,14 @@ acquisitions) are handled transparently.  It is also exported so that it
 can be used directly in custom scripts or Rmd reports whenever two
 \code{quant_MSImagingExperiment} objects need to be combined.
 }
+\examples{
+p1 <- system.file("extdata", "example.raw", "section01.RDS",
+                  package = "quantMSImageR")
+p2 <- system.file("extdata", "example.raw", "section02.RDS",
+                  package = "quantMSImageR")
+al <- align_features(readRDS(p1), readRDS(p2))
+
+}
 \seealso{
 \code{\link{combine_MSIs}}, \code{\link{generate_txt_images}}
 }

@@ -2,7 +2,13 @@
 #'
 #' Class to store information about the calibration spots
 #'
+#' @return An object of class `calibrationInfo`.
+#'
+#' @examples
+#' ci <- calibrationInfo()
+#'
 #' @name calibrationInfo
+#' @aliases calibrationInfo-class
 #' @export
 calibrationInfo = setClass("calibrationInfo",
          slots = c(
@@ -15,9 +21,15 @@ calibrationInfo = setClass("calibrationInfo",
 
 #' tissueInfo
 #'
-#' Class to store information about the calibration spots
+#' Class to store information about the tissue pixels and ROIs
+#'
+#' @return An object of class `tissueInfo`.
+#'
+#' @examples
+#' ti <- tissueInfo()
 #'
 #' @name tissueInfo
+#' @aliases tissueInfo-class
 #' @export
 tissueInfo = setClass("tissueInfo",
                            slots = c(
@@ -33,8 +45,17 @@ tissueInfo = setClass("tissueInfo",
 #'
 #' Class containting calibration metadata and MSImaging experiment
 #'
+#' @return An object of class `quant_MSImagingExperiment`, extending
+#'   `Cardinal::MSImagingExperiment` with `calibrationInfo` and `tissueInfo` slots.
+#'
+#' @examples
+#' p <- system.file("extdata", "example.raw", "section01.RDS",
+#'                  package = "quantMSImageR")
+#' obj <- as(readRDS(p), "quant_MSImagingExperiment")
+#'
 #' @import Cardinal
 #' @name quant_MSImagingExperiment
+#' @aliases quant_MSImagingExperiment-class
 #' @export
 quant_MSImagingExperiment = setClass("quant_MSImagingExperiment",
          contains = 'MSImagingExperiment',

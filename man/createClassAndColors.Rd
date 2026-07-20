@@ -2,7 +2,7 @@
 % Please edit documentation in R/ggplot_themes.R
 \name{createClassAndColors}
 \alias{createClassAndColors}
-\title{Ggplot2 pal for publication figures}
+\title{Build an ordered class factor and matching colour palette}
 \usage{
 createClassAndColors(
   class,
@@ -14,6 +14,23 @@ createClassAndColors(
     "#778899", "#fb9a99", "#ffff33")
 )
 }
+\arguments{
+\item{class}{Vector of class labels (character or factor).}
+
+\item{QC_label, Blank_label}{Labels treated as QC / Blank and pinned to the
+front of the ordering with fixed colours.}
+
+\item{QC_color, Blank_color}{Colours for the QC / Blank classes.}
+
+\item{manual_color}{Colour vector used for the remaining classes.}
+}
+\value{
+A list with \code{class} (an ordered factor) and \code{manual_colors}.
+}
 \description{
-Ggplot2 pal for publication figures
+Build an ordered class factor and matching colour palette
+}
+\examples{
+createClassAndColors(class = c("Sample", "Sample", "QC", "Blank"))
+
 }

@@ -3,7 +3,15 @@
 \docType{class}
 \name{tissueInfo}
 \alias{tissueInfo}
+\alias{tissueInfo-class}
 \title{tissueInfo}
+\value{
+An object of class \code{tissueInfo}.
+}
 \description{
-Class to store information about the calibration spots
+Class to store information about the tissue pixels and ROIs
+}
+\examples{
+ti <- tissueInfo()
+
 }

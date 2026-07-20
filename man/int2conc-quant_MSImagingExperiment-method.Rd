@@ -2,6 +2,7 @@
 % Please edit documentation in R/int2conc.R
 \name{int2conc,quant_MSImagingExperiment-method}
 \alias{int2conc,quant_MSImagingExperiment-method}
+\alias{int2conc}
 \title{Function to update intensity with concentration values}
 \usage{
 \S4method{int2conc}{quant_MSImagingExperiment}(
@@ -16,6 +17,8 @@
 
 \item{val_slot}{character defining slot name to normalise - takes "intensity" as default}
 
+\item{pixel_header}{Column in pData() holding the pixel-type labels (default "sample_type")}
+
 \item{pixels}{Label in pixel metadata the pixels to quantify}
 }
 \value{
@@ -23,4 +26,15 @@ MSIobject with intensity values replaced with concentration values (ng/pixel)
 }
 \description{
 Function to update intensity with concentration values
+}
+\examples{
+cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
+cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
+          "quant_MSImagingExperiment")
+cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
+cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
+                            cal_label = "Cal", id = "identifier")
+cal <- create_cal_curve(cal, cal_type = "cal")
+cal <- int2conc(cal, val_slot = "intensity", pixels = "Tissue")
+
 }

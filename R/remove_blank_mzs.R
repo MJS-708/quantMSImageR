@@ -1,5 +1,3 @@
-library(Cardinal)
-
 setGeneric("remove_blank_mzs", function(MSIobject) standardGeneric("remove_blank_mzs"))
 
 #' Function to remove m/z values with no data.
@@ -9,12 +7,19 @@ setGeneric("remove_blank_mzs", function(MSIobject) standardGeneric("remove_blank
 #' @param MSIobject MSI object from Cardinal
 #' @return MSIobject with m/z values from experiment with no data removed.
 #'
+#' @examples
+#' p <- system.file("extdata", "example.raw", "section01.RDS",
+#'                  package = "quantMSImageR")
+#' obj <- as(readRDS(p), "quant_MSImagingExperiment")
+#' obj <- remove_blank_mzs(obj)
+#'
+#' @aliases remove_blank_mzs
 #' @export
 setMethod("remove_blank_mzs", "quant_MSImagingExperiment",
           function(MSIobject){
 
             remove_inds = c()
-            for(mz_ind in 1:nrow(fData(MSIobject))){
+            for(mz_ind in seq_len(nrow(fData(MSIobject)))){
               if(all(is.na(spectra(MSIobject)[mz_ind, ]))){
                 remove_inds = c(remove_inds, mz_ind)
               }

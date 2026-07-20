@@ -2,6 +2,7 @@
 % Please edit documentation in R/back2NA.R
 \name{back2NA,quant_MSImagingExperiment-method}
 \alias{back2NA,quant_MSImagingExperiment-method}
+\alias{back2NA}
 \title{Set background pixel intensities to NA}
 \usage{
 \S4method{back2NA}{quant_MSImagingExperiment}(
@@ -27,6 +28,8 @@ Currently unused but kept for API symmetry with \code{int2snr}.}
 
 \item{sample_type}{Character. Column name in \code{pData()} holding pixel-type
 labels (default \code{"sample_type"}).}
+
+\item{...}{Additional arguments (currently unused).}
 }
 \value{
 The input \code{quant_MSImagingExperiment} with background pixels set to
@@ -36,4 +39,12 @@ found.
 \description{
 Replaces the spectral values of background/noise pixels with \code{NA} in a
 chosen intensity slot. Tissue pixels are left unchanged.
+}
+\examples{
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- as(readRDS(p), "quant_MSImagingExperiment")
+obj <- back2NA(obj, val_slot = "intensity", background = "noise_pixels",
+               tissue = "tissue_pixels", sample_type = "sample_name")
+
 }

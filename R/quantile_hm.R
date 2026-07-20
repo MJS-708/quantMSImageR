@@ -6,8 +6,6 @@
 #' features; columns are samples in the order given by `heatmap_order`.
 #'
 #' @import Cardinal
-#' @import ComplexHeatmap
-#' @import matrixStats
 #' @include setClasses.R
 #'
 #' @param MSIobject A `quant_MSImagingExperiment` object.
@@ -30,6 +28,13 @@
 #'
 #' @return A `ComplexHeatmap::Heatmap` object (rows = features, columns = samples).
 #'
+#' @examples
+#' p <- system.file("extdata", "example.raw", "section01.RDS",
+#'                  package = "quantMSImageR")
+#' obj <- as(readRDS(p), "quant_MSImagingExperiment")
+#' hm <- quantile_hm(obj, quant_val = 0.5,
+#'                   heatmap_order = "section01", heatmap_labs = "A")
+#'
 #' @export
 
 quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = NA,
@@ -48,7 +53,7 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
   out_matrix = matrix(NA, ncol = length(sample_names), nrow = length(featurenames))
 
   # Loop to fill the out_matrix with quantile values
-  for(col in 1:length(sample_names)){
+  for(col in seq_along(sample_names)){
     subsetMSI = MSIobject[, which(pData(MSIobject)$run == sample_names[col])]
 
     intensity_data = spectraData(subsetMSI)[["intensity"]]

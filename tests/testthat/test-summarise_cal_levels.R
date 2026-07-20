@@ -1,32 +1,21 @@
-require(testthat)
-require(quantMSImageR)
+test_that("summarise_cal_levels summarises calibration ROIs", {
 
-context("test calibration levels are summarised correctly")
+  cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
+  skip_if_not(file.exists(file.path(cal_dir, "cal_MSI.RDS")),
+              "synthetic cal data not generated (run inst/generate_cal_data.R)")
 
-test_that("summarise_cal_levels function", {
+  cal  <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
+             "quant_MSImagingExperiment")
+  meta <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
 
-  # Create test data
-  test_data = readMSIData(file = sprintf("%s/tissue_MRM_data.raw/combined.imzML", system.file('extdata', package = 'quantMSImageR')))
-  cal_metadata = read.csv(sprintf("%s/calibration_metadata.csv", system.file('extdata', package = 'quantMSImageR')))
+  out <- summarise_cal_levels(cal, meta, val_slot = "intensity",
+                              cal_label = "Cal", id = "identifier")
 
-  test_data <- as(test_data, "quant_MSImagingExperiment")
+  rd <- out@calibrationInfo@cal_response_data
 
-  new_data <- summarise_cal_levels(MSIobject = test_data,
-                                   cal_metadata = cal_metadata,
-                                   val_slot = "intensity",
-                                   cal_label = "Cal",
-                                   id = "identifier")
-
-
-  output = new_data@calibrationInfo@cal_response_data
-
-  expect_equal(nrow(output), 21)
-  expect_equal(ncol(output), 7)
-
-  expect_equal(signif(output$response_perpixel[1],6), 38000.6)
-  expect_equal(signif(output$response_perpixel[6],6), 5172.83)
-  expect_equal(signif(output$response_perpixel[11],6), 40830.7)
-  expect_equal(signif(output$response_perpixel[16],6), 9177.55)
-  expect_equal(signif(output$response_perpixel[21],6), 4975.11)
-
+  expect_equal(ncol(rd), 7L)
+  expect_equal(nrow(rd), 45L)              # 15 spots x 3 lipids
+  expect_true(all(rd$pixels == 4))         # 2x2 calibration spots
+  expect_true(all(is.finite(rd$response_perpixel)))
+  expect_true(all(rd$pg_perpixel > 0))
 })

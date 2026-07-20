@@ -2,12 +2,13 @@
 % Please edit documentation in R/createMSIDatamatrix.R
 \name{createMSIDatamatrix,quant_MSImagingExperiment-method}
 \alias{createMSIDatamatrix,quant_MSImagingExperiment-method}
+\alias{createMSIDatamatrix}
 \title{Function to create data matrix from MSI object}
 \usage{
 \S4method{createMSIDatamatrix}{quant_MSImagingExperiment}(
   MSIobject,
   val_slot = "intensity",
-  inputNA = T,
+  inputNA = TRUE,
   roi_header = NA
 )
 }
@@ -16,7 +17,7 @@
 
 \item{val_slot}{character defining slot name to normalise - takes "intensity" as default}
 
-\item{inputNA}{Whether to convert 0's in matrix to NA (default = T)}
+\item{inputNA}{Whether to convert 0's in matrix to NA (default = TRUE)}
 
 \item{roi_header}{Header in pData pertaining to ROIs to average. Set to NA to skip generating average df}
 }
@@ -25,4 +26,11 @@ MSIobject with slots updated for i) matrix of average ng/pixel of m/z (rows = m/
 }
 \description{
 Function to create data matrix from MSI object
+}
+\examples{
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- as(readRDS(p), "quant_MSImagingExperiment")
+obj <- createMSIDatamatrix(obj, val_slot = "intensity", roi_header = NA)
+
 }

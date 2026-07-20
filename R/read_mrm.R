@@ -11,7 +11,6 @@
 #' `overwrite = TRUE` (the default) to re-parse from the raw text files.
 #'
 #' @import Cardinal
-#' @import dplyr
 #' @include setClasses.R
 #'
 #' @param name Acquisition name (without the `.raw` suffix).
@@ -28,6 +27,14 @@
 #' @return An `MSImagingExperiment` with feature metadata joined to the ion
 #'   library, ready to pass into [generate_txt_images()] or
 #'   [select_tissue_pixels()].
+#'
+#' @examples
+#' # Return a previously parsed acquisition from its cached .rds
+#' folder <- system.file("extdata", package = "quantMSImageR")
+#' lib <- system.file("extdata", "ion_library_pos04.csv",
+#'                    package = "quantMSImageR")
+#' obj <- read_mrm("pos04_test", folder = folder, lib_ion_path = lib,
+#'                 overwrite = FALSE)
 #'
 #' @export
 read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE) {
@@ -47,7 +54,7 @@ read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE) {
 
   # Find experimental parameters. Waters writes _extern.inf in Windows-1252
   # (non-ASCII bytes like 0xB0 for the degree symbol), so on a UTF-8 locale
-  # readLines() emits "invalid UTF-8" warnings on the temperature lines —
+  # readLines() emits "invalid UTF-8" warnings on the temperature lines --
   # harmless for the keyword scans below, but noisy. Decode as latin1.
   inf_file <- sprintf("%s/%s.raw/_extern.inf", folder, name)
   .con     <- file(inf_file, open = "r", encoding = "latin1")
@@ -66,15 +73,24 @@ read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE) {
   # imaging/ may contain one analyte text file (modern QuanOptimise) or
   # several (older split exports). Iterate over all of them and combine.
   analyte_fns <- list.files(imaging_folder, full.names = TRUE)
-  if (length(analyte_fns) == 0)
+  if (length(analyte_fns) == 0) {
+    # No raw text to (re)parse. Fall back to the cached object if present so
+    # bundled acquisitions that ship only the .rds (no imaging/ folder) still
+    # load, rather than erroring.
+    if (file.exists(rds_fn)) {
+      message("read_mrm: no analyte text files in ", imaging_folder,
+              "; returning cached MSImagingExperiment.rds.")
+      return(readRDS(rds_fn))
+    }
     stop("read_mrm: no analyte text files found in ", imaging_folder)
+  }
 
   result <- purrr::map(analyte_fns, function(analyte_fn) {
     temp_analyte <- read.table(analyte_fn, fill = TRUE, sep = "\t",
                                 header = FALSE, blank.lines.skip = TRUE)[-1, ]
 
     # Extract transitions (first 3 rows: transition_id, precursor, product)
-    temp_transitions <- t(temp_analyte[1:3, ]) |>
+    temp_transitions <- t(temp_analyte[seq_len(3), ]) |>
       `colnames<-`(c("transition_id", "precursor_mz", "product_mz")) |>
       na.omit() |>
       as.data.frame()
@@ -87,7 +103,7 @@ read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE) {
 
     temp_analyte <- temp_analyte |>
       `colnames<-`(col_heads) |>
-      dplyr::filter(!dplyr::row_number() %in% 1:3) |>
+      dplyr::filter(!dplyr::row_number() %in% seq_len(3)) |>
       dplyr::mutate(x = NA, y = NA, fn = basename(analyte_fn))
 
     # Map x_loci values to sequential integer x indices
@@ -123,7 +139,7 @@ read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE) {
   pdata <- PositionDataFrame(run = run, coord = coord)
 
   # Round precursors and products to 0 dp for the join (matches m/z key behaviour
-  # used throughout the package — see build_feature_meta()).
+  # used throughout the package -- see build_feature_meta()).
   transitions <- transitions |>
     dplyr::mutate(precursor_mz = round(precursor_mz, digits = 0),
                   product_mz   = round(product_mz,   digits = 0))
@@ -162,10 +178,10 @@ read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE) {
     dplyr::arrange(precursor_mz, product_mz, transition_id_int) |>
     dplyr::mutate(new_transition_int = dplyr::row_number())
 
-  # intensity data — pull each transition's column from the wide analyte_df
-  idata <- t(sapply(ion_lib$transition_id_int, FUN = function(x) {
-    analyte_df[, which(colnames(analyte_df) == sprintf("transition_%s", x))]
-  }))
+  # intensity data -- pull each transition's column from the wide analyte_df
+  trans_cols <- match(sprintf("transition_%s", ion_lib$transition_id_int),
+                      colnames(analyte_df))
+  idata <- t(as.matrix(analyte_df[, trans_cols, drop = FALSE]))
 
   # feature metadata
   fdata <- MassDataFrame(

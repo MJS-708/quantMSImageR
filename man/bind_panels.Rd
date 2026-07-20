@@ -33,13 +33,21 @@ different MRM panels or polarities almost always sample at slightly
 different rates and therefore produce different grids).
 }
 \details{
-Pixels present in only one input are dropped — a small percentage of edge
+Pixels present in only one input are dropped -- a small percentage of edge
 coverage in the more densely sampled acquisition typically. Pixels present
 in both keep real intensities from both inputs, so cross-panel /
 cross-polarity colocalisation is meaningful at the combined object.
 
 This replaces the older \code{bind_polarities()} (kept as a deprecated alias)
 and the per-acquisition \code{union_pad_features()} approach.
+}
+\examples{
+p1 <- system.file("extdata", "example.raw", "section01.RDS",
+                  package = "quantMSImageR")
+p2 <- system.file("extdata", "example.raw", "section02.RDS",
+                  package = "quantMSImageR")
+merged <- bind_panels(readRDS(p1), readRDS(p2), label = "A")
+
 }
 \seealso{
 \code{\link[=combine_MSIs]{combine_MSIs()}}, \code{\link[=generate_txt_images]{generate_txt_images()}}

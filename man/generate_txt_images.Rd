@@ -19,7 +19,8 @@ generate_txt_images(
   exclude = NULL,
   rename = NULL,
   ratios = NULL,
-  output_ratios = TRUE
+  output_ratios = TRUE,
+  snr_overrides = NULL
 )
 }
 \arguments{
@@ -44,7 +45,7 @@ columns: \code{transition_id}, \code{precursor_mz}, \code{product_mz}, \code{col
 signal-to-noise thresholds; pixels below each threshold are set to \code{NA}.
 When a vector is supplied, one complete output directory tree is created
 per threshold value. A value of \code{0} skips SNR filtering entirely \emph{and}
-removes the requirement for a \code{tissue_pixels.csv} mask — handy for a
+removes the requirement for a \code{tissue_pixels.csv} mask -- handy for a
 smoke-test pass before ROIs are drawn (default \code{0}).}
 
 \item{tiss_fc}{Numeric. SNR threshold used for the tissue fold-change layer
@@ -56,7 +57,7 @@ smoke-test pass before ROIs are drawn (default \code{0}).}
 \item{perc}{Numeric. Hot-spot percentile passed to \code{imageR()} as
 \code{percentile} (default \code{97}).}
 
-\item{rot_clockwise}{Integer (0–3). Number of 90° clockwise rotations
+\item{rot_clockwise}{Integer (0-3). Number of 90 deg clockwise rotations
 applied via \code{pracma::rot90()} (default \code{0}).}
 
 \item{average_method}{Character, \code{"mean"} or \code{"median"}. Statistic used to
@@ -67,12 +68,12 @@ every acquisition (default \code{"median"}).}
 written to disk (default \code{TRUE}).}
 
 \item{exclude}{Character vector of feature names to drop before processing.
-Names must match \code{fData()$name} exactly (default \code{NULL} — keep all).}
+Names must match \code{fData()$name} exactly (default \code{NULL} -- keep all).}
 
 \item{rename}{Named character vector or list mapping old feature names to new
 display names, e.g. \code{c("old name" = "new name")}. Applied to all combined
 objects after loading; the new names appear in file names and the heatmap
-(default \code{NULL} — no renaming).}
+(default \code{NULL} -- no renaming).}
 
 \item{ratios}{Optional list of metabolite ratio pairs. Each element must be
 a named list with fields:
@@ -86,11 +87,18 @@ a named list with fields:
 Ratio images (numerator / denominator, pixel-wise) are written to the
 same SNR-filtered subdirectories as the individual ion images, immediately
 after them. Pixels where the denominator is zero or either ion is \code{NA} are
-set to \code{NA} (default \code{NULL} — no ratios).}
+set to \code{NA} (default \code{NULL} -- no ratios).}
 
 \item{output_ratios}{Logical. When \code{FALSE}, ratio txt files are not written
 even if \code{ratios} pairs are defined. Has no effect when \code{output_txt} is
 \code{FALSE} (default \code{TRUE}).}
+
+\item{snr_overrides}{Optional named map of feature name to a feature-specific
+SNR threshold. Keys may be original ion-library names \strong{or} post-\code{rename}
+display names. Listed features use their own threshold in every report;
+all other features use the global \code{snr_thresh}. Ignored for any report
+whose global threshold is \code{0} (the mask-free smoke-test pass). Default
+\code{NULL} (all features use \code{snr_thresh}).}
 }
 \value{
 Invisibly returns a named list:
@@ -112,6 +120,23 @@ can be imported by imaging software (e.g. MassLynx QuanOptimise overlay
 tools). Setting \code{output_txt = FALSE} runs all processing but skips file
 writing, which is useful when the caller only needs the processed MSI
 objects (e.g. for HTML report rendering).
+}
+\examples{
+\donttest{
+# Section-mode run on the bundled synthetic data (no tissue mask needed at
+# snr_thresh = 0), returning the processed objects without writing files.
+fns <- list(list(neg = "example", section = "section01", label = "A"))
+res <- generate_txt_images(
+  fns          = fns,
+  data_path    = system.file("extdata", package = "quantMSImageR"),
+  image_dir    = tempfile(),
+  lib_ion_path = system.file("extdata", "example_ion_library.csv",
+                             package = "quantMSImageR"),
+  snr_thresh   = 0,
+  output_txt   = FALSE
+)
+}
+
 }
 \seealso{
 \code{\link[=int2snr]{int2snr()}}, \code{\link[=applySNR]{applySNR()}}, \code{\link[=back2NA]{back2NA()}}, \code{\link[=imageR]{imageR()}}

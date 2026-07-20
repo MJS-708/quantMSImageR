@@ -66,7 +66,7 @@ select_tissue_pixels <- function(name,
 
   # ---- Choose feature -------------------------------------------------------
   if (is.null(feature)) {
-    message("\nDisplaying all ", n_feat, " features — identify which best",
+    message("\nDisplaying all ", n_feat, " features -- identify which best",
             " separates tissue from background, then close the window.")
     dev.new()
     print(image(obj, enhance = enhance, i = seq_len(n_feat), free = "xy"))
@@ -99,7 +99,7 @@ select_tissue_pixels <- function(name,
   } else {
     feat_idx <- as.integer(feature)
     if (feat_idx < 1L || feat_idx > n_feat)
-      stop("feature index ", feat_idx, " out of range (1–", n_feat, ")")
+      stop("feature index ", feat_idx, " out of range (1-", n_feat, ")")
   }
 
   message("\nUsing feature [", feat_idx, "]: ", feat_names[feat_idx])
@@ -112,7 +112,7 @@ select_tissue_pixels <- function(name,
 
   # ---- Build and save CSV ---------------------------------------------------
   # Coordinates make the mask portable across MRM panels of the same physical
-  # sample — pixel counts can differ between panels because of cycle timing,
+  # sample -- pixel counts can differ between panels because of cycle timing,
   # but (x, y) positions identify the same tissue region.
   tpdf <- data.frame(
     x             = Cardinal::pData(obj)$x,

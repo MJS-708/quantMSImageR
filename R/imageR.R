@@ -3,29 +3,39 @@ setGeneric("imageR", function(MSIobject, ...) standardGeneric("imageR"))
 #' Function to create ion images (using ggplot)
 #'
 #' @import Cardinal
-#' @import dplyr
-#' @import chemCal
-#' @import viridis
-#' @import ggplot2
-#' @import ggthemes
 #' @include setClasses.R
 #'
+#' @param MSIobject A `quant_MSImagingExperiment` object.
+#' @param val_slot character defining the spectra slot to image (default "intensity").
 #' @param value character stating what values pertain to
 #' @param scale suppress, histogram, sqrt
 #' @param percentile percentile to suppress colour scale (for suppress.)if scale == "suppress")
 #' @param threshold percintile to remove from colour scale (i.e background noise)
 #' @param sample_lab character header from pData(MSIobject) to label images (defaults to "sample_ID")
-#' @param pixels character from pData(MSIobject)[[sample_lab]] to take pixels to plot (defaults to NA)
+#' @param pixels character from `pData(MSIobject)[[sample_lab]]` to take pixels to plot (defaults to NA)
 #' @param overlay whether to overlay features (not yet implemented!)
 #' @param feat_ind Index of feature from fData(MSIobject) to image
 #' @param perc_scale Logical to normalise scale to % (TRUE) or displar raw values (FALSE)
+#' @param blank_back Logical; when TRUE background/zero pixels are drawn transparent.
+#' @param aspect_ratio numeric plot aspect ratio (default 1).
+#' @param text_image Logical; when TRUE return the image as a numeric matrix
+#'   (for text export) rather than a ggplot.
+#' @param roi_labels optional data.frame of ROI overlay points (used when
+#'   `overlay = TRUE`); default NA.
 #' @return ggplot object
 #'
+#' @examples
+#' p <- system.file("extdata", "example.raw", "section01.RDS",
+#'                  package = "quantMSImageR")
+#' obj <- as(readRDS(p), "quant_MSImagingExperiment")
+#' gg <- imageR(obj, feat_ind = 1, sample_lab = "run", scale = "suppress")
+#'
+#' @aliases imageR
 #' @export
 setMethod("imageR", "quant_MSImagingExperiment",
           function(MSIobject, val_slot = "intensity", value = "response %", scale = "suppress", threshold = 1,
-                   sample_lab = "sample_ID", pixels = NA, percentile=99.0, overlay = F,
-                   feat_ind = 1, perc_scale = F, blank_back = T, aspect_ratio=1, text_image = F,
+                   sample_lab = "sample_ID", pixels = NA, percentile=99.0, overlay = FALSE,
+                   feat_ind = 1, perc_scale = FALSE, blank_back = TRUE, aspect_ratio=1, text_image = FALSE,
                    roi_labels = NA){
 
             MSIobject = as(MSIobject[feat_ind, ], "quant_MSImagingExperiment")
@@ -35,7 +45,7 @@ setMethod("imageR", "quant_MSImagingExperiment",
             }
 
             # Generate image data matrix
-            image_df = tibble(x = pData(MSIobject)@listData[["x"]],
+            image_df = tibble::tibble(x = pData(MSIobject)@listData[["x"]],
                               y = pData(MSIobject)@listData[["y"]],
                               response = as.numeric(spectraData(MSIobject)[[val_slot]]),
                               sample = pData(MSIobject)[[sample_lab]],
@@ -57,7 +67,7 @@ setMethod("imageR", "quant_MSImagingExperiment",
             }
             if(scale == "histogram"){
 
-              # Cardinal implementation	https://rdrr.io/bioc/Cardinal/src/R/DIP.R
+              # Cardinal implementation https://rdrr.io/bioc/Cardinal/src/R/DIP.R
 
               vals = image_df$response
 
@@ -90,7 +100,7 @@ setMethod("imageR", "quant_MSImagingExperiment",
               dplyr::mutate(response = ifelse(is.na(response), 0, response)) |>
               dplyr::mutate(response = ifelse(response < 0, 0, response))
 
-            if(perc_scale == T){
+            if(perc_scale == TRUE){
               vals = image_df$response
               if(max(vals) > 0){
                 perc_vals = 100 * (vals / max(vals))
@@ -100,7 +110,7 @@ setMethod("imageR", "quant_MSImagingExperiment",
               }
             }
 
-            if(text_image == T){
+            if(text_image == TRUE){
 
               p = image_df |>
                 dplyr::select(x, y, response) |>
@@ -109,7 +119,7 @@ setMethod("imageR", "quant_MSImagingExperiment",
                 dplyr::arrange(as.numeric(y)) |>
                 tibble::column_to_rownames("y")
 
-            } else if(blank_back == T){
+            } else if(blank_back == TRUE){
               image_df$response[is.na(image_df$response) | image_df$response <= 0] <- NA
 
               p = ggplot(data=image_df, aes(x = x, y = -y, fill = response)) +
@@ -131,7 +141,7 @@ setMethod("imageR", "quant_MSImagingExperiment",
             } else{
               image_df[is.na(image_df)] <- 0
 
-              if(overlay == T){
+              if(overlay == TRUE){
 
                 p = ggplot()+
                   geom_tile(data=image_df,aes(x=x,y=-y,fill=response), alpha=0.25) +

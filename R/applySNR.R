@@ -14,16 +14,26 @@ setGeneric("applySNR", function(MSIobject, ...) standardGeneric("applySNR"))
 #'   `val_slot` and an `snr` spectra slot (populated by `int2snr()`).
 #' @param val_slot Character. Name of the intensity slot to mask (default
 #'   `"intensity"`).
+#' @param ... Additional arguments (currently unused).
 #'
 #' @return The input object with sub-threshold pixels set to `NA` in `val_slot`.
 #'
+#' @examples
+#' p <- system.file("extdata", "example.raw", "section01.RDS",
+#'                  package = "quantMSImageR")
+#' obj <- as(readRDS(p), "quant_MSImagingExperiment")
+#' obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
+#'                noise = "noise_pixels", tissue = "tissue_pixels", snr_thresh = 3)
+#' obj <- applySNR(obj, val_slot = "intensity")
+#'
 #' @seealso [int2snr()]
+#' @aliases applySNR
 #' @export
 setMethod("applySNR", "quant_MSImagingExperiment",
           function(MSIobject, val_slot = "response", ...){
 
             # Iterate over features in study
-            for(mz_ind in 1:nrow(fData(MSIobject))){
+            for(mz_ind in seq_len(nrow(fData(MSIobject)))){
 
               na_pixels = which(is.na(spectraData(MSIobject)[["snr"]][mz_ind, ]))
 

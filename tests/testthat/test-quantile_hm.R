@@ -2,7 +2,6 @@ require(testthat)
 require(quantMSImageR)
 require(ComplexHeatmap)
 
-context("quantile_hm: heatmap dimensions and orientation")
 
 make_obj <- function(n_features = 3, runs = c("s1", "s2"), n_px = 4,
                      seed = 42) {

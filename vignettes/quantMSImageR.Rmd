@@ -1,0 +1,121 @@
+---
+title: "Quantification of MSI data with quantMSImageR"
+author: "Matthew J. Smith"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Quantification of MSI data with quantMSImageR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", warning = FALSE,
+                      message = FALSE)
+
+# Whether the synthetic calibration data has been generated (gates the
+# calibration chunk). Defined here so it is always available.
+cal_dir  <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
+have_cal <- nzchar(cal_dir) && file.exists(file.path(cal_dir, "cal_MSI.RDS"))
+```
+
+# Introduction
+
+`quantMSImageR` extends [Cardinal](https://bioconductor.org/packages/Cardinal/)
+with tools for processing and **quantifying** targeted DESI-MRM mass
+spectrometry imaging (MSI) data: signal-to-noise (SNR) filtering,
+tissue/background separation, per-feature ion images, quantile heatmaps, and
+standards-based absolute quantification.
+
+This vignette walks through the core workflow on the small synthetic dataset
+bundled with the package. Every acquisition is a
+`Cardinal::MSImagingExperiment`; most `quantMSImageR` functions operate on the
+`quant_MSImagingExperiment` subclass, so we coerce first.
+
+```{r load}
+library(quantMSImageR)
+
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- as(readRDS(p), "quant_MSImagingExperiment")
+obj
+```
+
+# Signal-to-noise filtering
+
+`int2snr()` computes a per-pixel signal-to-noise ratio for each feature against
+the noise pixels, and `applySNR()` masks intensities that fall below the
+threshold. The bundled sections carry an `intensity` slot and a `sample_name`
+column labelling `tissue_pixels` / `noise_pixels`.
+
+```{r snr}
+obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
+               noise = "noise_pixels", tissue = "tissue_pixels", snr_thresh = 3)
+obj <- applySNR(obj, val_slot = "intensity")
+```
+
+# Ion images and quantile heatmaps
+
+`imageR()` returns a `ggplot` ion image for a chosen feature; `quantile_hm()`
+summarises each feature to a per-sample quantile and returns a
+`ComplexHeatmap::Heatmap`.
+
+```{r image, fig.small = TRUE}
+imageR(obj, feat_ind = 1, sample_lab = "run", scale = "suppress")
+```
+
+```{r heatmap, fig.small = TRUE}
+hm <- quantile_hm(obj, quant_val = 0.5,
+                  heatmap_order = "section01", heatmap_labs = "A")
+hm
+```
+
+# Joining ion-library metadata
+
+`build_feature_meta()` joins ion-library annotation to features by rounded
+`(precursor, product)` m/z, so extra columns (e.g. a pathway class) can drive
+row grouping in reports.
+
+```{r meta}
+lib <- read.csv(system.file("extdata", "example_ion_library.csv",
+                            package = "quantMSImageR"), check.names = FALSE)
+fm <- build_feature_meta(obj, lib)
+head(fm[, c("name", "Met-1")])
+```
+
+# Absolute quantification with calibration standards
+
+When a calibration standards acquisition is available, `quantMSImageR` fits a
+response-versus-amount curve per lipid and converts tissue-pixel intensities to
+`pg/pixel` and `pg/mm2`. The chain is
+`summarise_cal_levels()` -> `create_cal_curve()` -> `int2conc()`.
+
+The synthetic calibration dataset is produced by
+`inst/generate_cal_data.R`; the chunk below runs only when it is present.
+
+```{r calibration, eval = have_cal}
+cal  <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
+           "quant_MSImagingExperiment")
+cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
+
+cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
+                            cal_label = "Cal", id = "identifier")
+cal <- create_cal_curve(cal, cal_type = "cal")
+
+# R-squared per lipid curve
+cal@calibrationInfo@r2_df
+
+# convert tissue pixels to concentration
+cal <- int2conc(cal, val_slot = "intensity", pixels = "Tissue")
+range(spectra(cal, "conc - pg/mm2"), na.rm = TRUE)
+```
+
+In a full study this calibration is driven from the YAML configuration (a
+`calibration:` block with the standards acquisition, ROI file and metadata),
+run via `source(system.file("run_study.R", package = "quantMSImageR"))`.
+
+# Session info
+
+```{r session}
+sessionInfo()
+```

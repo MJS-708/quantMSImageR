@@ -1,7 +1,6 @@
 require(testthat)
 require(quantMSImageR)
 
-context("applySNR: intensity set to NA where SNR is NA")
 
 make_obj <- function() {
   fdata <- MassDataFrame(mz = 1:2, name = c("feat_1", "feat_2"))

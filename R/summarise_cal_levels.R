@@ -1,11 +1,7 @@
-library(Cardinal)
-library(dplyr)
-
 setGeneric("summarise_cal_levels", function(MSIobject, ...) standardGeneric("summarise_cal_levels"))
 
 #' Function to calculate the mean response or intensity per pixel for the ROI at each calibration level across all calibration replicates (ng/pixel).
 #' @import Cardinal
-#' @import dplyr
 #' @include setClasses.R
 #'
 #' @param MSIobject MSI object from Cardinal
@@ -16,17 +12,28 @@ setGeneric("summarise_cal_levels", function(MSIobject, ...) standardGeneric("sum
 #' @param id header in calibration metadata and pData to map (defaults to "identifier") and label unique ROIs
 #' @return MSIobject with slots updated for i) matrix of average ng/pixel of m/z (rows = m/z and cols = cal level) ii) list of pixel counts per cal level
 #'
+#' @examples
+#' cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
+#' cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
+#'           "quant_MSImagingExperiment")
+#' cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
+#' cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
+#'                             cal_label = "Cal", id = "identifier")
+#'
+#' @aliases summarise_cal_levels
 #' @export
 setMethod("summarise_cal_levels", "quant_MSImagingExperiment",
           function(MSIobject, cal_metadata, val_slot = "response", cal_header = "sample_type", cal_label = "Cal", id = "identifier"){
 
             MSIobject@calibrationInfo@cal_metadata = cal_metadata
 
-            # create pixel data to associate pixel indices to cal levels
-            pixel_data = data.frame(pData(MSIobject)) |>
-              dplyr::mutate(pixel_ind = 1:nrow(pData(MSIobject))) |>
-              subset(sample_type == cal_label) |>
-              subset(!is.na(.[[id]]))
+            # create pixel data to associate pixel indices to cal levels.
+            # Selection honours `cal_header` (the pixel-type column) so the
+            # calibration label need not live in a column named "sample_type".
+            pixel_data = data.frame(pData(MSIobject))
+            pixel_data$pixel_ind = seq_len(nrow(pixel_data))
+            pixel_data = pixel_data[pixel_data[[cal_header]] == cal_label &
+                                      !is.na(pixel_data[[id]]), ]
 
             # Create output response df
             response_df = tibble::tibble(cal_spot = unique(pixel_data[[id]]),
@@ -35,7 +42,7 @@ setMethod("summarise_cal_levels", "quant_MSImagingExperiment",
               dplyr::left_join(MSIobject@calibrationInfo@cal_metadata, by=c("cal_spot" = id)) |>
               dplyr::select(dplyr::any_of(c("cal_spot", "response_perpixel", "pixels", "level", "lipid", "amount_pg")))
 
-            for(i in 1:nrow(response_df)){
+            for(i in seq_len(nrow(response_df))){
 
               # Select feature
               lipid_n = response_df$lipid[i]
@@ -52,11 +59,11 @@ setMethod("summarise_cal_levels", "quant_MSImagingExperiment",
                 ints = spectraData(MSIobject)[[val_slot]][lipid_ind, pixels]
               ints = replace(ints, ints ==0, NA)
 
-              response_df$response_perpixel[i] = mean(ints, na.rm=T)
+              response_df$response_perpixel[i] = mean(ints, na.rm = TRUE)
 
             }
 
-            response_df = mutate(response_df, pg_perpixel = amount_pg / pixels)
+            response_df = dplyr::mutate(response_df, pg_perpixel = amount_pg / pixels)
 
 
             MSIobject@calibrationInfo@cal_response_data = response_df

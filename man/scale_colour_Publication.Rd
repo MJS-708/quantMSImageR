@@ -6,6 +6,18 @@
 \usage{
 scale_colour_Publication(...)
 }
+\arguments{
+\item{...}{Arguments passed on to \code{\link[ggplot2:discrete_scale]{ggplot2::discrete_scale()}}.}
+}
+\value{
+A ggplot2 discrete colour scale.
+}
 \description{
 Ggplot2 pal for publication figures
+}
+\examples{
+library(ggplot2)
+ggplot(mtcars, aes(factor(cyl), mpg, colour = factor(cyl))) +
+  geom_point() + scale_colour_Publication()
+
 }

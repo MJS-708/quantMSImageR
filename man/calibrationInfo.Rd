@@ -3,7 +3,15 @@
 \docType{class}
 \name{calibrationInfo}
 \alias{calibrationInfo}
+\alias{calibrationInfo-class}
 \title{calibrationInfo}
+\value{
+An object of class \code{calibrationInfo}.
+}
 \description{
 Class to store information about the calibration spots
+}
+\examples{
+ci <- calibrationInfo()
+
 }

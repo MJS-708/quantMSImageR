@@ -17,12 +17,20 @@ bind_polarities(pos_obj, neg_obj, label = NULL)
 Equivalent to \code{bind_panels(pos_obj, neg_obj, label)}.
 }
 \description{
-Deprecated. Forwards to \code{\link[=bind_panels]{bind_panels()}}, which generalises the operation
-to any two acquisitions of the same tissue (different polarities, different
-MRM panels) by matching pixels on \verb{(x, y)} rather than requiring identical
-pixel grids. The strict equality check the old implementation enforced
-rarely holds in practice — pos/neg pairs nearly always have slightly
-different pixel counts due to acquisition timing.
+A thin convenience wrapper around \code{\link[=bind_panels]{bind_panels()}} for the common
+positive/negative-mode pairing. \code{bind_panels()} matches pixels on \verb{(x, y)}
+rather than requiring identical pixel grids, which matters because pos/neg
+pairs nearly always have slightly different pixel counts due to acquisition
+timing.
+}
+\examples{
+p1 <- system.file("extdata", "example.raw", "section01.RDS",
+                  package = "quantMSImageR")
+p2 <- system.file("extdata", "example.raw", "section02.RDS",
+                  package = "quantMSImageR")
+# convenience wrapper for bind_panels()
+merged <- bind_polarities(readRDS(p1), readRDS(p2), label = "A")
+
 }
 \seealso{
 \code{\link[=bind_panels]{bind_panels()}}

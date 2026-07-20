@@ -1,107 +1,78 @@
-# =============================================================================
-# quantMSImageR DESI-MRM study configuration template
-# =============================================================================
-# Run with:
-#   Rscript path/to/run_study.R path/to/this_config.yaml
-#
-# All paths use forward slashes (works on Windows and Linux/macOS).
-# =============================================================================
+# ============================================================
+# quantMSImageR — DESI-MRM study config
+# Run:  CONFIG_FILE <- "path/to/this.yaml"
+#       source(system.file("run_study.R", package = "quantMSImageR"))
+# ============================================================
 
-study: "my_study_name"  # used as fallback report filename prefix
+study: "my_study_name"                 # fallback report filename prefix
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
+# ============================= PATHS =============================
 paths:
-  data_path:    "D:/__STUDIES/my_study/data/DESI-MRM/raw"
-  out_path:     "D:/__STUDIES/my_study/results/DESI-MRM"
-  image_dir:    "D:/__STUDIES/my_study/data/DESI-MRM/images"
-  lib_ion_path: "D:/__STUDIES/ion_library.csv"
-  # markdown_rmd is only needed when render_report: true
-  markdown_rmd: "C:/Users/matsmi/OneDrive - Karolinska Institutet/Dokument/Bioinformatics/_markdown_files/quantMSImageR___general_heatmap.Rmd"
+  data_path:    "D:/__STUDIES/my_study/data/DESI-MRM/raw"   # .raw acquisition folders
+  out_path:     "D:/__STUDIES/my_study/results/DESI-MRM"    # report + xlsx output
+  image_dir:    "D:/__STUDIES/my_study/data/DESI-MRM/images"  # per-feature txt images
+  lib_ion_path: "D:/__STUDIES/ion_library.csv"             # MRM ion-library CSV
 
-# ---------------------------------------------------------------------------
-# Sample manifest  (one entry per sample, in heatmap display order)
-#
-# Use pos: and/or neg: for each sample.  Each may be a single string or a
-# YAML list of strings (multiple acquisitions are combined within polarity
-# before any cross-polarity binding).  Feature names are taken as-is from
-# the ion library — no prefix is added.
-# ---------------------------------------------------------------------------
+# ============================ SAMPLES ============================
+# one entry per sample (heatmap order). pos:/neg: = .raw name(s), no .raw suffix.
+# multiple .raw per polarity are combined; run_id unique; label = group.
 samples:
+  - neg: "acq_run_ctrl_neg"            # pos: and/or neg: (string or list)
+    run_id: "S1"                       # unique per sample
+    label:  "Ctrl"                     # group (shared across replicates)
 
-  # -- positive-mode only --
-  - label: "Ctrl"
-    pos:   "acq_run_ctrl_pos"       # .raw folder name WITHOUT the .raw suffix
+  - pos:                               # multiple acquisitions -> combined
+      - "acq_run_trt_pos_rep1"
+      - "acq_run_trt_pos_rep2"
+    run_id: "S2"
+    label:  "Treatment"
 
-  # -- negative-mode only --
-  - label: "Treatment"
-    neg:   "acq_run_trt_neg"
-
-  # -- both polarities, single acquisition each --
-  - label: "A1"
-    pos:   "06Aug_study_pos_A1"
-    neg:   "20Aug_study_neg_A1"
-
-  # -- both polarities, multiple acquisitions per polarity --
-  - label: "A2"
-    pos:
-      - "06Aug_study_pos_A2_rep1"
-      - "06Aug_study_pos_A2_rep2"
-    neg:
-      - "20Aug_study_neg_A2_rep1"
-      - "20Aug_study_neg_A2_rep2"
-
-# ---------------------------------------------------------------------------
-# Processing parameters
-# ---------------------------------------------------------------------------
+# ==================== PROCESSING PARAMETERS ====================
 parameters:
-  # snr_thresh accepts a scalar or a list; a list produces one output
-  # directory tree per threshold value.
-  snr_thresh:     3       # e.g. 3  OR  [2, 3, 5]
-  tiss_fc:        0.6     # S/N threshold for tissue fold-change layer
-  thresh:         20      # cold-spot percentile removal (imageR threshold)
-  perc:           97      # hot-spot percentile suppression (imageR percentile)
-  rot_clockwise:  0       # image rotation: 0, 1 (90°), 2 (180°), 3 (270°)
-  average_method: "median"  # "mean" or "median" for noise summarisation
-  baseline_label: "Ctrl"  # group label used as FC denominator in the report
+  snr_thresh:     [1.2, 3]             # global SNR sweep (one report each) | 0 = raw, no mask
+  snr_overrides:                       # per-analyte fixed SNR (else global) | omit
+    #"PGE2":     5                     # display or ion-library names
+    #"12-HETE":  1.2
+  heatmap_row_split: "Met-1"           # ion-library column to split heatmap rows | omit
+  tiss_fc:        0.6                  # S/N threshold for tissue fold-change layer
+  thresh:         20                   # cold-spot percentile removed
+  perc:           97                   # hot-spot percentile suppressed
+  rot_clockwise:  0                    # image rotation: 0/1/2/3 x 90 deg
+  average_method: "median"             # noise summary: mean | median
+  baseline_label: "Ctrl"              # group used as fold-change denominator
 
-# ---------------------------------------------------------------------------
-# Feature overrides  (both sections are optional — omit if not needed)
-# ---------------------------------------------------------------------------
+# ====================== FEATURE CONTROL ======================
 features:
-  # Transitions to drop entirely (matched against fData()$name exactly).
-  exclude:
-    - "IS_cholesterol-d7"
-    - "27-OH-Cholesterol || 27-OHC"
+  exclude: None                        # None | list e.g. ["CUDA [M-H]-", "EKODE"]
 
-  # Rename transitions for display (old name → new name).
-  # Use the exact fData()$name string as the key.
-  rename:
-    "25-OH-Cholesterol || 25-OHC": "25-OHC"
-    "7alpha-OH-Cholesterol":       "7α-OHC"
+  rename:                              # display-name overrides (ion-library name -> new)
+    enabled: False                     # False = keep original names
+    #"8-isoPGE2 || PGE2": "PGE2"
 
-# ---------------------------------------------------------------------------
-# Metabolite ratio images  (optional — omit section if not needed)
-#
-# Each entry images  numerator / denominator  pixel-wise using SNR-filtered
-# intensities.  Feature names must match fData()$name AFTER any renames above.
-# Ratio files are written to the same subdirectories as the ion images.
-# `label` is optional; omitting it produces filenames like "A_over_B.txt".
-# ---------------------------------------------------------------------------
-ratios:
-  - num:   "25-OHC"
-    den:   "Cholesterol"
-    label: "25OHC_Chol_ratio"
-  - num:   "7α-OHC"
-    den:   "Cholesterol"
-    # label defaults to "7a-OHC_over_Cholesterol"
+# ========================= ION RATIOS =========================
+ratios:                                # pixel-wise numerator / denominator images
+  enabled: False                       # False = skip ratios
+  entries:
+    - num:   "PGE2"
+      den:   "AA"
+      label: "PGE2 --- AA"
 
-# ---------------------------------------------------------------------------
-# Output flags
-# ---------------------------------------------------------------------------
+# ========================= CALIBRATION =========================
+# Absolute quantification from on-slide / on-tissue standards. When enabled,
+# builds a response-vs-amount curve per lipid and converts tissue-pixel
+# intensities to pg/pixel and pg/mm2. Writes <report_fn>_calibrated.RDS.
+calibration:
+  enabled: False                       # False = skip calibration
+  cal_acquisition: "cal_run_slide1"    # .raw name of the standards acquisition
+  cal_roi_csv:     "D:/.../cal_ROIs.csv"              # pixel -> sample_type="Cal" + identifier
+  cal_metadata:    "D:/.../calibration_metadata.csv"  # identifier,lipid,amount_pg,level
+  cal_type:        "std_addition"      # std_addition (on-tissue) | cal (on-slide)
+  val_slot:        "intensity"         # slot to calibrate
+  background_level: "background"       # 'level' value used as the std-addition blank
+  quantify_pixels: ["tissue_pixels"]   # pixel label(s) in the study to quantify
+
+# =========================== OUTPUTS ===========================
 output:
-  render_report:  true   # generate HTML QC report via quantMSImageR___general_heatmap.Rmd
-  output_txt:     true   # write per-feature text-image matrices to image_dir
-  output_ratios:  true   # write ratio txt images (requires ratios: section above)
-  report_fn:      "my_study_pos04_SNR3"  # output HTML filename prefix
+  render_report: true                  # build HTML report
+  output_txt:    false                 # write per-feature txt images
+  output_ratios: false                 # write ratio txt images (needs ratios.execute)

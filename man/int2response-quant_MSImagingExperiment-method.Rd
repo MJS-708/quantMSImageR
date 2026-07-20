@@ -2,6 +2,7 @@
 % Please edit documentation in R/int2response.R
 \name{int2response,quant_MSImagingExperiment-method}
 \alias{int2response,quant_MSImagingExperiment-method}
+\alias{int2response}
 \title{Function to normalise the intensity values to response per pixel if internal standard is present. Currently only works for a single internal standard to normalise all lipids to.}
 \usage{
 \S4method{int2response}{quant_MSImagingExperiment}(
@@ -9,7 +10,7 @@
   val_slot = "intensity",
   IS_name = "None",
   mode = "line",
-  remove_IS = T,
+  remove_IS = TRUE,
   ...
 )
 }
@@ -23,10 +24,20 @@
 \item{mode}{Mode iby which to apply normalisation. "sample" = normalise to median intensity of IS per sample, "line" = normalise to median intensity of IS per line, "pixel" = normalise to intensity of IS per pixel.}
 
 \item{remove_IS}{Logical whether to remove internal standard feature from object}
+
+\item{...}{Additional arguments (currently unused).}
 }
 \value{
 MSIobject with intensity values replaced with response
 }
 \description{
 Function to normalise the intensity values to response per pixel if internal standard is present. Currently only works for a single internal standard to normalise all lipids to.
+}
+\examples{
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- as(readRDS(p), "quant_MSImagingExperiment")
+# normalise each feature to itself per line (no internal standard)
+obj <- int2response(obj, val_slot = "intensity", IS_name = "None")
+
 }

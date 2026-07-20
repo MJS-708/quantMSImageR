@@ -30,7 +30,16 @@ Joins each row of \code{fData(combined)} to the ion library on the rounded
 (\code{features.rename}) because m/z is stable across name changes.
 }
 \details{
-Used by \code{\link{run_study}} (via \code{inst/run_study.R}) and \code{\link{run_example}} to build
-a per-feature metadata frame the heatmap report can consume — e.g. for
+Used by \code{run_study.R} (via \code{inst/run_study.R}) and \code{\link[=run_example]{run_example()}} to build
+a per-feature metadata frame the heatmap report can consume -- e.g. for
 splitting / colour-bar annotation by an ion-library column such as \code{Met-1}.
+}
+\examples{
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- readRDS(p)
+lib <- read.csv(system.file("extdata", "example_ion_library.csv",
+                            package = "quantMSImageR"), check.names = FALSE)
+fm <- build_feature_meta(obj, lib)
+
 }

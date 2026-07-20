@@ -2,6 +2,7 @@
 % Please edit documentation in R/create_cal_curve.R
 \name{create_cal_curve,quant_MSImagingExperiment-method}
 \alias{create_cal_curve,quant_MSImagingExperiment-method}
+\alias{create_cal_curve}
 \title{Function to create calibration curves (response v concentration, where concentration is pg/pixel)}
 \usage{
 \S4method{create_cal_curve}{quant_MSImagingExperiment}(
@@ -12,17 +13,28 @@
 )
 }
 \arguments{
+\item{MSIobject}{A \code{quant_MSImagingExperiment} whose \verb{@calibrationInfo@cal_response_data}
+slot has been populated by \code{\link[=summarise_cal_levels]{summarise_cal_levels()}}.}
+
 \item{cal_type}{string of approach to generate claibration curve - 'std_addition' if standards are on tissue and 'cal' if direct onto glass slide.}
 
 \item{level}{Column header to find background label from 'MSIobject@calibrationInfo@cal_response_data'}
 
 \item{background}{string referring to background level from "level" label in 'MSIobject@calibrationInfo@cal_response_data'.}
-
-\item{response_matrix}{matrix of average pg/pixel of m/z (rows = m/z and cols = cal level)}
 }
 \value{
 MSIobject with slots updated for i) cal_list - List of linear models for each m/z (response v concentration, where concentration is pg/pixel) and ii) r2 values for each calibration iii) calibration metadata
 }
 \description{
 Function to create calibration curves (response v concentration, where concentration is pg/pixel)
+}
+\examples{
+cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
+cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
+          "quant_MSImagingExperiment")
+cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
+cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
+                            cal_label = "Cal", id = "identifier")
+cal <- create_cal_curve(cal, cal_type = "cal")
+
 }

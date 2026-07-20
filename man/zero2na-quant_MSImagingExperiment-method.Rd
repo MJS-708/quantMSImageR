@@ -2,16 +2,26 @@
 % Please edit documentation in R/zero2na.R
 \name{zero2na,quant_MSImagingExperiment-method}
 \alias{zero2na,quant_MSImagingExperiment-method}
+\alias{zero2na}
 \title{Function to convert intensity values from 0 to NA in MSI dataset.}
 \usage{
 \S4method{zero2na}{quant_MSImagingExperiment}(MSIobject, val_slot = "intensity")
 }
 \arguments{
 \item{MSIobject}{MSI object from Cardinal}
+
+\item{val_slot}{character defining the spectra slot to modify (default "intensity")}
 }
 \value{
-MSIobject with intensity values replaced with response
+MSIobject with zero intensity values replaced with NA
 }
 \description{
 Function to convert intensity values from 0 to NA in MSI dataset.
+}
+\examples{
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- as(readRDS(p), "quant_MSImagingExperiment")
+obj <- zero2na(obj, val_slot = "intensity")
+
 }

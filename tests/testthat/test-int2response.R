@@ -1,7 +1,6 @@
 require(testthat)
 require(quantMSImageR)
 
-context("test intensity values normalised to internal standard")
 
 test_that("int2response function", {
 
@@ -20,7 +19,7 @@ test_that("int2response function", {
                                    pixelData=pdata)
 
   test_data <- as(test_data, "quant_MSImagingExperiment")
-  new_data <- int2response(test_data)
+  new_data <- int2response(test_data, IS_name = "IS")
 
   expect_equal(ncol(test_data), ncol(new_data))
   expect_equal(spectra(test_data, "intensity")[2:4, ], spectra(new_data, "intensity"))

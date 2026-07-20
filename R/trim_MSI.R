@@ -6,13 +6,18 @@
 #' affecting tissue or mixed-content rows/columns.
 #'
 #' @import Cardinal
-#' @import dplyr
 #'
 #' @param MSI_data A `quant_MSImagingExperiment` object whose `pData()` contains
 #'   columns `x`, `y`, and `sample_name` (populated by `makeFactor()`).
 #'
 #' @return A subset `quant_MSImagingExperiment` with pure-noise border pixels
 #'   removed.
+#'
+#' @examples
+#' p <- system.file("extdata", "example.raw", "section01.RDS",
+#'                  package = "quantMSImageR")
+#' obj <- as(readRDS(p), "quant_MSImagingExperiment")
+#' obj <- trim_MSI(obj)
 #'
 #' @export
 trim_MSI = function(MSI_data){

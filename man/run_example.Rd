@@ -21,7 +21,7 @@ temporary directory?  Default \code{FALSE}.}
 \item{snr_thresh}{Numeric. SNR threshold passed to \code{\link[=generate_txt_images]{generate_txt_images()}}.
 Default \code{1.5} (relaxed for synthetic data).}
 
-\item{shapes}{Character vector of tissue shapes to include — any of
+\item{shapes}{Character vector of tissue shapes to include -- any of
 \code{"circle"}, \code{"square"}. \code{NULL} (the default) prompts interactively when
 \code{interactive()} is \code{TRUE}, otherwise both shapes are used.}
 }
@@ -30,8 +30,8 @@ Invisibly returns the list produced by \code{\link[=generate_txt_images]{generat
 }
 \description{
 Executes the full DESI-MRM pipeline on a small synthetic dataset bundled
-with the package.  The dataset contains two samples — \code{SampleA} (circular
-tissue, sections 01–03) and \code{SampleB} (square tissue, sections 04–06) —
+with the package.  The dataset contains two samples -- \code{SampleA} (circular
+tissue, sections 01-03) and \code{SampleB} (square tissue, sections 04-06) --
 acquired on a panel of eight oxylipin features (seven analytes + one
 internal standard, all negative-ion mode).
 }

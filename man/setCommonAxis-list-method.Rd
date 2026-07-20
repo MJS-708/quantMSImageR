@@ -2,6 +2,7 @@
 % Please edit documentation in R/setCommonAxis.R
 \name{setCommonAxis,list-method}
 \alias{setCommonAxis,list-method}
+\alias{setCommonAxis}
 \title{Function to ser list of MSImagingExperiment objects set to same feature axis}
 \usage{
 \S4method{setCommonAxis}{list}(MSIobjects, ref_fdata)
@@ -16,4 +17,13 @@ List of MSIobjects with common fData and matching spectra
 }
 \description{
 Function to ser list of MSImagingExperiment objects set to same feature axis
+}
+\examples{
+p1 <- system.file("extdata", "example.raw", "section01.RDS",
+                  package = "quantMSImageR")
+p2 <- system.file("extdata", "example.raw", "section02.RDS",
+                  package = "quantMSImageR")
+objs <- list(readRDS(p1), readRDS(p2))
+aligned <- setCommonAxis(objs, fData(objs[[1]]))
+
 }

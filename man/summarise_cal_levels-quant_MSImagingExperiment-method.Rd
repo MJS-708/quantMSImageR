@@ -2,6 +2,7 @@
 % Please edit documentation in R/summarise_cal_levels.R
 \name{summarise_cal_levels,quant_MSImagingExperiment-method}
 \alias{summarise_cal_levels,quant_MSImagingExperiment-method}
+\alias{summarise_cal_levels}
 \title{Function to calculate the mean response or intensity per pixel for the ROI at each calibration level across all calibration replicates (ng/pixel).}
 \usage{
 \S4method{summarise_cal_levels}{quant_MSImagingExperiment}(
@@ -31,4 +32,13 @@ MSIobject with slots updated for i) matrix of average ng/pixel of m/z (rows = m/
 }
 \description{
 Function to calculate the mean response or intensity per pixel for the ROI at each calibration level across all calibration replicates (ng/pixel).
+}
+\examples{
+cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
+cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
+          "quant_MSImagingExperiment")
+cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
+cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
+                            cal_label = "Cal", id = "identifier")
+
 }

@@ -1,7 +1,6 @@
 require(testthat)
 require(quantMSImageR)
 
-context("test that list of MSImagingExperiment objects set to a specific feature axis")
 
 test_that("setCommonAxis function", {
 

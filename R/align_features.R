@@ -41,6 +41,14 @@
 #'   }
 #'
 #' @seealso \code{\link{combine_MSIs}}, \code{\link{generate_txt_images}}
+#'
+#' @examples
+#' p1 <- system.file("extdata", "example.raw", "section01.RDS",
+#'                   package = "quantMSImageR")
+#' p2 <- system.file("extdata", "example.raw", "section02.RDS",
+#'                   package = "quantMSImageR")
+#' al <- align_features(readRDS(p1), readRDS(p2))
+#'
 #' @export
 align_features <- function(obj1, obj2) {
   nms1   <- fData(obj1)$name
@@ -48,7 +56,7 @@ align_features <- function(obj1, obj2) {
   common <- intersect(nms1, nms2)
 
   if (length(common) == 0)
-    stop("No common features between the two MSI objects — ",
+    stop("No common features between the two MSI objects -- ",
          "check that both acquisitions used a compatible ion library.")
 
   dropped1 <- setdiff(nms1, common)

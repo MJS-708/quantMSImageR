@@ -4,8 +4,8 @@
 #' (`precursor_mz`, `product_mz`) pair. Robust to feature renames in the YAML
 #' (`features.rename`) because m/z is stable across name changes.
 #'
-#' Used by [`run_study`] (via `inst/run_study.R`) and [`run_example`] to build
-#' a per-feature metadata frame the heatmap report can consume — e.g. for
+#' Used by `run_study.R` (via `inst/run_study.R`) and [run_example()] to build
+#' a per-feature metadata frame the heatmap report can consume -- e.g. for
 #' splitting / colour-bar annotation by an ion-library column such as `Met-1`.
 #'
 #' @param combined An MSI object whose `fData` has columns `name`,
@@ -22,6 +22,14 @@
 #'   Unmatched features become a row of NAs. Returns `NULL` when
 #'   `ion_lib_meta` is `NULL`.
 #'
+#' @examples
+#' p <- system.file("extdata", "example.raw", "section01.RDS",
+#'                  package = "quantMSImageR")
+#' obj <- readRDS(p)
+#' lib <- read.csv(system.file("extdata", "example_ion_library.csv",
+#'                             package = "quantMSImageR"), check.names = FALSE)
+#' fm <- build_feature_meta(obj, lib)
+#'
 #' @export
 build_feature_meta <- function(combined, ion_lib_meta, verbose = TRUE) {
   if (is.null(ion_lib_meta)) return(NULL)
@@ -32,7 +40,7 @@ build_feature_meta <- function(combined, ion_lib_meta, verbose = TRUE) {
 
   first_num <- function(x) {
     suppressWarnings(as.numeric(
-      sapply(strsplit(as.character(x), " || ", fixed = TRUE), `[`, 1)
+      vapply(strsplit(as.character(x), " || ", fixed = TRUE), `[`, character(1), 1)
     ))
   }
 

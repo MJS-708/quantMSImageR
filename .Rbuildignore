@@ -7,3 +7,10 @@
 ^check_transitions\.R$
 ^load_package\.R$
 ^search_ion_library\.R$
+^\.Rhistory$
+^\.gitignore$
+^inst/generate_.*\.R$
+^man/figures$
+^\.claude/plans$
+^LICENSE\.md$
+^quantMSImageR\.BiocCheck$

@@ -1,8 +1,8 @@
 #' Run the quantMSImageR example study
 #'
 #' Executes the full DESI-MRM pipeline on a small synthetic dataset bundled
-#' with the package.  The dataset contains two samples — `SampleA` (circular
-#' tissue, sections 01–03) and `SampleB` (square tissue, sections 04–06) —
+#' with the package.  The dataset contains two samples -- `SampleA` (circular
+#' tissue, sections 01-03) and `SampleB` (square tissue, sections 04-06) --
 #' acquired on a panel of eight oxylipin features (seven analytes + one
 #' internal standard, all negative-ion mode).
 #'
@@ -20,7 +20,7 @@
 #'   temporary directory?  Default `FALSE`.
 #' @param snr_thresh Numeric. SNR threshold passed to [generate_txt_images()].
 #'   Default `1.5` (relaxed for synthetic data).
-#' @param shapes Character vector of tissue shapes to include — any of
+#' @param shapes Character vector of tissue shapes to include -- any of
 #'   `"circle"`, `"square"`. `NULL` (the default) prompts interactively when
 #'   `interactive()` is `TRUE`, otherwise both shapes are used.
 #'
@@ -48,7 +48,7 @@ run_example <- function(render_report = TRUE,
       idx <- utils::menu(c("Circle  (SampleA, sections 01-03)",
                             "Square  (SampleB, sections 04-06)",
                             "Both    (full example)"),
-                          title = "quantMSImageR example — shape filter")
+                          title = "quantMSImageR example -- shape filter")
       shapes <- switch(as.character(idx),
                         "1" = "circle",
                         "2" = "square",
@@ -136,7 +136,7 @@ run_example <- function(render_report = TRUE,
 
   if (render_report) {
     if (!nzchar(rmd) || !file.exists(rmd))
-      stop("HTML report template not found — reinstall quantMSImageR.")
+      stop("HTML report template not found -- reinstall quantMSImageR.")
 
     # Variables the Rmd looks up in its parent env
     combined          <- result$combined_snr

@@ -1,7 +1,6 @@
 require(testthat)
 require(quantMSImageR)
 
-context("test m/z values where all data is empty are removed")
 
 test_that("remove_blank_mzs function", {
 

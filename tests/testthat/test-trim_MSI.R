@@ -1,7 +1,6 @@
 require(testthat)
 require(quantMSImageR)
 
-context("trim_MSI: pure-noise border pixels removed")
 
 make_obj <- function(sample_names_vec, xs, ys) {
   fdata <- MassDataFrame(mz = 1:2, name = c("f1", "f2"))

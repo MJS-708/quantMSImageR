@@ -2,7 +2,6 @@ require(testthat)
 require(quantMSImageR)
 require(ggplot2)
 
-context("imageR: ion image generation")
 
 make_img_obj <- function(n_features = 2, seed = 1) {
   set.seed(seed)

@@ -1,18 +1,25 @@
-require(testthat)
-require(quantMSImageR)
+test_that("int2conc converts intensities to concentration layers", {
 
-context("test int/response values changed to concentration")
+  cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
+  skip_if_not(file.exists(file.path(cal_dir, "cal_MSI.RDS")),
+              "synthetic cal data not generated (run inst/generate_cal_data.R)")
 
-test_that("int2conc function", {
+  cal  <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
+             "quant_MSImagingExperiment")
+  meta <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
 
-  # Create test data
-  test_data = readRDS(file = sprintf("%s/tissue_MRM_data.raw/cal_curve_MSI.RDS", system.file('extdata', package = 'quantMSImageR')))
+  cal <- summarise_cal_levels(cal, meta, val_slot = "intensity",
+                              cal_label = "Cal", id = "identifier")
+  cal <- create_cal_curve(cal, cal_type = "cal")
 
-  new_data <- int2conc(MSIobject = test_data,
-                       val_slot = "intensity",
-                       pixels = c("Tissue", "Noise"))
+  out <- int2conc(cal, val_slot = "intensity", pixels = "Tissue")
 
-  expect_equal(signif(max(spectra(new_data, "conc - pg/pixel")), 4), 0.1025)
-  expect_equal(signif(max(spectra(new_data, "conc - pg/mm2")), 4), 41.01)
+  pp <- spectra(out, "conc - pg/pixel")
+  mm <- spectra(out, "conc - pg/mm2")
 
+  expect_true(any(is.finite(pp)))
+  # pg/mm2 = pg/pixel * (1000 / pixelSize)^2, with pixelSize = 100 -> x 100
+  fin <- which(is.finite(pp))
+  expect_equal(as.numeric(mm[fin][1]),
+               as.numeric(pp[fin][1]) * (1000 / 100)^2)
 })

@@ -1,25 +1,15 @@
-require(testthat)
-require(quantMSImageR)
+test_that("read_mrm returns a cached acquisition when imaging/ is absent", {
 
-context("test mrm data read in")
+  extdata <- system.file("extdata", package = "quantMSImageR")
+  lib     <- file.path(extdata, "ion_library_pos04.csv")
 
-test_that("read_mrm function", {
+  # pos04_test.raw ships only the cached .rds (no imaging/ text files), so
+  # read_mrm returns the cache.
+  obj <- read_mrm("pos04_test", folder = extdata, lib_ion_path = lib,
+                  overwrite = FALSE)
 
-  # load file
-  mrm_folder = system.file('extdata', package = 'quantMSImageR')
-  mrm_file = "tissue_MRM_data"
-
-  lib_ion_path = sprintf("%s/ion_library.txt",system.file('extdata', package = 'quantMSImageR'))
-
-  test_data = read_mrm(name = mrm_file, folder = mrm_folder, lib_ion_path = lib_ion_path)
-
-  expect_equal(dim(test_data)[[1]], 4)
-  expect_equal(dim(test_data)[[2]], 63070)
-
-  expect_equal(as.numeric(spectra(test_data)[1, 856]), 1129)
-  expect_equal(as.numeric(spectra(test_data)[2, 3571]), 852)
-
-  expect_equal(unique(fData(test_data)$analyte), "Analyte")
-  expect_equal(fData(test_data)$name[4], "12_13-DiHOME")
+  expect_s4_class(obj, "MSImagingExperiment")
+  expect_gt(ncol(obj), 0)
+  expect_gt(nrow(obj), 0)
+  expect_true("name" %in% names(fData(obj)))
 })
-

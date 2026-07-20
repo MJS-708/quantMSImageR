@@ -1,7 +1,6 @@
 require(testthat)
 require(quantMSImageR)
 
-context("int2snr: SNR calculation and average_method validation")
 
 make_snr_obj <- function() {
   fdata <- MassDataFrame(mz = c(500, 510, 540, 550),

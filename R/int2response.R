@@ -1,5 +1,3 @@
-library(Cardinal)
-
 setGeneric("int2response", function(MSIobject, ...) standardGeneric("int2response"))
 
 #' Function to normalise the intensity values to response per pixel if internal standard is present. Currently only works for a single internal standard to normalise all lipids to.
@@ -11,16 +9,25 @@ setGeneric("int2response", function(MSIobject, ...) standardGeneric("int2respons
 #' @param IS_name character defining the IS to use in fData(MSIobject) under the analyte header. Currently only works for a single internal standard to normalise all lipids to. "None" use individual lipids to normalise.
 #' @param mode Mode iby which to apply normalisation. "sample" = normalise to median intensity of IS per sample, "line" = normalise to median intensity of IS per line, "pixel" = normalise to intensity of IS per pixel.
 #' @param remove_IS Logical whether to remove internal standard feature from object
+#' @param ... Additional arguments (currently unused).
 #' @return MSIobject with intensity values replaced with response
 #'
+#' @examples
+#' p <- system.file("extdata", "example.raw", "section01.RDS",
+#'                  package = "quantMSImageR")
+#' obj <- as(readRDS(p), "quant_MSImagingExperiment")
+#' # normalise each feature to itself per line (no internal standard)
+#' obj <- int2response(obj, val_slot = "intensity", IS_name = "None")
+#'
+#' @aliases int2response
 #' @export
 setMethod("int2response", "quant_MSImagingExperiment",
-          function(MSIobject, val_slot = "intensity", IS_name = "None", mode = "line", remove_IS = T, ...){
+          function(MSIobject, val_slot = "intensity", IS_name = "None", mode = "line", remove_IS = TRUE, ...){
 
             if(IS_name == "None"){
               IS_ind = NULL
             } else if(!any(fData(MSIobject)$analyte == IS_name)){
-              print("No IS in this study so normalise to individual lipids")
+              message("No IS in this study so normalise to individual lipids")
 
               IS_ind = NULL
             } else{
@@ -40,9 +47,8 @@ setMethod("int2response", "quant_MSImagingExperiment",
               # Save IS intensity vector
               IS_vec = spectraData(tempMSIobject)[[val_slot]][IS_ind, ]
 
-              for(mz_ind in 1:nrow(fData(tempMSIobject))){
+              for(mz_ind in seq_len(nrow(fData(tempMSIobject)))){
 
-                #print(sprintf("mz - %s", mz_ind))
                 ints = spectraData(tempMSIobject)[[val_slot]][mz_ind, ]
 
                 if(mode == "pixel"){
@@ -54,9 +60,9 @@ setMethod("int2response", "quant_MSImagingExperiment",
                 }
                 if(mode == "sample"){
                   if(!is.null(IS_ind)){
-                    response = ints / median(IS_vec, na.rm=T)
+                    response = ints / median(IS_vec, na.rm = TRUE)
                   } else{
-                    response = ints / median(ints, na.rm=T)
+                    response = ints / median(ints, na.rm = TRUE)
                   }
                 }
                 if(mode == "line"){
@@ -66,9 +72,9 @@ setMethod("int2response", "quant_MSImagingExperiment",
                     line_pixels = which(pData(tempMSIobject)$y == line)
 
                     if(!is.null(IS_ind)){
-                      response = c(response, (ints[line_pixels] / median(IS_vec[line_pixels], na.rm=T)))
+                      response = c(response, (ints[line_pixels] / median(IS_vec[line_pixels], na.rm = TRUE)))
                     } else{
-                      response = c(response, (ints[line_pixels] / median(ints[line_pixels], na.rm=T)))
+                      response = c(response, (ints[line_pixels] / median(ints[line_pixels], na.rm = TRUE)))
                     }
                   }
                 }
@@ -78,8 +84,9 @@ setMethod("int2response", "quant_MSImagingExperiment",
               }
             }
 
-            # Remove IS m/z
-            if(remove_IS == T){
+            # Remove IS m/z (only when an internal standard feature was found;
+            # guards against MSIobject[-NULL, ] emptying the object)
+            if(remove_IS == TRUE && !is.null(IS_ind)){
               MSIobject = MSIobject[-IS_ind, ]
             }
 

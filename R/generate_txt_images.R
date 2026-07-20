@@ -8,7 +8,6 @@
 #' objects (e.g. for HTML report rendering).
 #'
 #' @import Cardinal
-#' @import pracma
 #' @include setClasses.R
 #'
 #' @param fns Character vector of acquisition names (without `.raw` suffix)
@@ -28,7 +27,7 @@
 #'   signal-to-noise thresholds; pixels below each threshold are set to `NA`.
 #'   When a vector is supplied, one complete output directory tree is created
 #'   per threshold value. A value of `0` skips SNR filtering entirely *and*
-#'   removes the requirement for a `tissue_pixels.csv` mask — handy for a
+#'   removes the requirement for a `tissue_pixels.csv` mask -- handy for a
 #'   smoke-test pass before ROIs are drawn (default `0`).
 #' @param tiss_fc Numeric. SNR threshold used for the tissue fold-change layer
 #'   (default `0.6`).
@@ -36,7 +35,7 @@
 #'   `threshold` (default `20`).
 #' @param perc Numeric. Hot-spot percentile passed to `imageR()` as
 #'   `percentile` (default `97`).
-#' @param rot_clockwise Integer (0–3). Number of 90° clockwise rotations
+#' @param rot_clockwise Integer (0-3). Number of 90 deg clockwise rotations
 #'   applied via `pracma::rot90()` (default `0`).
 #' @param average_method Character, `"mean"` or `"median"`. Statistic used to
 #'   summarise the noise pixel vector in `int2snr()`. Applied consistently to
@@ -44,11 +43,11 @@
 #' @param output_txt Logical. When `FALSE`, processing runs but no files are
 #'   written to disk (default `TRUE`).
 #' @param exclude Character vector of feature names to drop before processing.
-#'   Names must match `fData()$name` exactly (default `NULL` — keep all).
+#'   Names must match `fData()$name` exactly (default `NULL` -- keep all).
 #' @param rename Named character vector or list mapping old feature names to new
 #'   display names, e.g. `c("old name" = "new name")`. Applied to all combined
 #'   objects after loading; the new names appear in file names and the heatmap
-#'   (default `NULL` — no renaming).
+#'   (default `NULL` -- no renaming).
 #' @param ratios Optional list of metabolite ratio pairs. Each element must be
 #'   a named list with fields:
 #'   \describe{
@@ -61,10 +60,16 @@
 #'   Ratio images (numerator / denominator, pixel-wise) are written to the
 #'   same SNR-filtered subdirectories as the individual ion images, immediately
 #'   after them. Pixels where the denominator is zero or either ion is `NA` are
-#'   set to `NA` (default `NULL` — no ratios).
+#'   set to `NA` (default `NULL` -- no ratios).
 #' @param output_ratios Logical. When `FALSE`, ratio txt files are not written
 #'   even if `ratios` pairs are defined. Has no effect when `output_txt` is
 #'   `FALSE` (default `TRUE`).
+#' @param snr_overrides Optional named map of feature name to a feature-specific
+#'   SNR threshold. Keys may be original ion-library names **or** post-`rename`
+#'   display names. Listed features use their own threshold in every report;
+#'   all other features use the global `snr_thresh`. Ignored for any report
+#'   whose global threshold is `0` (the mask-free smoke-test pass). Default
+#'   `NULL` (all features use `snr_thresh`).
 #'
 #' @return Invisibly returns a named list:
 #'   \describe{
@@ -79,6 +84,23 @@
 #'   }
 #'
 #' @seealso [int2snr()], [applySNR()], [back2NA()], [imageR()]
+#'
+#' @examples
+#' \donttest{
+#' # Section-mode run on the bundled synthetic data (no tissue mask needed at
+#' # snr_thresh = 0), returning the processed objects without writing files.
+#' fns <- list(list(neg = "example", section = "section01", label = "A"))
+#' res <- generate_txt_images(
+#'   fns          = fns,
+#'   data_path    = system.file("extdata", package = "quantMSImageR"),
+#'   image_dir    = tempfile(),
+#'   lib_ion_path = system.file("extdata", "example_ion_library.csv",
+#'                              package = "quantMSImageR"),
+#'   snr_thresh   = 0,
+#'   output_txt   = FALSE
+#' )
+#' }
+#'
 #' @export
 generate_txt_images <- function(
   fns,
@@ -95,11 +117,43 @@ generate_txt_images <- function(
   exclude        = NULL,
   rename         = NULL,
   ratios         = NULL,
-  output_ratios  = TRUE
+  output_ratios  = TRUE,
+  snr_overrides  = NULL
 ) {
 
   average_method <- match.arg(average_method, c("mean", "median"))
   snr_thresh_vec <- sort(unique(as.numeric(unlist(snr_thresh))))
+
+  # Normalise snr_overrides (a name -> threshold map, possibly a YAML list)
+  # into a named numeric vector. Keys may be display (post-rename) names, so
+  # we translate them to original ion-library names below, since int2snr runs
+  # before apply_renames().
+  if (!is.null(snr_overrides) && length(snr_overrides) > 0) {
+    snr_overrides <- vapply(snr_overrides, as.numeric, numeric(1))
+    message("Per-analyte SNR overrides in effect: ",
+            paste(sprintf("%s=%s", names(snr_overrides), snr_overrides),
+                  collapse = ", "),
+            " (all other features use the global snr_thresh).")
+  } else {
+    snr_overrides <- NULL
+  }
+
+  # Given the features present on an object (original ion-library names),
+  # return a named numeric vector of per-feature thresholds for any feature
+  # that has an override. An override key matches either the feature's
+  # original name or its post-rename display name (so users can write either).
+  resolve_overrides <- function(orig_names) {
+    if (is.null(snr_overrides)) return(NULL)
+    out <- vapply(orig_names, function(nm) {
+      disp <- if (!is.null(rename) && nm %in% names(rename))
+                as.character(rename[[nm]]) else nm
+      if (disp %in% names(snr_overrides)) return(snr_overrides[[disp]])
+      if (nm   %in% names(snr_overrides)) return(snr_overrides[[nm]])
+      NA_real_
+    }, numeric(1))
+    out <- out[!is.na(out)]
+    if (length(out) == 0) NULL else out
+  }
 
   # If every requested threshold is 0, the pipeline can skip the tissue mask
   # entirely (no SNR filtering, no tissue/background separation). A single
@@ -132,7 +186,7 @@ generate_txt_images <- function(
       )
       pracma::rot90(as.matrix(result), k = rot_clockwise)
     }, error = function(e) {
-      message("imageR error (", value_label, "): ", e$message)
+      message("imageR failed (", value_label, "): ", e$message)
       matrix(NA_real_, 0, 0)
     })
   }
@@ -233,7 +287,7 @@ generate_txt_images <- function(
       has_xy <- all(c("x", "y") %in% names(tpdf))
 
       if (has_xy) {
-        # Coordinate-based matching — portable across MRM panels of the same
+        # Coordinate-based matching -- portable across MRM panels of the same
         # physical sample. Pixels in the MSI without a CSV match are labelled
         # noise (conservative; they are excluded from tissue quantiles).
         key_obj <- paste(pData(obj)$x, pData(obj)$y, sep = "_")
@@ -246,7 +300,7 @@ generate_txt_images <- function(
         n_unmatched <- sum(!ok)
         if (n_unmatched > 0)
           message(sprintf(
-            "  '%s': %d / %d MSI pixels not present in tissue_pixels.csv — labelled as noise.",
+            "  '%s': %d / %d MSI pixels not present in tissue_pixels.csv -- labelled as noise.",
             fn_name, n_unmatched, ncol(obj)))
 
         pData(obj)$sample_name <- factor(
@@ -254,7 +308,7 @@ generate_txt_images <- function(
           levels = c("tissue_pixels", "noise_pixels")
         )
       } else if (nrow(tpdf) == ncol(obj)) {
-        # Legacy mask — no coordinates, row-order alignment with current MSI
+        # Legacy mask -- no coordinates, row-order alignment with current MSI
         pData(obj)$sample_name <- makeFactor(
           tissue_pixels = tpdf[["tissue_pixels"]],
           noise_pixels  = tpdf[["noise_pixels"]]
@@ -289,7 +343,7 @@ generate_txt_images <- function(
   # Load one or more acquisitions of the same polarity and merge them into a
   # single MSI by coordinate-matched rbind. bind_panels() handles the typical
   # case where two MRM panels of the same tissue sample at slightly different
-  # rates and therefore produce different pixel grids — pixels are matched on
+  # rates and therefore produce different pixel grids -- pixels are matched on
   # (x, y), features are stacked, so each matched pixel ends up with both
   # panels' transitions.
   load_and_prep_multiple <- function(fns_vec, label) {
@@ -303,7 +357,7 @@ generate_txt_images <- function(
   }
 
 
-  # ----- Normalise fns → fn_list / fn_labels ----------------------------
+  # ----- Normalise fns -> fn_list / fn_labels ----------------------------
   # fns: character vector (backward-compat) OR list where each element is
   # a string (single acq) or named list with pos/neg/label fields.
   fn_list   <- as.list(fns)
@@ -354,8 +408,12 @@ generate_txt_images <- function(
       snr_thresh = tiss_fc, average = average_method
     ) else tissue
 
+    # Per-feature overrides resolved against THIS acquisition's features.
+    .ov <- resolve_overrides(as.character(fData(tissue)$name))
+
     # Compute one SNR-filtered object per requested threshold. A threshold of
-    # 0 short-circuits to the raw `tissue` object (no SNR computation).
+    # 0 short-circuits to the raw `tissue` object (no SNR computation) -- the
+    # smoke-test path -- so overrides are ignored for a 0-valued global report.
     for (si in seq_along(snr_thresh_vec)) {
       thr <- snr_thresh_vec[si]
       tissue_snr <- if (thr == 0) {
@@ -364,7 +422,8 @@ generate_txt_images <- function(
         tmp <- int2snr(
           MSIobject = tissue, val_slot = "intensity", sample_type = "sample_name",
           noise = "noise_pixels", tissue = "tissue_pixels",
-          snr_thresh = thr, average = average_method
+          snr_thresh = thr, average = average_method,
+          snr_overrides = .ov
         )
         applySNR(MSIobject = tmp, val_slot = "intensity")
       }
@@ -465,7 +524,7 @@ generate_txt_images <- function(
                             file.path(dirs$combined, paste0(feat_name, ".txt")))
         }
 
-        # tissue_fc and raw don't vary with SNR threshold — write only on first pass
+        # tissue_fc and raw don't vary with SNR threshold -- write only on first pass
         if (snr_i == 1L) {
           mat_fc <- make_txt_mat(combined_FC_tmp, feat_ind, "snr",
                                   "Ratio to tissue", 0, 100)
@@ -501,12 +560,12 @@ generate_txt_images <- function(
           den_idx <- which(feat_names_all == den_name)
 
           if (length(num_idx) == 0) {
-            message(sprintf("  Ratio '%s': numerator '%s' not found — skipping",
+            message(sprintf("  Ratio '%s': numerator '%s' not found -- skipping",
                             ratio_label, num_name))
             next
           }
           if (length(den_idx) == 0) {
-            message(sprintf("  Ratio '%s': denominator '%s' not found — skipping",
+            message(sprintf("  Ratio '%s': denominator '%s' not found -- skipping",
                             ratio_label, den_name))
             next
           }

@@ -20,3 +20,10 @@ Drops any x-column or y-row in which \strong{every} pixel is labelled as
 scan borders that arise from the Waters acquisition geometry without
 affecting tissue or mixed-content rows/columns.
 }
+\examples{
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- as(readRDS(p), "quant_MSImagingExperiment")
+obj <- trim_MSI(obj)
+
+}

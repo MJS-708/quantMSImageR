@@ -16,6 +16,21 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 
+# Attach the analysis packages this report calls with unqualified names
+# (%>% + dplyr verbs, ggplot2 geoms, ComplexHeatmap, viridis) so it renders
+# self-contained -- both from run_example() (which renders inside the package
+# namespace) and from run_study.R (global env). All are quantMSImageR Imports,
+# so they are guaranteed installed alongside the package. Other packages the
+# report uses (DT, patchwork, openxlsx, grid, matter, Cardinal) are called
+# pkg::-qualified and only need to be installed, not attached.
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(ComplexHeatmap)
+  library(viridis)
+})
+
 # set default options
 knitr::opts_chunk$set(echo = FALSE,
                message = FALSE,
@@ -194,11 +209,20 @@ if (exists("sample_map")) {
 
 ## 1.2 Features / transitions
 
-MRM transitions and analyte metadata from the ion library.
+MRM transitions and analyte metadata from the ion library. `SNR_used` is the
+signal-to-noise threshold applied to each feature in this report (the global
+threshold, or a per-analyte override where set).
 
 ```{r import, echo = FALSE}
 
-DT::datatable(data.frame(fData(combined)))
+.fd <- data.frame(fData(combined), check.names = FALSE)
+
+# Prepend the effective SNR threshold used per feature, if provided by the caller.
+if (exists("snr_used") && !is.null(snr_used)) {
+  .fd <- cbind(SNR_used = unname(snr_used[as.character(.fd$name)]), .fd)
+}
+
+DT::datatable(.fd, rownames = FALSE)
 
 ```
 

@@ -2,6 +2,7 @@
 % Please edit documentation in R/combine_MSIs.R
 \name{combine_MSIs,MSImagingExperiment-method}
 \alias{combine_MSIs,MSImagingExperiment-method}
+\alias{combine_MSIs}
 \title{Function to combine MSImagingExperiment objects.}
 \usage{
 \S4method{combine_MSIs}{MSImagingExperiment}(MSIobject, ...)
@@ -16,4 +17,12 @@ quant_MSImagingExperiment object with intensity values replaced with response
 }
 \description{
 Function to combine MSImagingExperiment objects.
+}
+\examples{
+p1 <- system.file("extdata", "example.raw", "section01.RDS",
+                  package = "quantMSImageR")
+p2 <- system.file("extdata", "example.raw", "section02.RDS",
+                  package = "quantMSImageR")
+combined <- combine_MSIs(readRDS(p1), readRDS(p2))
+
 }

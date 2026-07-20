@@ -2,6 +2,7 @@
 % Please edit documentation in R/applySNR.R
 \name{applySNR,quant_MSImagingExperiment-method}
 \alias{applySNR,quant_MSImagingExperiment-method}
+\alias{applySNR}
 \title{Apply SNR mask to intensity values}
 \usage{
 \S4method{applySNR}{quant_MSImagingExperiment}(MSIobject, val_slot = "response", ...)
@@ -12,6 +13,8 @@
 
 \item{val_slot}{Character. Name of the intensity slot to mask (default
 \code{"intensity"}).}
+
+\item{...}{Additional arguments (currently unused).}
 }
 \value{
 The input object with sub-threshold pixels set to \code{NA} in \code{val_slot}.
@@ -21,6 +24,15 @@ Sets pixels to \code{NA} in \code{val_slot} wherever the \code{snr} spectra slot
 Typically called after \code{int2snr()}: pixels that did not pass the SNR threshold
 (stored as \code{NA} in the \code{snr} slot) are suppressed in the intensity slot so
 they are excluded from downstream analysis and visualisation.
+}
+\examples{
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- as(readRDS(p), "quant_MSImagingExperiment")
+obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
+               noise = "noise_pixels", tissue = "tissue_pixels", snr_thresh = 3)
+obj <- applySNR(obj, val_slot = "intensity")
+
 }
 \seealso{
 \code{\link[=int2snr]{int2snr()}}

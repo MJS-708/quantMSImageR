@@ -9,6 +9,14 @@ theme_Publication(base_size = 14)
 \arguments{
 \item{base_size}{Set base size}
 }
+\value{
+A ggplot2 theme object to add to a plot.
+}
 \description{
 Ggplot2 theme for publication figures
+}
+\examples{
+library(ggplot2)
+ggplot(mtcars, aes(mpg, wt)) + geom_point() + theme_Publication()
+
 }

@@ -1,7 +1,6 @@
 require(testthat)
 require(quantMSImageR)
 
-context("test MSImagingExperiment objects are combined correctly")
 
 test_that("combine_MSIs function", {
 

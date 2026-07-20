@@ -2,6 +2,7 @@
 % Please edit documentation in R/int2snr.R
 \name{int2snr,quant_MSImagingExperiment-method}
 \alias{int2snr,quant_MSImagingExperiment-method}
+\alias{int2snr}
 \title{Function to convert the intensity values to SNR per pixel based on same transitions in noise/background pixels.Run after IS normalization.}
 \usage{
 \S4method{int2snr}{quant_MSImagingExperiment}(
@@ -12,6 +13,7 @@
   snr_thresh = 3,
   sample_type = "sample_type",
   average = c("mean", "median"),
+  snr_overrides = NULL,
   ...
 )
 }
@@ -24,11 +26,34 @@
 
 \item{tissue}{character in pData(MSIobject)$sample_type which indicates tissue pixels to calculate SNR for}
 
-\item{snr_thresh}{value indicating the minimum SNR value to accept (below this value SNR = 0)}
+\item{snr_thresh}{Global minimum SNR to accept (below this value SNR = NA).
+Applied to every feature unless overridden by \code{snr_overrides}.}
+
+\item{sample_type}{character column in pData(MSIobject) holding the pixel-type
+labels (default "sample_type").}
+
+\item{average}{character, "mean" or "median": statistic used to summarise the
+noise-pixel vector per feature.}
+
+\item{snr_overrides}{Optional named numeric vector mapping feature name
+(as in \code{fData(MSIobject)$name}) to a feature-specific SNR threshold. A
+feature listed here uses its own threshold instead of \code{snr_thresh};
+features not listed fall back to \code{snr_thresh}. Default \code{NULL} (all
+features use the global threshold).}
+
+\item{...}{Additional arguments (currently unused).}
 }
 \value{
 MSIobject with intensity values replaced with SNR values
 }
 \description{
 Function to convert the intensity values to SNR per pixel based on same transitions in noise/background pixels.Run after IS normalization.
+}
+\examples{
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- as(readRDS(p), "quant_MSImagingExperiment")
+obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
+               noise = "noise_pixels", tissue = "tissue_pixels", snr_thresh = 3)
+
 }

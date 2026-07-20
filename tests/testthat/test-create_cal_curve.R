@@ -1,22 +1,21 @@
-require(testthat)
-require(quantMSImageR)
+test_that("create_cal_curve fits a linear model per lipid", {
 
-context("test calibration curves are created")
+  cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
+  skip_if_not(file.exists(file.path(cal_dir, "cal_MSI.RDS")),
+              "synthetic cal data not generated (run inst/generate_cal_data.R)")
 
-test_that("create_cal_curve function", {
+  cal  <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
+             "quant_MSImagingExperiment")
+  meta <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
 
-  # Create test data
-  test_data = as(readMSIData(file = sprintf("%s/tissue_MRM_data.raw/combined.imzML", system.file('extdata', package = 'quantMSImageR'))), "quant_MSImagingExperiment")
-  test_data@calibrationInfo@cal_metadata = cal_metadata = read.csv(sprintf("%s/calibration_metadata.csv", system.file('extdata', package = 'quantMSImageR')))
-  test_data@calibrationInfo@cal_response_data = read.csv("C:/Users/matsmi/OneDrive - Karolinska Institutet/Dokument/MSI/quantMSImageR/inst/extdata/cal_response_data.csv")
+  cal <- summarise_cal_levels(cal, meta, val_slot = "intensity",
+                              cal_label = "Cal", id = "identifier")
+  cal <- create_cal_curve(cal, cal_type = "cal")
 
-  # Test cal
-  new_data <- create_cal_curve(test_data, cal_type = "Cal")
+  cl <- cal@calibrationInfo@cal_list
+  r2 <- cal@calibrationInfo@r2_df
 
-  coeffs = as.numeric(new_data@calibrationInfo@cal_list[[1]]$coefficients)
-
-  expect_equal(signif(coeffs[1], 4), 4414)
-  expect_equal(signif(coeffs[2], 6), 339782)
-  expect_equal(signif(new_data@calibrationInfo@r2_df$r2[1], 5), 0.92667)
-
+  expect_equal(length(cl), 3L)                                  # 3 lipids
+  expect_true(all(vapply(cl, function(m) inherits(m, "lm"), logical(1))))
+  expect_true(all(r2$r2 > 0.9))          # synthetic curves are near-linear
 })

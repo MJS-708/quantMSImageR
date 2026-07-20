@@ -48,3 +48,11 @@ acquisition run, then z-scores the resulting per-feature profile across samples
 (clipped to [-1, 1]) and renders a \code{ComplexHeatmap::Heatmap}. Rows are
 features; columns are samples in the order given by \code{heatmap_order}.
 }
+\examples{
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- as(readRDS(p), "quant_MSImagingExperiment")
+hm <- quantile_hm(obj, quant_val = 0.5,
+                  heatmap_order = "section01", heatmap_labs = "A")
+
+}

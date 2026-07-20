@@ -1,7 +1,6 @@
 require(testthat)
 require(quantMSImageR)
 
-context("test zero values changed to NA")
 
 test_that("zero2na function", {
 

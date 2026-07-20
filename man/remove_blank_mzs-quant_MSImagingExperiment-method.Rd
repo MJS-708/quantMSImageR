@@ -2,6 +2,7 @@
 % Please edit documentation in R/remove_blank_mzs.R
 \name{remove_blank_mzs,quant_MSImagingExperiment-method}
 \alias{remove_blank_mzs,quant_MSImagingExperiment-method}
+\alias{remove_blank_mzs}
 \title{Function to remove m/z values with no data.}
 \usage{
 \S4method{remove_blank_mzs}{quant_MSImagingExperiment}(MSIobject)
@@ -14,4 +15,11 @@ MSIobject with m/z values from experiment with no data removed.
 }
 \description{
 Function to remove m/z values with no data.
+}
+\examples{
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- as(readRDS(p), "quant_MSImagingExperiment")
+obj <- remove_blank_mzs(obj)
+
 }

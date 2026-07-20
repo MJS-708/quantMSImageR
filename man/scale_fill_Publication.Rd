@@ -6,6 +6,18 @@
 \usage{
 scale_fill_Publication(...)
 }
+\arguments{
+\item{...}{Arguments passed on to \code{\link[ggplot2:discrete_scale]{ggplot2::discrete_scale()}}.}
+}
+\value{
+A ggplot2 discrete fill scale.
+}
 \description{
 Ggplot2 pal for publication figures
+}
+\examples{
+library(ggplot2)
+ggplot(mtcars, aes(factor(cyl), fill = factor(cyl))) +
+  geom_bar() + scale_fill_Publication()
+
 }

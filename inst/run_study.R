@@ -160,6 +160,11 @@ sample_map <- data.frame(
 if (all(sample_map$section == "")) sample_map$section <- NULL
 
 snr_thresh     <- as.numeric(unlist(cfg$parameters$snr_thresh %||% 0))
+# Optional per-analyte SNR overrides: named map (analyte -> SNR). These
+# analytes use their own threshold in every report; all others use the
+# global snr_thresh above. Keys may be display (post-rename) or original
+# ion-library names.
+snr_overrides  <- cfg$parameters$snr_overrides %||% NULL
 tiss_fc        <- cfg$parameters$tiss_fc        %||% 0.6
 thresh         <- cfg$parameters$thresh         %||% 20
 perc           <- cfg$parameters$perc           %||% 97
@@ -173,13 +178,38 @@ output_txt     <- cfg$output$output_txt     %||% TRUE
 output_ratios  <- cfg$output$output_ratios  %||% TRUE
 # report_fn is set per-SNR inside the render loop (see below)
 
-# Feature overrides (optional)
-feat_exclude <- cfg$features$exclude %||% NULL
-feat_rename  <- if (!is.null(cfg$features$rename))
-                  as.list(unlist(cfg$features$rename)) else NULL
+# ---- Feature control (optional) -------------------------------------------
+# exclude: "None"/null/empty -> keep all; otherwise a list of ion-library names.
+feat_exclude <- cfg$features$exclude
+if (is.null(feat_exclude) || length(feat_exclude) == 0 ||
+    (length(feat_exclude) == 1 &&
+     tolower(trimws(as.character(feat_exclude))) %in% c("none", "")))
+  feat_exclude <- NULL else
+  feat_exclude <- as.character(unlist(feat_exclude))
 
-# Ratio pairs (optional): list of {num, den, label} entries from YAML
-feat_ratios  <- cfg$ratios %||% NULL
+# rename: gated by `enabled:`. New style: rename: {enabled: T/F, "old":"new"}.
+# Back-compat: a rename block with no toggle key is treated as on.
+feat_rename <- NULL
+.rn <- cfg$features$rename
+if (!is.null(.rn)) {
+  .rn_flag <- .rn$enabled %||% .rn$execute      # accept either key
+  .do_rn <- if (!is.null(.rn_flag)) isTRUE(.rn_flag) else TRUE
+  .rn$enabled <- NULL; .rn$execute <- NULL
+  if (.do_rn && length(.rn) > 0) feat_rename <- as.list(unlist(.rn))
+}
+
+# ratios: gated by `enabled:`. New style: ratios: {enabled: T/F, entries: [..]}.
+# Back-compat: a bare top-level sequence (no toggle/entries) is used as-is.
+feat_ratios <- NULL
+.rt <- cfg$ratios
+if (!is.null(.rt)) {
+  .rt_has_flag <- any(c("enabled", "execute", "entries") %in% names(.rt))
+  if (.rt_has_flag) {
+    if (isTRUE(.rt$enabled %||% .rt$execute)) feat_ratios <- .rt$entries %||% NULL
+  } else {
+    feat_ratios <- .rt
+  }
+}
 
 # ---------------------------------------------------------------------------
 # Process acquisitions (always runs; controls output via flags)
@@ -199,8 +229,61 @@ result <- generate_txt_images(
   exclude        = feat_exclude,
   rename         = feat_rename,
   ratios         = feat_ratios,
-  output_ratios  = output_ratios
+  output_ratios  = output_ratios,
+  snr_overrides  = snr_overrides
 )
+
+# ---------------------------------------------------------------------------
+# Calibration (optional): gated by calibration.enabled. Builds a response-vs-
+# amount curve per lipid from a standards acquisition, then converts the
+# study's tissue-pixel intensities to pg/pixel + pg/mm2. Writes a calibrated
+# RDS alongside the reports.
+# ---------------------------------------------------------------------------
+.cal <- cfg$calibration
+if (!is.null(.cal) && isTRUE(.cal$enabled %||% .cal$execute)) {
+  message("Calibration enabled: building curves from '", .cal$cal_acquisition, "'.")
+
+  cal_val  <- .cal$val_slot         %||% "intensity"
+  cal_type <- .cal$cal_type         %||% "std_addition"
+  bg_level <- .cal$background_level %||% "background"
+  q_pixels <- as.character(unlist(.cal$quantify_pixels %||% "tissue_pixels"))
+
+  # 1. Load the calibration acquisition and label its Cal ROIs.
+  cal_obj <- read_mrm(name = .cal$cal_acquisition, folder = data_path,
+                      lib_ion_path = lib_ion_path, overwrite = FALSE)
+  cal_obj <- as(cal_obj, "quant_MSImagingExperiment")
+
+  roi <- read.csv(.cal$cal_roi_csv)
+  if (all(c("x", "y") %in% names(roi))) {
+    .m <- match(paste(pData(cal_obj)$x, pData(cal_obj)$y, sep = "_"),
+                paste(roi$x, roi$y, sep = "_"))
+    pData(cal_obj)$sample_type <- roi$sample_type[.m]
+    pData(cal_obj)$identifier  <- roi$identifier[.m]
+  } else {
+    pData(cal_obj)$sample_type <- roi$sample_type
+    pData(cal_obj)$identifier  <- roi$identifier
+  }
+
+  cal_metadata <- read.csv(.cal$cal_metadata)
+
+  # 2. Summarise calibration levels -> fit curves.
+  cal_obj <- summarise_cal_levels(cal_obj, cal_metadata, val_slot = cal_val,
+                                  cal_label = "Cal", id = "identifier")
+  cal_obj <- create_cal_curve(cal_obj, cal_type = cal_type, background = bg_level)
+
+  # 3. Apply curves to the study's tissue pixels. The imaging pipeline labels
+  #    pixels in `sample_name` (tissue_pixels/noise_pixels), so bridge via
+  #    pixel_header = "sample_name".
+  combined_cal <- result$combined
+  combined_cal@calibrationInfo@cal_list <- cal_obj@calibrationInfo@cal_list
+  combined_cal <- int2conc(combined_cal, val_slot = cal_val,
+                           pixel_header = "sample_name", pixels = q_pixels)
+
+  dir.create(out_path, recursive = TRUE, showWarnings = FALSE)
+  .cal_out <- file.path(out_path, paste0(cfg$study, "_calibrated.RDS"))
+  saveRDS(combined_cal, .cal_out)
+  message("Calibration written to: ", .cal_out)
+}
 
 # ---------------------------------------------------------------------------
 # Render HTML report
@@ -231,23 +314,45 @@ if (render_report) {
   snr_objs    <- result$combined_snr_list
   user_pinned <- !is.null(cfg$output$report_fn) && nzchar(cfg$output$report_fn)
 
+  # The list is named "snr<value>" in sorted-threshold order — the authoritative
+  # threshold per report (snr_thresh from the YAML may be in a different order).
+  snr_report_vals <- as.numeric(sub("^snr", "", names(snr_objs)))
+
+  # Normalise overrides to a named numeric vector once (keys as written in YAML)
+  snr_ov_vec <- if (!is.null(snr_overrides) && length(snr_overrides) > 0)
+    vapply(snr_overrides, as.numeric, numeric(1)) else NULL
+
   for (.i in seq_along(snr_objs)) {
 
     combined     <- snr_objs[[.i]]
     feature_meta <- build_feature_meta(combined, ion_lib_meta)
+    snr_report   <- snr_report_vals[.i]   # global SNR for this report
+
+    # Effective per-feature SNR for the report's feature table. combined has
+    # already been through rename, so fData names are DISPLAY names. An override
+    # keyed by an original library name is mapped to its display name here.
+    .disp <- as.character(fData(combined)$name)
+    snr_used <- stats::setNames(rep(snr_report, length(.disp)), .disp)
+    if (snr_report > 0 && !is.null(snr_ov_vec)) {
+      for (k in names(snr_ov_vec)) {
+        disp_k <- if (!is.null(feat_rename) && k %in% names(feat_rename))
+                    as.character(feat_rename[[k]]) else k
+        if (disp_k %in% names(snr_used)) snr_used[disp_k] <- snr_ov_vec[[k]]
+      }
+    }
 
     # File-stem for this threshold. If the user explicitly pinned report_fn
     # AND only one threshold is requested, honour that; otherwise auto-name
     # per SNR so multiple runs don't clobber each other.
     report_fn <- if (user_pinned && length(snr_objs) == 1L)
       as.character(cfg$output$report_fn)[1] else
-      paste0(cfg$study, "_SNR", snr_thresh[.i])
+      paste0(cfg$study, "_SNR", snr_report)
 
     out_file <- file.path(out_path,
                           paste0(report_fn, "_response_SNRfiltered.html"))
 
     message(sprintf("Rendering report %d/%d (SNR = %s) -> %s",
-                     .i, length(snr_objs), snr_thresh[.i], out_file))
+                     .i, length(snr_objs), snr_report, out_file))
 
     rmarkdown::render(
       markdown_rmd,

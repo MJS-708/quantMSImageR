@@ -38,3 +38,12 @@ across several \verb{Analyte N.txt} files) transparently.
 Results are cached to \verb{<.raw>/MSImagingExperiment.rds}; pass
 \code{overwrite = TRUE} (the default) to re-parse from the raw text files.
 }
+\examples{
+# Return a previously parsed acquisition from its cached .rds
+folder <- system.file("extdata", package = "quantMSImageR")
+lib <- system.file("extdata", "ion_library_pos04.csv",
+                   package = "quantMSImageR")
+obj <- read_mrm("pos04_test", folder = folder, lib_ion_path = lib,
+                overwrite = FALSE)
+
+}

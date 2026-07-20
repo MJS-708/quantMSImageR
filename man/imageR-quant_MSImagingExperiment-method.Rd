@@ -2,6 +2,7 @@
 % Please edit documentation in R/imageR.R
 \name{imageR,quant_MSImagingExperiment-method}
 \alias{imageR,quant_MSImagingExperiment-method}
+\alias{imageR}
 \title{Function to create ion images (using ggplot)}
 \usage{
 \S4method{imageR}{quant_MSImagingExperiment}(
@@ -13,16 +14,20 @@
   sample_lab = "sample_ID",
   pixels = NA,
   percentile = 99,
-  overlay = F,
+  overlay = FALSE,
   feat_ind = 1,
-  perc_scale = F,
-  blank_back = T,
+  perc_scale = FALSE,
+  blank_back = TRUE,
   aspect_ratio = 1,
-  text_image = F,
+  text_image = FALSE,
   roi_labels = NA
 )
 }
 \arguments{
+\item{MSIobject}{A \code{quant_MSImagingExperiment} object.}
+
+\item{val_slot}{character defining the spectra slot to image (default "intensity").}
+
 \item{value}{character stating what values pertain to}
 
 \item{scale}{suppress, histogram, sqrt}
@@ -31,7 +36,7 @@
 
 \item{sample_lab}{character header from pData(MSIobject) to label images (defaults to "sample_ID")}
 
-\item{pixels}{character from pData(MSIobject)[\link{sample_lab}] to take pixels to plot (defaults to NA)}
+\item{pixels}{character from \code{pData(MSIobject)[[sample_lab]]} to take pixels to plot (defaults to NA)}
 
 \item{percentile}{percentile to suppress colour scale (for suppress.)if scale == "suppress")}
 
@@ -40,10 +45,27 @@
 \item{feat_ind}{Index of feature from fData(MSIobject) to image}
 
 \item{perc_scale}{Logical to normalise scale to \% (TRUE) or displar raw values (FALSE)}
+
+\item{blank_back}{Logical; when TRUE background/zero pixels are drawn transparent.}
+
+\item{aspect_ratio}{numeric plot aspect ratio (default 1).}
+
+\item{text_image}{Logical; when TRUE return the image as a numeric matrix
+(for text export) rather than a ggplot.}
+
+\item{roi_labels}{optional data.frame of ROI overlay points (used when
+\code{overlay = TRUE}); default NA.}
 }
 \value{
 ggplot object
 }
 \description{
 Function to create ion images (using ggplot)
+}
+\examples{
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- as(readRDS(p), "quant_MSImagingExperiment")
+gg <- imageR(obj, feat_ind = 1, sample_lab = "run", scale = "suppress")
+
 }

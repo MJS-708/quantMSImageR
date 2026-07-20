@@ -3,7 +3,18 @@
 \docType{class}
 \name{quant_MSImagingExperiment}
 \alias{quant_MSImagingExperiment}
+\alias{quant_MSImagingExperiment-class}
 \title{quant_MSImagingExperiment}
+\value{
+An object of class \code{quant_MSImagingExperiment}, extending
+\code{Cardinal::MSImagingExperiment} with \code{calibrationInfo} and \code{tissueInfo} slots.
+}
 \description{
 Class containting calibration metadata and MSImaging experiment
+}
+\examples{
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- as(readRDS(p), "quant_MSImagingExperiment")
+
 }
