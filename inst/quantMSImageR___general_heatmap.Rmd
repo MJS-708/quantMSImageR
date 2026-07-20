@@ -217,9 +217,15 @@ threshold, or a per-analyte override where set).
 
 .fd <- data.frame(fData(combined), check.names = FALSE)
 
-# Prepend the effective SNR threshold used per feature, if provided by the caller.
+# Insert the effective SNR threshold used per feature immediately to the right
+# of product_mz, if provided by the caller (append at the end if product_mz is
+# absent).
 if (exists("snr_used") && !is.null(snr_used)) {
-  .fd <- cbind(SNR_used = unname(snr_used[as.character(.fd$name)]), .fd)
+  .fd$SNR_used <- unname(snr_used[as.character(.fd$name)])
+  .nm  <- setdiff(colnames(.fd), "SNR_used")
+  .pos <- match("product_mz", .nm)
+  .ord <- if (is.na(.pos)) c(.nm, "SNR_used") else append(.nm, "SNR_used", after = .pos)
+  .fd <- .fd[, .ord, drop = FALSE]
 }
 
 DT::datatable(.fd, rownames = FALSE)
@@ -664,6 +670,17 @@ dir.create(.out, recursive = TRUE, showWarnings = FALSE)
 
 .sheets_added <- character()
 wb <- openxlsx::createWorkbook()
+
+# Feature / transition metadata (incl. SNR_used, positioned right of product_mz)
+# as the first tab -- mirrors section 1.2 of the report.
+if (exists(".fd") && is.data.frame(.fd) && nrow(.fd) > 0) {
+  openxlsx::addWorksheet(wb, "Features")
+  openxlsx::writeDataTable(wb, "Features", .fd,
+                            startRow = 1, tableStyle = "TableStyleLight9")
+  openxlsx::setColWidths(wb, "Features", cols = seq_len(ncol(.fd)),
+                          widths = "auto")
+  .sheets_added <- c(.sheets_added, "Features")
+}
 
 if (exists("fc_tbl") && is.data.frame(fc_tbl) && nrow(fc_tbl) > 0) {
   openxlsx::addWorksheet(wb, "Fold_Change")

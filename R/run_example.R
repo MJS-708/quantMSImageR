@@ -120,12 +120,22 @@ run_example <- function(render_report = TRUE,
 
   message("------------------------------------------------------------------\n")
 
+  # Demonstrate a per-analyte SNR override: give the internal standard(s) half
+  # the general threshold (internal standards are abundant, so a lower SNR cut
+  # is appropriate). In a real study these come from parameters$snr_overrides in
+  # the YAML; here we derive them from the ion library's Type == "IS" rows.
+  .ion_lib      <- read.csv(lib_ion_path, check.names = FALSE)
+  .is_names     <- .ion_lib$transition_id[.ion_lib$Type == "IS"]
+  snr_overrides <- if (length(.is_names))
+    stats::setNames(rep(snr_thresh / 2, length(.is_names)), .is_names) else NULL
+
   result <- generate_txt_images(
     fns            = fns,
     data_path      = data_path,
     image_dir      = image_dir,
     lib_ion_path   = lib_ion_path,
     snr_thresh     = snr_thresh,
+    snr_overrides  = snr_overrides,
     tiss_fc        = 0.6,
     thresh         = 20,
     perc           = 97,
@@ -140,7 +150,15 @@ run_example <- function(render_report = TRUE,
 
     # Variables the Rmd looks up in its parent env
     combined          <- result$combined_snr
-    ion_lib_meta      <- read.csv(lib_ion_path, check.names = FALSE)
+    # Per-feature SNR threshold used, for the SNR_used column in report 1.2: the
+    # general threshold, with the IS override (half) applied. Mirrors run_study.R.
+    snr_used          <- stats::setNames(rep(snr_thresh, nrow(fData(combined))),
+                                          fData(combined)$name)
+    if (!is.null(snr_overrides)) {
+      .ov <- intersect(names(snr_overrides), names(snr_used))
+      snr_used[.ov] <- snr_overrides[.ov]
+    }
+    ion_lib_meta      <- .ion_lib
     feature_meta      <- build_feature_meta(combined, ion_lib_meta)
     heatmap_row_split <- "Met-1"
     out_path          <- tmp_dir
