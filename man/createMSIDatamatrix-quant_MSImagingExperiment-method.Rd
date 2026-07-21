@@ -3,7 +3,7 @@
 \name{createMSIDatamatrix,quant_MSImagingExperiment-method}
 \alias{createMSIDatamatrix,quant_MSImagingExperiment-method}
 \alias{createMSIDatamatrix}
-\title{Function to create data matrix from MSI object}
+\title{Create a feature-by-sample MSI data matrix}
 \usage{
 \S4method{createMSIDatamatrix}{quant_MSImagingExperiment}(
   MSIobject,
@@ -13,19 +13,26 @@
 )
 }
 \arguments{
-\item{MSIobject}{MSI object from Cardinal, pData() to include sample_ID.}
+\item{MSIobject}{A \code{quant_MSImagingExperiment} object.}
 
-\item{val_slot}{character defining slot name to normalise - takes "intensity" as default}
+\item{val_slot}{Character. Spectra slot to tabulate (default \code{"intensity"}).}
 
-\item{inputNA}{Whether to convert 0's in matrix to NA (default = TRUE)}
+\item{inputNA}{Logical. Convert zeros in the matrix to \code{NA} (default \code{TRUE}).}
 
-\item{roi_header}{Header in pData pertaining to ROIs to average. Set to NA to skip generating average df}
+\item{roi_header}{Character. Column of \code{pData()} identifying regions of
+interest to average over. \code{NA} (the default) skips the ROI average and
+keeps one row per pixel.}
 }
 \value{
-MSIobject with slots updated for i) matrix of average ng/pixel of m/z (rows = m/z and cols = cal level) in tissue ROIs ii) sample/ROI metadata
+The input object with its \code{tissueInfo} slot populated:
+\code{all_pixel_matrix} (one row per pixel, one column per feature),
+\code{roi_average_matrix} (one row per ROI, when \code{roi_header} is given) and the
+accompanying sample/ROI metadata.
 }
 \description{
-Function to create data matrix from MSI object
+Flattens the pixel-level object into tabular form for downstream statistics:
+one row per pixel, or one row per region of interest when \code{roi_header} names
+a grouping column.
 }
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",

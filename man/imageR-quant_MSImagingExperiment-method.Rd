@@ -3,7 +3,7 @@
 \name{imageR,quant_MSImagingExperiment-method}
 \alias{imageR,quant_MSImagingExperiment-method}
 \alias{imageR}
-\title{Function to create ion images (using ggplot)}
+\title{Draw an ion image for one feature}
 \usage{
 \S4method{imageR}{quant_MSImagingExperiment}(
   MSIobject,
@@ -14,37 +14,41 @@
   sample_lab = "sample_ID",
   pixels = NA,
   percentile = 99,
-  overlay = FALSE,
   feat_ind = 1,
   perc_scale = FALSE,
   blank_back = TRUE,
   aspect_ratio = 1,
-  text_image = FALSE,
-  roi_labels = NA
+  text_image = FALSE
 )
 }
 \arguments{
 \item{MSIobject}{A \code{quant_MSImagingExperiment} object.}
 
-\item{val_slot}{character defining the spectra slot to image (default "intensity").}
+\item{val_slot}{Character. Spectra slot to image (default \code{"intensity"}).}
 
-\item{value}{character stating what values pertain to}
+\item{value}{Character. Legend label describing what the values represent
+(e.g. \code{"pg/mm2"} for a calibrated layer).}
 
-\item{scale}{suppress, histogram, sqrt}
+\item{scale}{Character. Colour-scale treatment: \code{"suppress"} (cap at
+\code{percentile}), \code{"histogram"} (contrast-enhance per image) or \code{"sqrt"}.}
 
-\item{threshold}{percintile to remove from colour scale (i.e background noise)}
+\item{threshold}{Numeric. Lowest percentile removed from the colour scale,
+to stop residual background dominating it (default \code{1}).}
 
-\item{sample_lab}{character header from pData(MSIobject) to label images (defaults to "sample_ID")}
+\item{sample_lab}{Character. Column of \code{pData(MSIobject)} used to label and
+facet the images (default \code{"sample_ID"}).}
 
-\item{pixels}{character from \code{pData(MSIobject)[[sample_lab]]} to take pixels to plot (defaults to NA)}
+\item{pixels}{Character. Value of \code{pData(MSIobject)$sample_type} selecting
+which pixels to plot; \code{NA} (the default) plots all.}
 
-\item{percentile}{percentile to suppress colour scale (for suppress.)if scale == "suppress")}
+\item{percentile}{Numeric. Percentile at which the colour scale is capped
+when \code{scale = "suppress"} (default \code{99}).}
 
-\item{overlay}{whether to overlay features (not yet implemented!)}
+\item{feat_ind}{Integer. Row index of the feature in \code{fData(MSIobject)} to
+image (default \code{1}).}
 
-\item{feat_ind}{Index of feature from fData(MSIobject) to image}
-
-\item{perc_scale}{Logical to normalise scale to \% (TRUE) or displar raw values (FALSE)}
+\item{perc_scale}{Logical. Express the colour scale as a percentage of the
+maximum (\code{TRUE}) rather than raw values (\code{FALSE}, the default).}
 
 \item{blank_back}{Logical; when TRUE background/zero pixels are drawn transparent.}
 
@@ -52,15 +56,15 @@
 
 \item{text_image}{Logical; when TRUE return the image as a numeric matrix
 (for text export) rather than a ggplot.}
-
-\item{roi_labels}{optional data.frame of ROI overlay points (used when
-\code{overlay = TRUE}); default NA.}
 }
 \value{
-ggplot object
+A \code{ggplot} object, or a numeric matrix when \code{text_image = TRUE}.
 }
 \description{
-Function to create ion images (using ggplot)
+Renders a single feature's spatial distribution as a \code{ggplot}. Because the
+result is an ordinary \code{ggplot}, the layout, theme and scales can be modified
+with the usual \code{+} syntax -- for example \code{+ facet_wrap(~ sample, ncol = 3)}
+to arrange several acquisitions in a grid.
 }
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",
@@ -69,3 +73,8 @@ obj <- as(readRDS(p), "quant_MSImagingExperiment")
 gg <- imageR(obj, feat_ind = 1, sample_lab = "run", scale = "suppress")
 
 }
+\seealso{
+Other visualisation:
+\code{\link[=quantile_hm]{quantile_hm()}}
+}
+\concept{visualisation}

@@ -10,12 +10,19 @@
 #' \enumerate{
 #'   \item Subsetting both objects to the \emph{intersection} of feature names.
 #'   \item Reordering \code{obj2} to match \code{obj1}'s feature order.
-#'   \item Forcing \code{obj2}'s \code{mz} values to equal \code{obj1}'s so
-#'     Cardinal's key check passes.  This is safe because
-#'     \code{\link{combine_MSIs}} overwrites \code{fData} from \code{obj1}
-#'     after \code{cbind}, so all feature metadata always originates from the
-#'     first object.
+#'   \item Forcing \code{obj2}'s \code{mz} values to equal \code{obj1}'s, which
+#'     permits Cardinal's key check to pass after features have been matched by
+#'     name.  \code{\link{combine_MSIs}} then restores \code{fData} from
+#'     \code{obj1}, so all feature metadata originates from the first object.
 #' }
+#'
+#' Matching is by display name alone.  Users must ensure that identically named
+#' features represent the same analytical transition in both objects: two
+#' methods can reuse a name while differing in precursor ion, product ion,
+#' adduct, polarity, collision energy or transition definition, and rewriting
+#' the \code{mz} key would then silently merge different measurements.  Check
+#' \code{fData()} (precursor and product m/z in particular) before relying on
+#' the result for anything quantitative.
 #'
 #' The function is called automatically inside
 #' \code{\link{generate_txt_images}} before every cross-sample
@@ -49,6 +56,7 @@
 #'                   package = "quantMSImageR")
 #' al <- align_features(readRDS(p1), readRDS(p2))
 #'
+#' @family combining acquisitions
 #' @export
 align_features <- function(obj1, obj2) {
   nms1   <- fData(obj1)$name

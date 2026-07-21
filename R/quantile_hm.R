@@ -35,6 +35,7 @@
 #' hm <- quantile_hm(obj, quant_val = 0.5,
 #'                   heatmap_order = "section01", heatmap_labs = "A")
 #'
+#' @family visualisation
 #' @export
 
 quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = NA,

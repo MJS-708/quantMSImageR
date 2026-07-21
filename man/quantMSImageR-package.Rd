@@ -9,7 +9,7 @@
 Tools (extending Cardinal) for processing and quantifying targeted DESI-MRM
 mass spectrometry imaging data: signal-to-noise filtering, tissue/background
 separation, per-feature ion images, quantile heatmaps and standards-based
-absolute quantification.
+quantification.
 }
 \seealso{
 Useful links:

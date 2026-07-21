@@ -3,29 +3,56 @@
 \name{int2conc,quant_MSImagingExperiment-method}
 \alias{int2conc,quant_MSImagingExperiment-method}
 \alias{int2conc}
-\title{Function to update intensity with concentration values}
+\title{Convert response to calibrated amount estimates}
 \usage{
 \S4method{int2conc}{quant_MSImagingExperiment}(
   MSIobject,
-  val_slot = "response",
+  val_slot = "intensity",
   pixel_header = "sample_type",
-  pixels = "Tissue"
+  pixels = "Tissue",
+  max_out_of_range = 0.9
 )
 }
 \arguments{
-\item{MSIobject}{quant_MSImagingExperiment object}
+\item{MSIobject}{A \code{quant_MSImagingExperiment} carrying calibration models
+fitted by \code{\link[=create_cal_curve]{create_cal_curve()}}.}
 
-\item{val_slot}{character defining slot name to normalise - takes "intensity" as default}
+\item{val_slot}{Character. Spectra slot holding the measured response
+(default \code{"intensity"}).}
 
-\item{pixel_header}{Column in pData() holding the pixel-type labels (default "sample_type")}
+\item{pixel_header}{Character. Column of \code{pData()} holding the pixel-type
+labels (default \code{"sample_type"}).}
 
-\item{pixels}{Label in pixel metadata the pixels to quantify}
+\item{pixels}{Character. Label(s) in \code{pixel_header} marking the pixels to
+quantify (default \code{"Tissue"}).}
+
+\item{max_out_of_range}{Numeric in \verb{[0, 1]}. Warn when more than this
+proportion of a feature's pixels fall outside the calibrated range, i.e.
+are extrapolated rather than interpolated (default \code{0.9}). Any
+extrapolation at all is reported by \code{message()}; this controls only the
+escalation to a warning. Set to \code{1} to silence it.}
 }
 \value{
-MSIobject with intensity values replaced with concentration values (ng/pixel)
+The object subset to \code{pixels}, with two spectra slots added:
+\code{pg_pixel} (estimated amount per pixel) and, when
+\code{experimentData(MSIobject)$pixelSize} is available, \code{pg_mm2} (estimated
+areal amount). Features with no calibration model are removed, and
+\code{r2_df} gains an \code{out_of_range} column giving the proportion of each
+feature's pixels that were extrapolated beyond the calibrated range.
 }
 \description{
-Function to update intensity with concentration values
+Inverts each analyte's calibration model to turn a measured response into an
+\strong{estimated amount per pixel}. Features without a calibration model are
+dropped.
+}
+\details{
+Mass spectrometry imaging measures analyte response at each pixel rather than
+analyte amount directly. The values produced here are calibrated \emph{amount}
+estimates (pg per pixel, and pg per mm-squared where the pixel size is
+known), not volumetric concentrations. They are conditional on the
+calibration design, matrix matching, acquisition conditions and the validity
+of the fitted model -- see \code{\link[=plot_cal_coverage]{plot_cal_coverage()}} for the coverage check that
+should accompany them.
 }
 \examples{
 cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
@@ -38,3 +65,11 @@ cal <- create_cal_curve(cal, cal_type = "cal")
 cal <- int2conc(cal, val_slot = "intensity", pixels = "Tissue")
 
 }
+\seealso{
+Other calibration:
+\code{\link{calibrationInfo-class}},
+\code{\link{create_cal_curve,quant_MSImagingExperiment-method}},
+\code{\link{plot_cal_coverage,quant_MSImagingExperiment-method}},
+\code{\link{summarise_cal_levels,quant_MSImagingExperiment-method}}
+}
+\concept{calibration}

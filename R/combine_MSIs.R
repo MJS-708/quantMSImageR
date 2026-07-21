@@ -1,12 +1,22 @@
 setGeneric("combine_MSIs", function(MSIobject, ...) standardGeneric("combine_MSIs"))
 
-#' Function to combine MSImagingExperiment objects.
+#' Combine MSI experiments across acquisitions
+#'
+#' Concatenates two or more acquisitions pixel-wise into a single object, so
+#' that a whole study can be filtered, summarised and plotted together. Each
+#' input keeps its own `run`, which is what downstream per-sample summaries
+#' group on.
+#'
 #' @import Cardinal
 #' @include setClasses.R
 #'
-#' @param MSIobject MSImagingExperiment object from Cardinal
-#' @return quant_MSImagingExperiment object with intensity values replaced with response
-#' @param ... additional MSImagingExperiment object to combine - must have matching fData() and same columns form pData().
+#' @param MSIobject An `MSImagingExperiment`; the first acquisition, whose
+#'   `fData()` defines the shared feature axis.
+#' @param ... Further `MSImagingExperiment` objects to combine. All must share
+#'   the feature axis and the `pData()` columns of `MSIobject` -- use
+#'   [align_features()] or [setCommonAxis()] first if they do not.
+#' @return A single `quant_MSImagingExperiment` holding every input's pixels,
+#'   with the shared `fData()` restored and one `run` level per acquisition.
 #'
 #' @examples
 #' p1 <- system.file("extdata", "example.raw", "section01.RDS",
@@ -15,6 +25,7 @@ setGeneric("combine_MSIs", function(MSIobject, ...) standardGeneric("combine_MSI
 #'                   package = "quantMSImageR")
 #' combined <- combine_MSIs(readRDS(p1), readRDS(p2))
 #'
+#' @family combining acquisitions
 #' @aliases combine_MSIs
 #' @export
 setMethod("combine_MSIs", "MSImagingExperiment",

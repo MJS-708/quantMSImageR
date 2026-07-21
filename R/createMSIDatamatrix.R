@@ -1,14 +1,24 @@
 setGeneric("createMSIDatamatrix", function(MSIobject, ...) standardGeneric("createMSIDatamatrix"))
 
-#' Function to create data matrix from MSI object
+#' Create a feature-by-sample MSI data matrix
+#'
+#' Flattens the pixel-level object into tabular form for downstream statistics:
+#' one row per pixel, or one row per region of interest when `roi_header` names
+#' a grouping column.
+#'
 #' @import Cardinal
 #' @include setClasses.R
 #'
-#' @param MSIobject MSI object from Cardinal, pData() to include sample_ID.
-#' @param val_slot character defining slot name to normalise - takes "intensity" as default
-#' @param inputNA Whether to convert 0's in matrix to NA (default = TRUE)
-#' @param roi_header Header in pData pertaining to ROIs to average. Set to NA to skip generating average df
-#' @return MSIobject with slots updated for i) matrix of average ng/pixel of m/z (rows = m/z and cols = cal level) in tissue ROIs ii) sample/ROI metadata
+#' @param MSIobject A `quant_MSImagingExperiment` object.
+#' @param val_slot Character. Spectra slot to tabulate (default `"intensity"`).
+#' @param inputNA Logical. Convert zeros in the matrix to `NA` (default `TRUE`).
+#' @param roi_header Character. Column of `pData()` identifying regions of
+#'   interest to average over. `NA` (the default) skips the ROI average and
+#'   keeps one row per pixel.
+#' @return The input object with its `tissueInfo` slot populated:
+#'   `all_pixel_matrix` (one row per pixel, one column per feature),
+#'   `roi_average_matrix` (one row per ROI, when `roi_header` is given) and the
+#'   accompanying sample/ROI metadata.
 #'
 #' @examples
 #' p <- system.file("extdata", "example.raw", "section01.RDS",

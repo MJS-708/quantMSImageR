@@ -1,12 +1,19 @@
 setGeneric("setCommonAxis", function(MSIobjects, ...) standardGeneric("setCommonAxis"))
 
-#' Function to ser list of MSImagingExperiment objects set to same feature axis
+#' Align a collection of MSI objects to a common feature axis
+#'
+#' Puts every object in a list onto the same feature set, in the same order, so
+#' they can be combined. Features missing from an object are padded, which is
+#' what makes acquisitions run on slightly different MRM panels comparable.
+#'
 #' @import Cardinal
 #' @include setClasses.R
 #'
-#' @param MSIobjects List of MSImagingExperiment objects
-#' @param ref_fdata MassDataFrame with features to use
-#' @return List of MSIobjects with common fData and matching spectra
+#' @param MSIobjects A list of `MSImagingExperiment` objects.
+#' @param ref_fdata A `MassDataFrame` giving the reference feature axis, e.g.
+#'   `fData()` of whichever object carries the full panel.
+#' @return A list of the same objects, each carrying `ref_fdata` as its
+#'   `fData()` with spectra reordered and padded to match.
 #'
 #' @examples
 #' p1 <- system.file("extdata", "example.raw", "section01.RDS",
@@ -16,6 +23,7 @@ setGeneric("setCommonAxis", function(MSIobjects, ...) standardGeneric("setCommon
 #' objs <- list(readRDS(p1), readRDS(p2))
 #' aligned <- setCommonAxis(objs, fData(objs[[1]]))
 #'
+#' @family combining acquisitions
 #' @aliases setCommonAxis
 #' @export
 setMethod("setCommonAxis", "list",

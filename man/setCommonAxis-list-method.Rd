@@ -3,20 +3,24 @@
 \name{setCommonAxis,list-method}
 \alias{setCommonAxis,list-method}
 \alias{setCommonAxis}
-\title{Function to ser list of MSImagingExperiment objects set to same feature axis}
+\title{Align a collection of MSI objects to a common feature axis}
 \usage{
 \S4method{setCommonAxis}{list}(MSIobjects, ref_fdata)
 }
 \arguments{
-\item{MSIobjects}{List of MSImagingExperiment objects}
+\item{MSIobjects}{A list of \code{MSImagingExperiment} objects.}
 
-\item{ref_fdata}{MassDataFrame with features to use}
+\item{ref_fdata}{A \code{MassDataFrame} giving the reference feature axis, e.g.
+\code{fData()} of whichever object carries the full panel.}
 }
 \value{
-List of MSIobjects with common fData and matching spectra
+A list of the same objects, each carrying \code{ref_fdata} as its
+\code{fData()} with spectra reordered and padded to match.
 }
 \description{
-Function to ser list of MSImagingExperiment objects set to same feature axis
+Puts every object in a list onto the same feature set, in the same order, so
+they can be combined. Features missing from an object are padded, which is
+what makes acquisitions run on slightly different MRM panels comparable.
 }
 \examples{
 p1 <- system.file("extdata", "example.raw", "section01.RDS",
@@ -27,3 +31,11 @@ objs <- list(readRDS(p1), readRDS(p2))
 aligned <- setCommonAxis(objs, fData(objs[[1]]))
 
 }
+\seealso{
+Other combining acquisitions:
+\code{\link[=align_features]{align_features()}},
+\code{\link[=bind_panels]{bind_panels()}},
+\code{\link[=bind_polarities]{bind_polarities()}},
+\code{\link{combine_MSIs,MSImagingExperiment-method}}
+}
+\concept{combining acquisitions}

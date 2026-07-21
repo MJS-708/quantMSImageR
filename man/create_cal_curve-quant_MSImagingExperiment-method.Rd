@@ -3,7 +3,7 @@
 \name{create_cal_curve,quant_MSImagingExperiment-method}
 \alias{create_cal_curve,quant_MSImagingExperiment-method}
 \alias{create_cal_curve}
-\title{Function to create calibration curves (response v concentration, where concentration is pg/pixel)}
+\title{Fit per-analyte calibration models}
 \usage{
 \S4method{create_cal_curve}{quant_MSImagingExperiment}(
   MSIobject,
@@ -13,20 +13,39 @@
 )
 }
 \arguments{
-\item{MSIobject}{A \code{quant_MSImagingExperiment} whose \verb{@calibrationInfo@cal_response_data}
-slot has been populated by \code{\link[=summarise_cal_levels]{summarise_cal_levels()}}.}
+\item{MSIobject}{A \code{quant_MSImagingExperiment} whose \code{cal_response_data} has
+been populated by \code{\link[=summarise_cal_levels]{summarise_cal_levels()}}.}
 
-\item{cal_type}{string of approach to generate claibration curve - 'std_addition' if standards are on tissue and 'cal' if direct onto glass slide.}
+\item{cal_type}{Character. \code{"cal"} for standards deposited onto the slide,
+\code{"std_addition"} for background-corrected on-tissue calibration.}
 
-\item{level}{Column header to find background label from 'MSIobject@calibrationInfo@cal_response_data'}
+\item{level}{Character. Column of \code{cal_response_data} holding the level
+labels (default \code{"level"}).}
 
-\item{background}{string referring to background level from "level" label in 'MSIobject@calibrationInfo@cal_response_data'.}
+\item{background}{Character. Value of \code{level} marking the background level
+subtracted when \code{cal_type = "std_addition"}.}
 }
 \value{
-MSIobject with slots updated for i) cal_list - List of linear models for each m/z (response v concentration, where concentration is pg/pixel) and ii) r2 values for each calibration iii) calibration metadata
+The input object with \code{cal_list} (one \code{lm} per standard, response
+versus amount in pg per pixel), \code{r2_df} (fit R-squared per standard) and
+the calibration metadata populated.
 }
 \description{
-Function to create calibration curves (response v concentration, where concentration is pg/pixel)
+Fits a linear response-versus-amount model for each standard, which
+\code{\link[=int2conc]{int2conc()}} later inverts to turn a measured response into an estimated
+amount per pixel.
+}
+\details{
+\code{cal_type = "cal"} fits the summarised response directly against the amount
+deposited, appropriate for standards spotted onto the slide beside the
+tissue (on-slide / external calibration).
+
+\code{cal_type = "std_addition"} first estimates the background contribution and
+subtracts it from the deposited amounts before fitting, appropriate for
+standards deposited onto tissue. Note that this is
+\strong{background-corrected on-tissue calibration} rather than classical standard
+addition, which would estimate the endogenous amount from the x-intercept
+across added amounts. The argument value is retained for compatibility.
 }
 \examples{
 cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
@@ -38,3 +57,11 @@ cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
 cal <- create_cal_curve(cal, cal_type = "cal")
 
 }
+\seealso{
+Other calibration:
+\code{\link{calibrationInfo-class}},
+\code{\link{int2conc,quant_MSImagingExperiment-method}},
+\code{\link{plot_cal_coverage,quant_MSImagingExperiment-method}},
+\code{\link{summarise_cal_levels,quant_MSImagingExperiment-method}}
+}
+\concept{calibration}

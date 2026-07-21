@@ -1,16 +1,29 @@
 setGeneric("int2response", function(MSIobject, ...) standardGeneric("int2response"))
 
-#' Function to normalise the intensity values to response per pixel if internal standard is present. Currently only works for a single internal standard to normalise all lipids to.
+#' Normalise pixel intensities to internal-standard response
+#'
+#' Divides each feature's intensity by the internal standard measured in the
+#' same pixel, line or sample, which suppresses drift and much of the local
+#' variation in ionisation efficiency. Only a single internal standard is
+#' supported.
+#'
 #' @import Cardinal
 #' @include setClasses.R
 #'
-#' @param MSIobject MSI MSIobject from Cardinal
-#' @param val_slot character defining slot name to normalise - takes "intensity" as default
-#' @param IS_name character defining the IS to use in fData(MSIobject) under the analyte header. Currently only works for a single internal standard to normalise all lipids to. "None" use individual lipids to normalise.
-#' @param mode Mode iby which to apply normalisation. "sample" = normalise to median intensity of IS per sample, "line" = normalise to median intensity of IS per line, "pixel" = normalise to intensity of IS per pixel.
-#' @param remove_IS Logical whether to remove internal standard feature from object
+#' @param MSIobject A `quant_MSImagingExperiment` object.
+#' @param val_slot Character. Spectra slot to normalise (default
+#'   `"intensity"`).
+#' @param IS_name Character. Name of the internal standard in
+#'   `fData(MSIobject)` under the analyte header. `"None"` (the default)
+#'   normalises each feature to itself.
+#' @param mode Character. Level at which the standard is summarised:
+#'   `"sample"` (median internal-standard intensity per sample), `"line"`
+#'   (per acquisition line, the default) or `"pixel"` (per pixel).
+#' @param remove_IS Logical. Drop the internal-standard feature from the
+#'   returned object (default `TRUE`).
 #' @param ... Additional arguments (currently unused).
-#' @return MSIobject with intensity values replaced with response
+#' @return The input object with a `response` spectra slot holding the
+#'   internal-standard-normalised values.
 #'
 #' @examples
 #' p <- system.file("extdata", "example.raw", "section01.RDS",
@@ -19,6 +32,7 @@ setGeneric("int2response", function(MSIobject, ...) standardGeneric("int2respons
 #' # normalise each feature to itself per line (no internal standard)
 #' obj <- int2response(obj, val_slot = "intensity", IS_name = "None")
 #'
+#' @family filtering
 #' @aliases int2response
 #' @export
 setMethod("int2response", "quant_MSImagingExperiment",

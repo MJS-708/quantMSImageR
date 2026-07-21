@@ -25,31 +25,37 @@
 #'   Default `"histogram"`.
 #' @param overwrite Logical. If `TRUE`, an existing `tissue_pixels.csv` will
 #'   be overwritten.  Default `FALSE`.
+#' @param preview Logical. Draw the saved mask (tissue versus background over
+#'   the pixel coordinates) once selection finishes, so it can be checked before
+#'   the pipeline uses it. Default `TRUE`.
 #'
-#' @return Invisibly returns a data frame with columns `tissue_pixels` and
-#'   `noise_pixels` (logical), one row per pixel, in acquisition order.
+#' @return Invisibly returns a data frame with columns `x`, `y`,
+#'   `tissue_pixels` and `background_pixels` (logical), one row per pixel, in
+#'   acquisition order.
 #'
 #' @examples
-#' \dontrun{
-#' # Step 1 (once per acquisition, before running the YAML):
-#' select_tissue_pixels(
-#'   name         = "14Dec_AntibodyStudy_1",
-#'   data_path    = "D:/studies/raw",
-#'   lib_ion_path = "D:/studies/ion_library.csv"
-#' )
+#' # Requires a graphics device and user input, so it only runs interactively.
+#' if (interactive()) {
+#'   # Step 1 (once per acquisition, before running the study):
+#'   select_tissue_pixels(
+#'     name         = "my_acquisition",
+#'     data_path    = "path/to/raw",
+#'     lib_ion_path = "path/to/ion_library.csv"
+#'   )
 #'
-#' # Step 2: run the full pipeline via YAML
-#' CONFIG_FILE <- "path/to/study.yaml"
-#' source(system.file("run_study.R", package = "quantMSImageR"))
+#'   # Step 2: run the full pipeline from the study config
+#'   run_study("path/to/study.yaml")
 #' }
 #'
+#' @family acquisition
 #' @export
 select_tissue_pixels <- function(name,
                                  data_path,
                                  lib_ion_path,
                                  feature   = NULL,
                                  enhance   = "histogram",
-                                 overwrite = FALSE) {
+                                 overwrite = FALSE,
+                                 preview   = TRUE) {
 
   out_csv <- file.path(data_path, paste0(name, ".raw"), "tissue_pixels.csv")
 
@@ -115,22 +121,42 @@ select_tissue_pixels <- function(name,
   # sample -- pixel counts can differ between panels because of cycle timing,
   # but (x, y) positions identify the same tissue region.
   tpdf <- data.frame(
-    x             = Cardinal::pData(obj)$x,
-    y             = Cardinal::pData(obj)$y,
-    tissue_pixels = as.logical(tissue_pixels),
-    noise_pixels  = !as.logical(tissue_pixels)
+    x                 = Cardinal::pData(obj)$x,
+    y                 = Cardinal::pData(obj)$y,
+    tissue_pixels     = as.logical(tissue_pixels),
+    background_pixels = !as.logical(tissue_pixels)
   )
 
   write.csv(tpdf, out_csv, row.names = FALSE)
 
-  n_tiss  <- sum(tpdf$tissue_pixels)
-  n_noise <- sum(tpdf$noise_pixels)
+  n_tiss <- sum(tpdf$tissue_pixels)
+  n_bg   <- sum(tpdf$background_pixels)
 
   message("\nSaved: ", out_csv)
-  message(sprintf("  Tissue pixels : %d  (%.1f%%)", n_tiss,
+  message(sprintf("  Tissue pixels     : %d  (%.1f%%)", n_tiss,
                   100 * n_tiss / nrow(tpdf)))
-  message(sprintf("  Noise pixels  : %d  (%.1f%%)", n_noise,
-                  100 * n_noise / nrow(tpdf)))
+  message(sprintf("  Background pixels : %d  (%.1f%%)", n_bg,
+                  100 * n_bg / nrow(tpdf)))
+
+  # ---- Mask preview ---------------------------------------------------------
+  # The ROI window closes as soon as selection finishes, so draw the saved mask
+  # to confirm what was actually written before it is used downstream.
+  if (isTRUE(preview)) {
+    tpdf$label <- ifelse(tpdf$tissue_pixels, "tissue_pixels", "background_pixels")
+    print(
+      ggplot2::ggplot(tpdf, ggplot2::aes(x = x, y = -y, fill = label)) +
+        ggplot2::geom_tile() +
+        ggplot2::coord_equal() +
+        ggplot2::scale_fill_manual(
+          values = c(tissue_pixels = "#1b7837", background_pixels = "grey85")) +
+        ggplot2::labs(x = NULL, y = NULL, fill = NULL,
+                      title = paste0(name, ": saved tissue mask")) +
+        ggplot2::theme_minimal() +
+        ggplot2::theme(axis.text = ggplot2::element_blank(),
+                       panel.grid = ggplot2::element_blank())
+    )
+    tpdf$label <- NULL
+  }
 
   invisible(tpdf)
 }

@@ -7,8 +7,8 @@
 \usage{
 \S4method{back2NA}{quant_MSImagingExperiment}(
   MSIobject,
-  val_slot = "response",
-  background = "Noise",
+  val_slot = "intensity",
+  background = "background_pixels",
   tissue = "Tissue",
   sample_type = "sample_type",
   ...
@@ -21,7 +21,9 @@ a column identifying pixel type.}
 \item{val_slot}{Character. Name of the spectra slot to modify (default \code{"intensity"}).}
 
 \item{background}{Character. Value in \code{pData(MSIobject)[[sample_type]]} that
-labels background/noise pixels (default \code{"Noise"}).}
+labels background pixels (default \code{"background_pixels"}). The historical
+\code{"noise_pixels"} / \code{"Noise"} labels are matched too, so masks made with
+earlier versions keep working.}
 
 \item{tissue}{Character. Value that labels tissue pixels (default \code{"Tissue"}).
 Currently unused but kept for API symmetry with \code{int2snr}.}
@@ -44,7 +46,15 @@ chosen intensity slot. Tissue pixels are left unchanged.
 p <- system.file("extdata", "example.raw", "section01.RDS",
                  package = "quantMSImageR")
 obj <- as(readRDS(p), "quant_MSImagingExperiment")
-obj <- back2NA(obj, val_slot = "intensity", background = "noise_pixels",
+obj <- back2NA(obj, val_slot = "intensity", background = "background_pixels",
                tissue = "tissue_pixels", sample_type = "sample_name")
 
 }
+\seealso{
+Other filtering:
+\code{\link{applySNR,quant_MSImagingExperiment-method}},
+\code{\link{int2response,quant_MSImagingExperiment-method}},
+\code{\link{int2snr,quant_MSImagingExperiment-method}},
+\code{\link{zero2na,quant_MSImagingExperiment-method}}
+}
+\concept{filtering}

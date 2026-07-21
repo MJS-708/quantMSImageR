@@ -29,8 +29,6 @@
 #'   per threshold value. A value of `0` skips SNR filtering entirely *and*
 #'   removes the requirement for a `tissue_pixels.csv` mask -- handy for a
 #'   smoke-test pass before ROIs are drawn (default `0`).
-#' @param tiss_fc Numeric. SNR threshold used for the tissue fold-change layer
-#'   (default `0.6`).
 #' @param thresh Numeric. Cold-spot percentile passed to `imageR()` as
 #'   `threshold` (default `20`).
 #' @param perc Numeric. Hot-spot percentile passed to `imageR()` as
@@ -79,7 +77,6 @@
 #'       backward compatibility.}
 #'     \item{`combined_snr_list`}{Named list of SNR-filtered objects, one per
 #'       threshold in `snr_thresh`, named `"snr<value>"` (e.g. `"snr3"`).}
-#'     \item{`combined_FC`}{Tissue fold-change layer (`snr` slot).}
 #'     \item{`combined_NAbackground`}{Raw intensity with background set to `NA`.}
 #'   }
 #'
@@ -101,6 +98,7 @@
 #' )
 #' }
 #'
+#' @family workflow
 #' @export
 generate_txt_images <- function(
   fns,
@@ -108,7 +106,6 @@ generate_txt_images <- function(
   image_dir,
   lib_ion_path,
   snr_thresh     = 0,
-  tiss_fc        = 0.6,
   thresh         = 20,
   perc           = 97,
   rot_clockwise  = 0,
@@ -253,7 +250,7 @@ generate_txt_images <- function(
       obj <- readRDS(rds_path)
       if (!"sample_name" %in% names(pData(obj)))
         stop("RDS for section '", section, "' lacks pData$sample_name; ",
-             "regenerate RDS with tissue_pixels/noise_pixels labels attached.")
+             "regenerate RDS with tissue_pixels/background_pixels labels attached.")
       if (!is(obj, "quant_MSImagingExperiment"))
         obj <- as(obj, "quant_MSImagingExperiment")
     } else {
@@ -265,7 +262,7 @@ generate_txt_images <- function(
       if (!.needs_mask) {
         pData(obj)$sample_name <- factor(
           rep("tissue_pixels", ncol(obj)),
-          levels = c("tissue_pixels", "noise_pixels")
+          levels = c("tissue_pixels", "background_pixels")
         )
         obj <- as(obj, "quant_MSImagingExperiment")
         obj <- trim_MSI(MSI_data = obj)
@@ -289,7 +286,7 @@ generate_txt_images <- function(
       if (has_xy) {
         # Coordinate-based matching -- portable across MRM panels of the same
         # physical sample. Pixels in the MSI without a CSV match are labelled
-        # noise (conservative; they are excluded from tissue quantiles).
+        # background (conservative; they are excluded from tissue quantiles).
         key_obj <- paste(pData(obj)$x, pData(obj)$y, sep = "_")
         key_csv <- paste(tpdf$x,        tpdf$y,        sep = "_")
         midx    <- match(key_obj, key_csv)
@@ -300,18 +297,22 @@ generate_txt_images <- function(
         n_unmatched <- sum(!ok)
         if (n_unmatched > 0)
           message(sprintf(
-            "  '%s': %d / %d MSI pixels not present in tissue_pixels.csv -- labelled as noise.",
+            "  '%s': %d / %d MSI pixels not present in tissue_pixels.csv -- labelled as background.",
             fn_name, n_unmatched, ncol(obj)))
 
         pData(obj)$sample_name <- factor(
-          ifelse(is_tiss, "tissue_pixels", "noise_pixels"),
-          levels = c("tissue_pixels", "noise_pixels")
+          ifelse(is_tiss, "tissue_pixels", "background_pixels"),
+          levels = c("tissue_pixels", "background_pixels")
         )
       } else if (nrow(tpdf) == ncol(obj)) {
-        # Legacy mask -- no coordinates, row-order alignment with current MSI
+        # Legacy mask -- no coordinates, row-order alignment with current MSI.
+        # Masks written before the rename carry a `noise_pixels` column, so
+        # accept either spelling.
+        bg_col <- if ("background_pixels" %in% names(tpdf))
+                    "background_pixels" else "noise_pixels"
         pData(obj)$sample_name <- makeFactor(
-          tissue_pixels = tpdf[["tissue_pixels"]],
-          noise_pixels  = tpdf[["noise_pixels"]]
+          tissue_pixels     = tpdf[["tissue_pixels"]],
+          background_pixels = tpdf[[bg_col]]
         )
       } else {
         stop(sprintf(
@@ -368,7 +369,6 @@ generate_txt_images <- function(
   # ----- Load and process acquisitions -----------------------------------
 
   combined          <- NULL
-  combined_FC       <- NULL
   combined_snr_list <- vector("list", length(snr_thresh_vec))
 
   for (ind in seq_along(fn_list)) {
@@ -402,12 +402,6 @@ generate_txt_images <- function(
       tissue <- load_and_prep_acq(fn_entry)
     }
 
-    tissue_fc <- if (.needs_mask) int2snr(
-      MSIobject = tissue, val_slot = "intensity", sample_type = "sample_name",
-      noise = "tissue_pixels", tissue = "tissue_pixels",
-      snr_thresh = tiss_fc, average = average_method
-    ) else tissue
-
     # Per-feature overrides resolved against THIS acquisition's features.
     .ov <- resolve_overrides(as.character(fData(tissue)$name))
 
@@ -421,7 +415,7 @@ generate_txt_images <- function(
       } else {
         tmp <- int2snr(
           MSIobject = tissue, val_slot = "intensity", sample_type = "sample_name",
-          noise = "noise_pixels", tissue = "tissue_pixels",
+          background = "background_pixels", tissue = "tissue_pixels",
           snr_thresh = thr, average = average_method,
           snr_overrides = .ov
         )
@@ -437,19 +431,16 @@ generate_txt_images <- function(
     }
 
     if (is.null(combined)) {
-      combined    <- tissue
-      combined_FC <- tissue_fc
+      combined <- tissue
     } else {
-      al          <- align_features(combined,    tissue)
-      combined    <- combine_MSIs(al$obj1, al$obj2)
-      al_fc       <- align_features(combined_FC, tissue_fc)
-      combined_FC <- combine_MSIs(al_fc$obj1, al_fc$obj2)
+      al       <- align_features(combined, tissue)
+      combined <- combine_MSIs(al$obj1, al$obj2)
     }
   }
 
   combined_NAbackground <- if (.needs_mask) back2NA(
     combined, val_slot = "intensity",
-    background = "noise_pixels", tissue = "tissue_pixels",
+    background = "background_pixels", tissue = "tissue_pixels",
     sample_type = "sample_name"
   ) else combined
 
@@ -457,7 +448,6 @@ generate_txt_images <- function(
   if (!is.null(rename) && length(rename) > 0) {
     combined              <- apply_renames(combined,              rename)
     combined_snr_list     <- lapply(combined_snr_list, function(o) apply_renames(o, rename))
-    combined_FC           <- apply_renames(combined_FC,           rename)
     combined_NAbackground <- apply_renames(combined_NAbackground, rename)
   }
 
@@ -465,7 +455,6 @@ generate_txt_images <- function(
     combined              = combined,
     combined_snr          = combined_snr_list[[1]],
     combined_snr_list     = setNames(combined_snr_list, paste0("snr", snr_thresh_vec)),
-    combined_FC           = combined_FC,
     combined_NAbackground = combined_NAbackground
   )
 
@@ -480,14 +469,12 @@ generate_txt_images <- function(
     for (fn_label in fn_labels) {
 
       combined_snr_tmp  <- combined_snr_i[,        pData(combined_snr_i)$run        == fn_label]
-      combined_FC_tmp   <- combined_FC[,            pData(combined_FC)$run           == fn_label]
       combined_back_tmp <- combined_NAbackground[,  pData(combined_NAbackground)$run == fn_label]
 
       image_path <- file.path(image_dir, fn_label)
       dirs <- list(
         snr_filt  = file.path(image_path, sprintf("intensity_SNRfiltered%s",                   snr_t)),
         snr_norm  = file.path(image_path, sprintf("response_SNRfiltered%s_NORM",               snr_t)),
-        tissue_fc = file.path(image_path, sprintf("tissue-FC%s",                               tiss_fc)),
         raw       = file.path(image_path, "intensity_raw"),
         hs_filt   = file.path(image_path, sprintf("intensity_SNRfiltered%s_hs%s_cs%s_removal", snr_t, perc, thresh)),
         hs_norm   = file.path(image_path, sprintf("response_SNRfiltered%s_hs%s_cs%s_NORM",     snr_t, perc, thresh)),
@@ -524,12 +511,8 @@ generate_txt_images <- function(
                             file.path(dirs$combined, paste0(feat_name, ".txt")))
         }
 
-        # tissue_fc and raw don't vary with SNR threshold -- write only on first pass
+        # raw doesn't vary with SNR threshold -- write only on first pass
         if (snr_i == 1L) {
-          mat_fc <- make_txt_mat(combined_FC_tmp, feat_ind, "snr",
-                                  "Ratio to tissue", 0, 100)
-          write_if_nonempty(mat_fc, file.path(dirs$tissue_fc, paste0(feat_name, ".txt")))
-
           mat_raw <- make_txt_mat(combined_back_tmp, feat_ind, "intensity",
                                    "DESI-MRM response", 0, 100)
           write_if_nonempty(mat_raw, file.path(dirs$raw, paste0(feat_name, ".txt")))

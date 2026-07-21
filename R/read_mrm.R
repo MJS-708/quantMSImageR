@@ -36,6 +36,7 @@
 #' obj <- read_mrm("pos04_test", folder = folder, lib_ion_path = lib,
 #'                 overwrite = FALSE)
 #'
+#' @family acquisition
 #' @export
 read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE) {
 

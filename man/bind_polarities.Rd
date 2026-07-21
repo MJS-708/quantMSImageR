@@ -24,14 +24,24 @@ pairs nearly always have slightly different pixel counts due to acquisition
 timing.
 }
 \examples{
-p1 <- system.file("extdata", "example.raw", "section01.RDS",
-                  package = "quantMSImageR")
-p2 <- system.file("extdata", "example.raw", "section02.RDS",
-                  package = "quantMSImageR")
-# convenience wrapper for bind_panels()
-merged <- bind_polarities(readRDS(p1), readRDS(p2), label = "A")
+# As for bind_panels(), the two inputs must be the same physical area. The
+# bundled example is negative-mode only, so this stands in for a pos/neg
+# pair by splitting one section's features in two.
+p <- system.file("extdata", "example.raw", "section01.RDS",
+                 package = "quantMSImageR")
+obj <- readRDS(p)
+
+merged <- bind_polarities(obj[1:4, ], obj[5:nrow(fData(obj)), ],
+                          label = "SampleA_1")
 
 }
 \seealso{
 \code{\link[=bind_panels]{bind_panels()}}
+
+Other combining acquisitions:
+\code{\link[=align_features]{align_features()}},
+\code{\link[=bind_panels]{bind_panels()}},
+\code{\link{combine_MSIs,MSImagingExperiment-method}},
+\code{\link{setCommonAxis,list-method}}
 }
+\concept{combining acquisitions}

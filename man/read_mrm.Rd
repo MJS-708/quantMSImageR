@@ -47,3 +47,10 @@ obj <- read_mrm("pos04_test", folder = folder, lib_ion_path = lib,
                 overwrite = FALSE)
 
 }
+\seealso{
+Other acquisition:
+\code{\link{remove_blank_mzs,quant_MSImagingExperiment-method}},
+\code{\link[=select_tissue_pixels]{select_tissue_pixels()}},
+\code{\link[=trim_MSI]{trim_MSI()}}
+}
+\concept{acquisition}

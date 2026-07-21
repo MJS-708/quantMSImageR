@@ -12,8 +12,8 @@
 #' in both keep real intensities from both inputs, so cross-panel /
 #' cross-polarity colocalisation is meaningful at the combined object.
 #'
-#' This replaces the older `bind_polarities()` (kept as a deprecated alias)
-#' and the per-acquisition `union_pad_features()` approach.
+#' [bind_polarities()] is a thin wrapper for the common positive/negative-mode
+#' pairing.
 #'
 #' @import Cardinal
 #' @include setClasses.R
@@ -36,12 +36,20 @@
 #' @seealso [combine_MSIs()], [generate_txt_images()]
 #'
 #' @examples
-#' p1 <- system.file("extdata", "example.raw", "section01.RDS",
-#'                   package = "quantMSImageR")
-#' p2 <- system.file("extdata", "example.raw", "section02.RDS",
-#'                   package = "quantMSImageR")
-#' merged <- bind_panels(readRDS(p1), readRDS(p2), label = "A")
+#' # Both inputs must be the SAME physical area measured twice, so the example
+#' # splits one section into two disjoint "panels" rather than using two
+#' # different sections -- binding unrelated sections by coordinate would
+#' # silently pair pixels that are not the same piece of tissue.
+#' p <- system.file("extdata", "example.raw", "section01.RDS",
+#'                  package = "quantMSImageR")
+#' obj <- readRDS(p)
+#' panel_a <- obj[1:4, ]
+#' panel_b <- obj[5:nrow(fData(obj)), ]
 #'
+#' merged <- bind_panels(panel_a, panel_b, label = "SampleA_1")
+#' nrow(fData(merged))   # features from both panels
+#'
+#' @family combining acquisitions
 #' @export
 bind_panels <- function(obj1, obj2, label = NULL) {
 

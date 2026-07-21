@@ -1,5 +1,5 @@
 ---
-title: "Absolute quantification with calibration standards"
+title: "Quantification with calibration standards"
 author: "Matthew J. Smith"
 date: "`r Sys.Date()`"
 package: quantMSImageR
@@ -7,7 +7,7 @@ output:
   BiocStyle::html_document:
     toc_float: true
 vignette: >
-  %\VignetteIndexEntry{Absolute quantification with calibration standards}
+  %\VignetteIndexEntry{2. Quantification with calibration standards}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -15,37 +15,130 @@ vignette: >
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", warning = FALSE,
                       message = FALSE)
-
-# Gate the evaluated chunks on the presence of the bundled synthetic cal data.
-cal_dir  <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
-have_cal <- nzchar(cal_dir) && file.exists(file.path(cal_dir, "cal_MSI.RDS"))
 ```
 
-# Overview
+# Introduction
+
+## Why calibrate MSI data?
+
+Mass spectrometry imaging measures analyte **response** at each pixel rather
+than analyte amount directly. Using calibration standards, `quantMSImageR` can
+convert this response into an **estimated amount per pixel** (pg/pixel) and,
+when pixel dimensions are known, an **estimated areal amount** (pg/mm²). These
+estimates are conditional on the calibration design, matrix matching,
+acquisition conditions, and validity of the fitted model.
+
+The need arises because response depends on how well each analyte ionises, how
+much the local tissue matrix suppresses or enhances that ionisation, and on the
+state of the source and detector at the moment the pixel was scanned. Two pixels
+containing the same underlying amount can therefore give very different
+responses if they sit in different tissue regions, and the same section re-run a
+week later can give a different scale entirely. The practical consequences are
+familiar: responses cannot be compared between analytes, between sections or
+against a published value, and apparent fold-changes can be driven by matrix
+effects rather than biology.
+
+Calibration places measurements on an interpretable amount scale and can improve
+comparability across samples and acquisitions **when standards, matrix, sample
+preparation and acquisition conditions are appropriately matched and the
+analytical method has been validated**. That is a substantial gain in
+interpretability and transferability over raw response, but it is not automatic
+traceable quantification -- see *Interpretation and limitations* below.
+
+## On-slide versus on-tissue calibration
+
+**On-slide (external) calibration** deposits standards on the slide adjacent to
+the tissue. This captures instrumental response during the same acquisition, but
+does not reproduce tissue-specific matrix effects. Use `cal_type = "cal"`.
+
+**On-tissue calibration** deposits standards onto tissue, or onto a
+representative tissue homogenate. Matrix matching is better, but endogenous
+analyte signal and spatial heterogeneity still need careful treatment. Use
+`cal_type = "std_addition"`, which estimates the background contribution and
+subtracts it before fitting.
+
+Note on terminology: classical **standard addition** estimates the endogenous
+amount from the x-intercept of response against added amount. `create_cal_curve()`
+instead subtracts a background level and fits the remaining response against the
+deposited amount, so it is more precisely **background-corrected on-tissue
+calibration**. The argument value `"std_addition"` is kept for compatibility.
+
+## Scope and assumptions
+
+Amount estimates are only meaningful where the following hold. Each is the
+user's responsibility -- the package cannot check them:
+
+- the standard is the same chemical species as the endogenous analyte;
+- transitions and acquisition settings match between standards and sample;
+- calibration levels bracket the signal actually measured in tissue
+  (checked by `plot_cal_coverage()`);
+- the fitted model is adequate, with acceptable residual behaviour;
+- the calibration substrate is a reasonable matrix match for the tissue;
+- any internal standard behaves consistently across the acquisition;
+- pixel dimensions are known, for conversion to pg/mm².
+
+It is worth keeping the analytical steps distinct from the interpretive one:
+
+1. raw intensity;
+2. internal-standard-normalised response (`int2response()`);
+3. background-referenced response / SNR (`int2snr()`);
+4. calibrated amount estimate (`int2conc()`);
+5. biological interpretation.
+
+Steps 1--4 are analytical transformations performed by the package. Step 5
+remains conditional on the assumptions above.
+
+# Installation
+
+```{r install, eval = FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("quantMSImageR")
+```
+
+# Calibration workflow overview
 
 When a calibration standards acquisition is available, `quantMSImageR` fits a
-response-versus-amount curve per lipid and converts tissue-pixel intensities to
-`pg/pixel` and `pg/mm2`. The workflow is three steps:
+response-versus-amount model per analyte and converts tissue-pixel responses to
+`pg_pixel` and `pg_mm2`. The workflow is three steps:
 
 1. `summarise_cal_levels()` -- average each calibration level per standard spot,
-2. `create_cal_curve()` -- fit the response-vs-amount curve per lipid,
-3. `int2conc()` -- apply the curves to convert tissue-pixel intensities to
-   concentration.
+2. `create_cal_curve()` -- fit the response-vs-amount model per analyte,
+3. `int2conc()` -- apply those models to convert tissue-pixel responses to
+   estimated amounts,
+
+then `plot_cal_coverage()` to confirm the standards actually bracket the signal
+measured in tissue.
+
+*Family: `calibration`.*
+
+| Function | Takes | Produces |
+|---|---|---|
+| `summarise_cal_levels()` | object with `Cal` pixels + `identifier`; `cal_metadata` (`identifier`, `lipid`, `amount_pg`, `level`) | fills `cal_response_data` and the per-level pixel counts |
+| `create_cal_curve()` | that object; `cal_type = "cal"` or `"std_addition"` | fills `cal_list` (one linear model per analyte) and `r2_df` |
+| `int2conc()` | object carrying `cal_list`; `pixel_header` / `pixels`; `experimentData$pixelSize` for the mm² layer | adds `pg_pixel` and `pg_mm2`; features without a curve are dropped |
+| `plot_cal_coverage()` | a calibrated object (after `int2conc()`) | a `patchwork` figure: pixel histogram above the calibration curve |
 
 This vignette demonstrates the manual API on the small synthetic calibration
-dataset bundled with the package, then shows how the same steps are driven from
-a study YAML configuration. `run_example(calibrate = TRUE)` runs the whole chain
-end-to-end on the bundled data. The core imaging workflow (SNR filtering, ion
-images, heatmaps) is covered in the *Introduction to quantMSImageR* vignette.
+dataset bundled with the package, applies the resulting models to a study
+section, and then shows how the same steps are driven from a study YAML
+configuration. `run_example(calibrate = TRUE)` runs the chain end-to-end. The
+core imaging workflow that produces the object these operate on -- SNR
+filtering, ion images, heatmaps -- is covered in the
+*Introduction to quantMSImageR* vignette.
+
+The approach is described and applied in Smith *et al.* (2024); see
+*References*.
 
 # The bundled calibration dataset
 
-The synthetic calibration object (generated by `inst/generate_cal_data.R`) is a
-`quant_MSImagingExperiment` whose pixels are labelled `Cal`, `Tissue` or `Noise`
-in `sample_type`, with a unique `identifier` per calibration spot. Its companion
-metadata table maps each `identifier` to a `lipid`, `amount_pg` and `level`.
+The synthetic calibration object (generated by `inst/scripts/generate_cal_data.R`) is a
+`quant_MSImagingExperiment` whose pixels are labelled `Cal` (standard spots),
+`Tissue` or `Background` in `sample_type`, with a unique `identifier` per standard
+spot. Its analytes are named to match features in the imaging example, so the
+fitted curves can be applied to a study section later.
 
-```{r load, eval = have_cal}
+```{r load}
 library(quantMSImageR)
 library(ggplot2)
 
@@ -54,66 +147,174 @@ cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
           "quant_MSImagingExperiment")
 cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
 
-table(pData(cal)$sample_type)
-head(cal_metadata)
+pix <- as.data.frame(table(pData(cal)$sample_type))
+names(pix) <- c("sample_type", "n_pixels")
 ```
 
-# Fitting the calibration curves
+```{r pix-table}
+DT::datatable(pix, rownames = FALSE, options = list(dom = "t"))
+```
+
+**Table 1.** How the calibration acquisition's pixels are labelled. `Cal` are the
+standard spots used to build the curves; `Tissue` and `Background` are the
+surrounding sample and background.
+
+The companion metadata table is the link between a physical standard spot and
+what was deposited on it: each `identifier` maps to an analyte (`lipid`), the
+amount spotted (`amount_pg`) and which dilution `level` it belongs to.
+
+```{r cal-meta}
+DT::datatable(cal_metadata, rownames = FALSE, options = list(pageLength = 10))
+```
+
+**Table 2.** Calibration metadata: amount of each analyte deposited at every
+standard spot.
+
+# Fitting and diagnosing calibration models
 
 `summarise_cal_levels()` averages the signal at each calibration spot, and
-`create_cal_curve()` fits a linear response-vs-amount model per lipid (here
-`cal_type = "cal"` for on-slide standards; use `"std_addition"` for on-tissue
-standard addition, which subtracts a background level first).
+`create_cal_curve()` fits a linear response-vs-amount model per analyte (here
+`cal_type = "cal"` for on-slide standards; use `"std_addition"` for
+background-corrected on-tissue calibration).
 
-```{r fit, eval = have_cal}
+```{r fit}
 cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
                             cal_label = "Cal", id = "identifier")
 cal <- create_cal_curve(cal, cal_type = "cal")
-
-# R-squared of each per-lipid curve
-cal@calibrationInfo@r2_df
 ```
 
-The summarised response-per-pixel values and the fitted line for each lipid --
-the calibration curves:
+Each fit is a straight line, `response = slope x (pg/pixel) + intercept`, which
+`int2conc()` later inverts to go from response back to amount. The slope is the
+analyte's sensitivity.
 
-```{r curve-plot, eval = have_cal, fig.wide = TRUE}
-cal_data <- cal@calibrationInfo@cal_response_data
+```{r eqn}
+cal_list <- calibrationModels(cal)
+r2_df    <- calibrationR2(cal)
+
+eqn <- data.frame(
+  analyte   = names(cal_list),
+  slope     = vapply(cal_list, function(m) unname(coef(m)[2]), numeric(1)),
+  intercept = vapply(cal_list, function(m) unname(coef(m)[1]), numeric(1)),
+  row.names = NULL
+)
+eqn$r2 <- r2_df$r2[match(eqn$analyte, r2_df$feature)]
+```
+
+```{r eqn-table}
+DT::datatable(eqn, rownames = FALSE, options = list(dom = "t")) |>
+  DT::formatSignif(c("slope", "intercept", "r2"), digits = 4)
+```
+
+**Table 3.** Fitted calibration model per analyte: the slope, intercept and
+R-squared of the line that `int2conc()` inverts.
+
+## R² is not enough
+
+R² reports only how much of the variance in the standards the straight line
+accounts for. A calibration can have a very high R² and still be unsuitable,
+because of systematic curvature, heteroscedastic residuals, poor accuracy at the
+lower levels, a single influential high-amount point, extrapolation beyond the
+validated range, or poor replicate precision. Treat a low R² as a definite
+warning and a high R² as necessary but not sufficient.
+
+Before relying on the estimates, examine at minimum:
+
+- the calibration range, and whether the tissue signal falls inside it
+  (`plot_cal_coverage()`, below);
+- residual patterns against fitted amount;
+- back-calculated accuracy of the standards themselves;
+- precision across calibration replicates;
+- the lower and upper quantifiable limits implied by the design;
+- whether the fit needs weighting -- `create_cal_curve()` weights by
+  `1/amount`, which is appropriate for the constant-relative-error case but
+  should be checked against your own residuals.
+
+Plotting those fits gives the calibration curves. Each point is one calibration
+level's summarised response; the line is the fitted model:
+
+```{r curve-plot, fig.wide = TRUE, fig.cap = "Calibration curves. Each point is one standard spot's summarised response; the line is the fitted linear model that int2conc() inverts."}
+cal_data <- calibrationLevels(cal)
 
 ggplot(cal_data, aes(pg_perpixel, response_perpixel)) +
   geom_point() +
   geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
   facet_wrap(~ lipid, scales = "free") +
-  labs(x = "amount (pg / pixel)", y = "response per pixel",
-       title = "Calibration curves")
+  labs(x = "amount (pg / pixel)", y = "response per pixel")
 ```
 
-# Converting tissue pixels to concentration
+# Applying the models to a study section
 
-`int2conc()` inverts each fitted curve to turn tissue-pixel intensities into
-`pg/pixel`, and uses the acquisition's pixel size to also report `pg/mm2`.
+The models are fitted on the standards, then carried across to the study data.
+Here we load one section of the imaging example (the circular tissue of group A)
+and attach the fitted models before converting its tissue pixels:
 
-```{r conc, eval = have_cal}
-cal <- int2conc(cal, val_slot = "intensity", pixels = "Tissue")
-range(spectra(cal, "conc - pg/mm2"), na.rm = TRUE)
+```{r apply}
+study <- as(readRDS(system.file("extdata", "example.raw", "section01.RDS",
+                                package = "quantMSImageR")),
+            "quant_MSImagingExperiment")
+
+# carry the fitted curves over, then convert this section's tissue pixels
+calibrationData(study) <- calibrationData(cal)
+study <- int2conc(study, val_slot = "intensity",
+                  pixel_header = "sample_name", pixels = "tissue_pixels")
+
+analyte <- fData(study)$name[1]
+analyte
 ```
 
-Each tissue pixel's intensity is mapped onto the calibration curve to give a
-concentration -- shown here for the first lipid:
+## Checking calibration coverage
 
-```{r conc-plot, eval = have_cal, fig.small = TRUE}
-tissue <- pData(cal)$sample_type == "Tissue"
-lipid1 <- fData(cal)$name[1]
+Converting a response into an amount estimate is only trustworthy where the
+standards constrain the fit. A calibration whose levels sit far above (or below)
+the signal actually measured in tissue is extrapolation, not quantification, so
+it is worth plotting the two together before believing the numbers.
 
-df <- data.frame(
-  intensity = as.numeric(spectra(cal, "intensity")[1, tissue]),
-  pg_pixel  = as.numeric(spectra(cal, "conc - pg/pixel")[1, tissue])
-)
+`plot_cal_coverage()` draws that check. The lower panel is the calibration
+itself -- the standard spots (red) and the fitted model (dashed) that
+`int2conc()` inverts. The upper panel is the distribution of the section's own
+pixels on exactly the same x-axis, with the calibration levels marked in red.
+When the histogram sits **inside** the span of the red lines, every converted
+pixel is interpolated between real standards.
 
-ggplot(df, aes(intensity, pg_pixel)) +
-  geom_point(alpha = 0.5) +
-  labs(x = "intensity", y = "concentration (pg / pixel)",
-       title = paste("Intensity to concentration:", lipid1))
+```{r dyn-range, fig.wide = TRUE, fig.height = 5, fig.cap = "Calibration coverage of the measured data. Lower panel: standard spots (red) and the fitted calibration model (dashed). Upper panel: distribution of the study section's tissue pixels, with the calibration levels marked in red. Pixels falling inside the marked range are interpolated between real standards rather than extrapolated."}
+plot_cal_coverage(study, features = analyte, val_slot = "intensity")
+```
+
+Called without `features` it draws one facet per calibrated analyte, which is
+the usual way to screen a whole panel at once for standards that do not bracket
+the data.
+
+## Handling out-of-range pixels
+
+Pixels outside the calibrated range are **kept, not silently discarded**, but
+`int2conc()` tells you about them: every feature with any extrapolated pixels is
+reported by `message()`, and a feature where more than `max_out_of_range` (90%
+by default) of pixels fall outside the range escalates to a warning, because at
+that point the analyte is not really being quantified. The proportion is also
+recorded per feature in `r2_df$out_of_range`, so it can be carried into a
+report:
+
+```{r oor}
+calibrationR2(study)[, c("feature", "r2", "out_of_range")]
+```
+
+Set `max_out_of_range = 1` to suppress the warning when extrapolation is
+expected and acceptable -- but it is not the default, deliberately.
+
+The same section can now be imaged either way. First in raw response, where the
+colour scale is arbitrary instrument signal:
+
+```{r img-intensity, fig.small = TRUE, fig.cap = "Study section in raw intensity. The colour scale is arbitrary instrument response and is not comparable to any other acquisition."}
+imageR(study, feat_ind = 1, sample_lab = "run", val_slot = "intensity",
+       scale = "suppress")
+```
+
+...and then in calibrated units, where the colour scale is an estimated amount per
+unit area:
+
+```{r img-conc, fig.small = TRUE, fig.cap = "The same section after int2conc(). The colour scale is now an estimated amount per unit area rather than instrument response, which is interpretable on its own terms and comparable across acquisitions where standards, matrix and acquisition conditions are matched."}
+imageR(study, feat_ind = 1, sample_lab = "run",
+       val_slot = "pg_mm2", value = "pg/mm2", scale = "suppress")
 ```
 
 # Driving calibration from a study YAML
@@ -134,15 +335,48 @@ calibration:
   quantify_pixels: ["tissue_pixels"]
 ```
 
-With `enabled: true`, `run_study.R` builds the curves from the standards
-acquisition and writes a `<study>_calibrated.RDS` alongside the reports:
+With `enabled: true`, the study runner builds the models from the standards
+acquisition and writes a `<study>_calibrated.RDS` alongside the reports. The
+rendered report gains a *Quantification* section carrying the fits, the coverage
+plot and calibrated ion images:
 
 ```{r run-study, eval = FALSE}
-CONFIG_FILE <- "path/to/study_config.yaml"
-source(system.file("run_study.R", package = "quantMSImageR"))
+run_study("path/to/study_config.yaml")
 ```
 
-# Session info
+# Interpretation and limitations
+
+The values produced here are **calibrated amount estimates**, not volumetric
+concentrations and not traceable reference measurements. Reporting them as
+`pg/pixel` or `pg/mm²` is a statement about the calibration, not a claim about
+the absolute biological content of a voxel.
+
+External or on-slide calibration in particular does not automatically account
+for:
+
+- tissue-specific ion suppression;
+- regional variation in desorption and extraction efficiency;
+- differences in section thickness;
+- analyte recovery;
+- source geometry and day-to-day instrumental changes;
+- mismatch between the calibration substrate and the biological tissue.
+
+On-tissue calibration improves matrix matching but does not remove these
+concerns, and adds the problem of separating added from endogenous analyte.
+
+In practice this means amount estimates are most defensible when used to compare
+like with like -- the same analyte, prepared and acquired the same way, with
+standards that bracket the observed signal -- and progressively weaker as any of
+those conditions relax. Where a comparison matters, report the calibration
+diagnostics (range, coverage, R², out-of-range proportion) alongside the values.
+
+# References
+
+Smith MJ, *et al.* Quantitative mass spectrometry imaging of lipid mediators
+using DESI-MRM. *Analytical Chemistry* (2024).
+<https://pubs.acs.org/doi/10.1021/acs.analchem.4c02350>
+
+# Session information
 
 ```{r session}
 sessionInfo()

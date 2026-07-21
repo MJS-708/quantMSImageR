@@ -2,7 +2,7 @@ test_that("createMSIDatamatrix summarises ROIs from the synthetic cal data", {
 
   cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
   skip_if_not(file.exists(file.path(cal_dir, "cal_MSI.RDS")),
-              "synthetic cal data not generated (run inst/generate_cal_data.R)")
+              "synthetic cal data not generated (run inst/scripts/generate_cal_data.R)")
 
   cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
             "quant_MSImagingExperiment")
@@ -15,5 +15,8 @@ test_that("createMSIDatamatrix summarises ROIs from the synthetic cal data", {
 
   expect_equal(nrow(ram), 15L)    # 5 levels x 3 reps
   expect_equal(nrow(apm), 60L)    # 15 spots x 4 pixels
-  expect_true(all(c("SM 16:0", "PC 34:1", "LPC 16:0") %in% colnames(ram)))
+  # Take the expected columns from the object itself rather than hard-coding
+  # analyte names, which change whenever generate_cal_data.R is re-tuned.
+  expect_true(all(fData(cal)$name %in% colnames(ram)))
+  expect_length(fData(cal)$name, 3L)
 })

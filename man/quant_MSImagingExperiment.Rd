@@ -4,17 +4,68 @@
 \name{quant_MSImagingExperiment}
 \alias{quant_MSImagingExperiment}
 \alias{quant_MSImagingExperiment-class}
-\title{quant_MSImagingExperiment}
+\title{Quantifiable MS imaging experiment}
 \value{
 An object of class \code{quant_MSImagingExperiment}, extending
-\code{Cardinal::MSImagingExperiment} with \code{calibrationInfo} and \code{tissueInfo} slots.
+\code{Cardinal::MSImagingExperiment} with \code{calibrationInfo} and \code{tissueInfo}
+slots.
 }
 \description{
-Class containting calibration metadata and MSImaging experiment
+Extends \code{Cardinal::MSImagingExperiment} with the metadata \code{quantMSImageR}
+needs to filter against background pixels and to convert a measured response
+into an estimated amount. Nearly every function in the package takes one of
+these, so a Cardinal object is normally coerced on the way in.
 }
+\details{
+The object is \strong{features x pixels}: one row per MRM transition, one column
+per pixel. Derived layers are added as additional spectra slots rather than
+overwriting \code{intensity}, so the raw values survive the whole pipeline:
+
+\describe{
+\item{\code{intensity}}{Raw measured response, as read from the acquisition.}
+\item{\code{response}}{Internal-standard-normalised, added by \code{\link[=int2response]{int2response()}}.}
+\item{\code{snr}}{Background-referenced signal-to-noise, added by \code{\link[=int2snr]{int2snr()}}.}
+\item{\code{pg_pixel}, \code{pg_mm2}}{Calibrated amount estimates, added by
+\code{\link[=int2conc]{int2conc()}}.}
+}
+
+Inherited structure comes from Cardinal: \code{fData()} for feature metadata
+(\code{mz}, \code{name}, transition m/z, ion-library columns), \code{pData()} for pixel
+metadata (\code{x}, \code{y}, \code{run}, and the tissue mask in \code{sample_name}) and
+\code{experimentData()} for acquisition metadata -- \code{pixelSize} in particular,
+without which \code{\link[=int2conc]{int2conc()}} cannot produce \code{pg_mm2}.
+
+Several acquisitions are held in a single object, distinguished by the \code{run}
+column of \code{pData()}; this is what \code{\link[=combine_MSIs]{combine_MSIs()}} produces and what the
+per-sample summaries group on.
+}
+\section{Slots}{
+
+\describe{
+\item{\code{calibrationInfo}}{A \link[=calibrationInfo-class]{calibrationInfo} object.}
+
+\item{\code{tissueInfo}}{A \link[=tissueInfo-class]{tissueInfo} object.}
+}}
+
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",
                  package = "quantMSImageR")
+
+# Cardinal object in, quant_MSImagingExperiment out
 obj <- as(readRDS(p), "quant_MSImagingExperiment")
 
+dim(obj)                      # features x pixels
+names(spectraData(obj))       # available layers
+head(as.data.frame(pData(obj)), 3)
+
+# Derived layers accumulate alongside intensity
+obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
+               background = "background_pixels", tissue = "tissue_pixels",
+               snr_thresh = 3)
+names(spectraData(obj))
+
+}
+\seealso{
+\link[=calibrationInfo-class]{calibrationInfo}, \link[=tissueInfo-class]{tissueInfo},
+\link{quantMSImageR-accessors}, \code{\link[=combine_MSIs]{combine_MSIs()}}
 }

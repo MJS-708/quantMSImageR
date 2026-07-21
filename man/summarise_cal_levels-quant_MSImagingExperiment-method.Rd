@@ -3,35 +3,46 @@
 \name{summarise_cal_levels,quant_MSImagingExperiment-method}
 \alias{summarise_cal_levels,quant_MSImagingExperiment-method}
 \alias{summarise_cal_levels}
-\title{Function to calculate the mean response or intensity per pixel for the ROI at each calibration level across all calibration replicates (ng/pixel).}
+\title{Summarise the response at each calibration level}
 \usage{
 \S4method{summarise_cal_levels}{quant_MSImagingExperiment}(
   MSIobject,
   cal_metadata,
-  val_slot = "response",
+  val_slot = "intensity",
   cal_header = "sample_type",
   cal_label = "Cal",
   id = "identifier"
 )
 }
 \arguments{
-\item{MSIobject}{MSI object from Cardinal}
+\item{MSIobject}{A \code{quant_MSImagingExperiment} whose \code{pData()} carries the
+calibration labels and spot identifiers.}
 
-\item{cal_metadata}{dataframe containing calibration metdata info - including "lipid" = feature name in fData(), "identifier" header to map pData, and "amount_pg" relating to amount of std at each spot.}
+\item{cal_metadata}{Data frame of calibration metadata, with columns
+\code{lipid} (feature name as in \code{fData()$name}), \code{identifier} (maps to
+\code{pData()}), \code{amount_pg} (amount of standard deposited at each spot) and
+\code{level} (dilution level).}
 
-\item{val_slot}{character defining slot name to normalise - takes "intensity" as default}
+\item{val_slot}{Character. Spectra slot to summarise (default \code{"intensity"}).}
 
-\item{cal_header}{Header in pixel metadata to select calibration data from. Default = "sample_type"}
+\item{cal_header}{Character. Column of \code{pData()} used to select calibration
+pixels (default \code{"sample_type"}).}
 
-\item{cal_label}{Label in pixel metadata under the \code{cal_header} which corresponds to calibration data. Default = "Cal".}
+\item{cal_label}{Character. Value of \code{cal_header} marking calibration pixels
+(default \code{"Cal"}).}
 
-\item{id}{header in calibration metadata and pData to map (defaults to "identifier") and label unique ROIs}
+\item{id}{Character. Column present in both \code{cal_metadata} and \code{pData()}
+that identifies a unique calibration spot (default \code{"identifier"}).}
 }
 \value{
-MSIobject with slots updated for i) matrix of average ng/pixel of m/z (rows = m/z and cols = cal level) ii) list of pixel counts per cal level
+The input object with \code{cal_response_data} populated: mean response
+per pixel for every (standard, calibration level) pair, together with the
+per-level pixel counts. Amounts are expressed in \strong{pg per pixel}.
 }
 \description{
-Function to calculate the mean response or intensity per pixel for the ROI at each calibration level across all calibration replicates (ng/pixel).
+Averages the signal across the pixels of each calibration spot, giving one
+response value per standard per level. This is the input
+\code{\link[=create_cal_curve]{create_cal_curve()}} fits its models to.
 }
 \examples{
 cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
@@ -42,3 +53,11 @@ cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
                             cal_label = "Cal", id = "identifier")
 
 }
+\seealso{
+Other calibration:
+\code{\link{calibrationInfo-class}},
+\code{\link{create_cal_curve,quant_MSImagingExperiment-method}},
+\code{\link{int2conc,quant_MSImagingExperiment-method}},
+\code{\link{plot_cal_coverage,quant_MSImagingExperiment-method}}
+}
+\concept{calibration}

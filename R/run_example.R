@@ -23,22 +23,32 @@
 #' @param shapes Character vector of tissue shapes to include -- any of
 #'   `"circle"`, `"square"`. `NULL` (the default) uses both, i.e. the full
 #'   two-group example (group A circle + group B square).
-#' @param calibrate Logical. Also run the absolute-quantification demo on the
+#' @param calibrate Logical. Also run the quantification demo on the
 #'   bundled synthetic calibration standards (`summarise_cal_levels()` ->
 #'   `create_cal_curve()` -> `int2conc()`)? In a real study this step is driven
 #'   by the YAML `calibration:` block. Default `TRUE`.
 #'
 #' @return Invisibly returns the list produced by [generate_txt_images()], with
-#'   an added `calibrated` element (a `quant_MSImagingExperiment` carrying
-#'   `conc - pg/pixel` and `conc - pg/mm2` layers) when `calibrate = TRUE`.
+#'   an added `calibrated` element when `calibrate = TRUE`: the study sections
+#'   with their tissue pixels converted to `pg_pixel` and `pg_mm2` layers,
+#'   restricted to the analytes that have a standard.
+#'   When `render_report = TRUE` a `report` element gives the path to the
+#'   rendered HTML.
 #'
 #' @examples
-#' \dontrun{
-#'   run_example()                       # interactive shape picker
-#'   run_example(shapes = "circle")      # SampleA only
-#'   run_example(shapes = c("circle","square"))   # both, no prompt
+#' # The pipeline itself, without rendering or opening the HTML report
+#' \donttest{
+#' res <- run_example(render_report = FALSE, shapes = "circle")
+#' names(res)
 #' }
 #'
+#' # The full demo: renders the report and opens it in the viewer/browser
+#' if (interactive()) {
+#'   res <- run_example()
+#'   res$report        # path to the rendered HTML
+#' }
+#'
+#' @family workflow
 #' @export
 run_example <- function(render_report = TRUE,
                         output_txt    = FALSE,
@@ -135,13 +145,57 @@ run_example <- function(render_report = TRUE,
     lib_ion_path   = lib_ion_path,
     snr_thresh     = snr_thresh,
     snr_overrides  = snr_overrides,
-    tiss_fc        = 0.6,
     thresh         = 20,
     perc           = 97,
     rot_clockwise  = 0,
     average_method = "median",
     output_txt     = output_txt
   )
+
+  # ---- Quantification demo (calibration) -----------------------------------
+  # Runs the calibration chain on the bundled synthetic standards data. In a
+  # real study this is driven by the YAML `calibration:` block (which loads the
+  # standards acquisition via read_mrm); the synthetic standards ship as an RDS,
+  # so here we load them directly. Runs BEFORE the report render so the report
+  # can pick `calibrated` up from this frame and add its calibration section.
+  calibrated <- NULL
+  if (calibrate) {
+    cal_dir <- file.path(extdata, "cal_example.raw")
+    cal_rds <- file.path(cal_dir, "cal_MSI.RDS")
+    if (file.exists(cal_rds)) {
+      message("\n--- Quantification demo (calibration) ---")
+      cal_obj  <- as(readRDS(cal_rds), "quant_MSImagingExperiment")
+      cal_meta <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
+
+      cal_obj <- summarise_cal_levels(cal_obj, cal_meta, val_slot = "intensity",
+                                      cal_label = "Cal", id = "identifier")
+      cal_obj <- create_cal_curve(cal_obj, cal_type = "cal")
+
+      # Apply the curves to the STUDY sections, exactly as run_study.R does:
+      # carry the whole calibrationInfo across, then convert the tissue pixels.
+      # Features without a standard are dropped by int2conc(), so the calibrated
+      # object holds only the three analytes that were calibrated.
+      cal_study <- result$combined
+      calibrationData(cal_study) <- calibrationData(cal_obj)
+      cal_study <- int2conc(cal_study, val_slot = "intensity",
+                            pixel_header = "sample_name",
+                            pixels = "tissue_pixels")
+
+      cal_out <- file.path(tmp_dir, "Example_calibrated.RDS")
+      saveRDS(cal_study, cal_out)
+
+      .r2 <- calibrationR2(cal_obj)
+      message("Per-lipid calibration curve R^2:")
+      message(paste(sprintf("  %-14s R2 = %.3f", .r2$feature, .r2$r2),
+                    collapse = "\n"))
+      message("Calibrated object (pg_pixel, pg_mm2) saved to: ", cal_out)
+
+      calibrated        <- cal_study
+      result$calibrated <- cal_study
+    } else {
+      message("Calibration data not found in extdata; skipping quantification demo.")
+    }
+  }
 
   if (render_report) {
     if (!nzchar(rmd) || !file.exists(rmd))
@@ -176,44 +230,16 @@ run_example <- function(render_report = TRUE,
       quiet             = TRUE
     )
 
+    # Returned so the self-contained HTML can be copied somewhere permanent --
+    # it is written to a session tempdir and would otherwise be hard to find.
+    result$report <- html_file
+    message("Report written to: ", html_file)
+
     if (requireNamespace("rstudioapi", quietly = TRUE) &&
         rstudioapi::isAvailable()) {
       rstudioapi::viewer(html_file)
     } else {
       utils::browseURL(html_file)
-    }
-  }
-
-  # ---- Absolute quantification demo (calibration) --------------------------
-  # Runs the calibration chain on the bundled synthetic standards data. In a
-  # real study this is driven by the YAML `calibration:` block (which loads the
-  # standards acquisition via read_mrm); the synthetic standards ship as an RDS,
-  # so here we load them directly.
-  if (calibrate) {
-    cal_dir <- file.path(extdata, "cal_example.raw")
-    cal_rds <- file.path(cal_dir, "cal_MSI.RDS")
-    if (file.exists(cal_rds)) {
-      message("\n--- Absolute quantification demo (calibration) ---")
-      cal_obj  <- as(readRDS(cal_rds), "quant_MSImagingExperiment")
-      cal_meta <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
-
-      cal_obj <- summarise_cal_levels(cal_obj, cal_meta, val_slot = "intensity",
-                                      cal_label = "Cal", id = "identifier")
-      cal_obj <- create_cal_curve(cal_obj, cal_type = "cal")
-      cal_obj <- int2conc(cal_obj, val_slot = "intensity", pixels = "Tissue")
-
-      cal_out <- file.path(tmp_dir, "Example_calibrated.RDS")
-      saveRDS(cal_obj, cal_out)
-
-      .r2 <- cal_obj@calibrationInfo@r2_df
-      message("Per-lipid calibration curve R^2:")
-      message(paste(sprintf("  %-14s R2 = %.3f", .r2$feature, .r2$r2),
-                    collapse = "\n"))
-      message("Calibrated object (pg/pixel, pg/mm2) saved to: ", cal_out)
-
-      result$calibrated <- cal_obj
-    } else {
-      message("Calibration data not found in extdata; skipping quantification demo.")
     }
   }
 

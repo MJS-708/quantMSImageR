@@ -23,18 +23,21 @@ temporary directory?  Default \code{FALSE}.}
 Default \code{3}.}
 
 \item{shapes}{Character vector of tissue shapes to include -- any of
-\code{"circle"}, \code{"square"}. \code{NULL} (the default) prompts interactively when
-\code{interactive()} is \code{TRUE}, otherwise both shapes are used.}
+\code{"circle"}, \code{"square"}. \code{NULL} (the default) uses both, i.e. the full
+two-group example (group A circle + group B square).}
 
-\item{calibrate}{Logical. Also run the absolute-quantification demo on the
+\item{calibrate}{Logical. Also run the quantification demo on the
 bundled synthetic calibration standards (\code{summarise_cal_levels()} ->
 \code{create_cal_curve()} -> \code{int2conc()})? In a real study this step is driven
 by the YAML \verb{calibration:} block. Default \code{TRUE}.}
 }
 \value{
 Invisibly returns the list produced by \code{\link[=generate_txt_images]{generate_txt_images()}}, with
-an added \code{calibrated} element (a \code{quant_MSImagingExperiment} carrying
-\code{conc - pg/pixel} and \code{conc - pg/mm2} layers) when \code{calibrate = TRUE}.
+an added \code{calibrated} element when \code{calibrate = TRUE}: the study sections
+with their tissue pixels converted to \code{pg_pixel} and \code{pg_mm2} layers,
+restricted to the analytes that have a standard.
+When \code{render_report = TRUE} a \code{report} element gives the path to the
+rendered HTML.
 }
 \description{
 Executes the full DESI-MRM pipeline on a small synthetic dataset bundled
@@ -53,10 +56,22 @@ All file paths are resolved automatically via \code{\link[=system.file]{system.f
 example works on any machine without editing a YAML.
 }
 \examples{
-\dontrun{
-  run_example()                       # interactive shape picker
-  run_example(shapes = "circle")      # SampleA only
-  run_example(shapes = c("circle","square"))   # both, no prompt
+# The pipeline itself, without rendering or opening the HTML report
+\donttest{
+res <- run_example(render_report = FALSE, shapes = "circle")
+names(res)
+}
+
+# The full demo: renders the report and opens it in the viewer/browser
+if (interactive()) {
+  res <- run_example()
+  res$report        # path to the rendered HTML
 }
 
 }
+\seealso{
+Other workflow:
+\code{\link[=generate_txt_images]{generate_txt_images()}},
+\code{\link[=run_study]{run_study()}}
+}
+\concept{workflow}

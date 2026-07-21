@@ -3,20 +3,27 @@
 \name{combine_MSIs,MSImagingExperiment-method}
 \alias{combine_MSIs,MSImagingExperiment-method}
 \alias{combine_MSIs}
-\title{Function to combine MSImagingExperiment objects.}
+\title{Combine MSI experiments across acquisitions}
 \usage{
 \S4method{combine_MSIs}{MSImagingExperiment}(MSIobject, ...)
 }
 \arguments{
-\item{MSIobject}{MSImagingExperiment object from Cardinal}
+\item{MSIobject}{An \code{MSImagingExperiment}; the first acquisition, whose
+\code{fData()} defines the shared feature axis.}
 
-\item{...}{additional MSImagingExperiment object to combine - must have matching fData() and same columns form pData().}
+\item{...}{Further \code{MSImagingExperiment} objects to combine. All must share
+the feature axis and the \code{pData()} columns of \code{MSIobject} -- use
+\code{\link[=align_features]{align_features()}} or \code{\link[=setCommonAxis]{setCommonAxis()}} first if they do not.}
 }
 \value{
-quant_MSImagingExperiment object with intensity values replaced with response
+A single \code{quant_MSImagingExperiment} holding every input's pixels,
+with the shared \code{fData()} restored and one \code{run} level per acquisition.
 }
 \description{
-Function to combine MSImagingExperiment objects.
+Concatenates two or more acquisitions pixel-wise into a single object, so
+that a whole study can be filtered, summarised and plotted together. Each
+input keeps its own \code{run}, which is what downstream per-sample summaries
+group on.
 }
 \examples{
 p1 <- system.file("extdata", "example.raw", "section01.RDS",
@@ -26,3 +33,11 @@ p2 <- system.file("extdata", "example.raw", "section02.RDS",
 combined <- combine_MSIs(readRDS(p1), readRDS(p2))
 
 }
+\seealso{
+Other combining acquisitions:
+\code{\link[=align_features]{align_features()}},
+\code{\link[=bind_panels]{bind_panels()}},
+\code{\link[=bind_polarities]{bind_polarities()}},
+\code{\link{setCommonAxis,list-method}}
+}
+\concept{combining acquisitions}

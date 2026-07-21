@@ -5,7 +5,7 @@
 \alias{applySNR}
 \title{Apply SNR mask to intensity values}
 \usage{
-\S4method{applySNR}{quant_MSImagingExperiment}(MSIobject, val_slot = "response", ...)
+\S4method{applySNR}{quant_MSImagingExperiment}(MSIobject, val_slot = "intensity", ...)
 }
 \arguments{
 \item{MSIobject}{A \code{quant_MSImagingExperiment} object containing both
@@ -30,10 +30,18 @@ p <- system.file("extdata", "example.raw", "section01.RDS",
                  package = "quantMSImageR")
 obj <- as(readRDS(p), "quant_MSImagingExperiment")
 obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
-               noise = "noise_pixels", tissue = "tissue_pixels", snr_thresh = 3)
+               background = "background_pixels", tissue = "tissue_pixels",
+               snr_thresh = 3)
 obj <- applySNR(obj, val_slot = "intensity")
 
 }
 \seealso{
 \code{\link[=int2snr]{int2snr()}}
+
+Other filtering:
+\code{\link{back2NA,quant_MSImagingExperiment-method}},
+\code{\link{int2response,quant_MSImagingExperiment-method}},
+\code{\link{int2snr,quant_MSImagingExperiment-method}},
+\code{\link{zero2na,quant_MSImagingExperiment-method}}
 }
+\concept{filtering}

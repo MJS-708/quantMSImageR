@@ -3,18 +3,21 @@
 \name{remove_blank_mzs,quant_MSImagingExperiment-method}
 \alias{remove_blank_mzs,quant_MSImagingExperiment-method}
 \alias{remove_blank_mzs}
-\title{Function to remove m/z values with no data.}
+\title{Remove features without observed signal}
 \usage{
 \S4method{remove_blank_mzs}{quant_MSImagingExperiment}(MSIobject)
 }
 \arguments{
-\item{MSIobject}{MSI object from Cardinal}
+\item{MSIobject}{A \code{quant_MSImagingExperiment} object.}
 }
 \value{
-MSIobject with m/z values from experiment with no data removed.
+The input object with features carrying no data removed.
 }
 \description{
-Function to remove m/z values with no data.
+Drops any feature whose intensities are entirely zero or \code{NA} -- typically a
+transition present in the acquisition method but never detected, or a panel
+row padded in by \code{\link[=setCommonAxis]{setCommonAxis()}}. Reporting these alongside real
+measurements is how empty transitions reach a figure.
 }
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",
@@ -23,3 +26,10 @@ obj <- as(readRDS(p), "quant_MSImagingExperiment")
 obj <- remove_blank_mzs(obj)
 
 }
+\seealso{
+Other acquisition:
+\code{\link[=read_mrm]{read_mrm()}},
+\code{\link[=select_tissue_pixels]{select_tissue_pixels()}},
+\code{\link[=trim_MSI]{trim_MSI()}}
+}
+\concept{acquisition}

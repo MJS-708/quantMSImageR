@@ -1,17 +1,16 @@
 # ============================================================
 # quantMSImageR — DESI-MRM study config
-# Run:  CONFIG_FILE <- "path/to/this.yaml"
-#       source(system.file("run_study.R", package = "quantMSImageR"))
+# Run:  quantMSImageR::run_study("path/to/this.yaml")
 # ============================================================
 
 study: "my_study_name"                 # fallback report filename prefix
 
 # ============================= PATHS =============================
 paths:
-  data_path:    "D:/__STUDIES/my_study/data/DESI-MRM/raw"   # .raw acquisition folders
-  out_path:     "D:/__STUDIES/my_study/results/DESI-MRM"    # report + xlsx output
-  image_dir:    "D:/__STUDIES/my_study/data/DESI-MRM/images"  # per-feature txt images
-  lib_ion_path: "D:/__STUDIES/ion_library.csv"             # MRM ion-library CSV
+  data_path:    "path/to/study/raw"        # .raw acquisition folders
+  out_path:     "path/to/study/results"    # report + xlsx output
+  image_dir:    "path/to/study/images"     # per-feature txt images
+  lib_ion_path: "path/to/ion_library.csv"  # MRM ion-library CSV
 
 # ============================ SAMPLES ============================
 # one entry per sample (heatmap order). pos:/neg: = .raw name(s), no .raw suffix.
@@ -34,11 +33,10 @@ parameters:
     #"PGE2":     5                     # display or ion-library names
     #"12-HETE":  1.2
   heatmap_row_split: "Met-1"           # ion-library column to split heatmap rows | omit
-  tiss_fc:        0.6                  # S/N threshold for tissue fold-change layer
   thresh:         20                   # cold-spot percentile removed
   perc:           97                   # hot-spot percentile suppressed
   rot_clockwise:  0                    # image rotation: 0/1/2/3 x 90 deg
-  average_method: "median"             # noise summary: mean | median
+  average_method: "median"             # background summary: mean | median
   baseline_label: "Ctrl"              # group used as fold-change denominator
 
 # ====================== FEATURE CONTROL ======================
@@ -54,8 +52,8 @@ features:
 calibration:
   enabled: False                       # False = skip calibration
   cal_acquisition: "cal_run_slide1"    # .raw name of the standards acquisition
-  cal_roi_csv:     "D:/.../cal_ROIs.csv"              # pixel -> sample_type="Cal" + identifier
-  cal_metadata:    "D:/.../calibration_metadata.csv"  # identifier,lipid,amount_pg,level
+  cal_roi_csv:     "path/to/cal_ROIs.csv"              # pixel -> sample_type="Cal" + identifier
+  cal_metadata:    "path/to/calibration_metadata.csv"  # identifier,lipid,amount_pg,level
   cal_type:        "std_addition"      # std_addition (on-tissue) | cal (on-slide)
   val_slot:        "intensity"         # slot to calibrate
   background_level: "background"       # 'level' value used as the std-addition blank

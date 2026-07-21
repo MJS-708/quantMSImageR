@@ -10,7 +10,6 @@ generate_txt_images(
   image_dir,
   lib_ion_path,
   snr_thresh = 0,
-  tiss_fc = 0.6,
   thresh = 20,
   perc = 97,
   rot_clockwise = 0,
@@ -47,9 +46,6 @@ When a vector is supplied, one complete output directory tree is created
 per threshold value. A value of \code{0} skips SNR filtering entirely \emph{and}
 removes the requirement for a \code{tissue_pixels.csv} mask -- handy for a
 smoke-test pass before ROIs are drawn (default \code{0}).}
-
-\item{tiss_fc}{Numeric. SNR threshold used for the tissue fold-change layer
-(default \code{0.6}).}
 
 \item{thresh}{Numeric. Cold-spot percentile passed to \code{imageR()} as
 \code{threshold} (default \code{20}).}
@@ -109,7 +105,6 @@ in \code{snr_thresh}; sub-threshold pixels \code{NA}. Provided for
 backward compatibility.}
 \item{\code{combined_snr_list}}{Named list of SNR-filtered objects, one per
 threshold in \code{snr_thresh}, named \code{"snr<value>"} (e.g. \code{"snr3"}).}
-\item{\code{combined_FC}}{Tissue fold-change layer (\code{snr} slot).}
 \item{\code{combined_NAbackground}}{Raw intensity with background set to \code{NA}.}
 }
 }
@@ -140,4 +135,9 @@ res <- generate_txt_images(
 }
 \seealso{
 \code{\link[=int2snr]{int2snr()}}, \code{\link[=applySNR]{applySNR()}}, \code{\link[=back2NA]{back2NA()}}, \code{\link[=imageR]{imageR()}}
+
+Other workflow:
+\code{\link[=run_example]{run_example()}},
+\code{\link[=run_study]{run_study()}}
 }
+\concept{workflow}

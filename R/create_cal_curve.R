@@ -1,16 +1,37 @@
 setGeneric("create_cal_curve", function(MSIobject, ...) standardGeneric("create_cal_curve"))
 
-#' Function to create calibration curves (response v concentration, where concentration is pg/pixel)
+#' Fit per-analyte calibration models
+#'
+#' Fits a linear response-versus-amount model for each standard, which
+#' [int2conc()] later inverts to turn a measured response into an estimated
+#' amount per pixel.
+#'
+#' @details
+#' `cal_type = "cal"` fits the summarised response directly against the amount
+#' deposited, appropriate for standards spotted onto the slide beside the
+#' tissue (on-slide / external calibration).
+#'
+#' `cal_type = "std_addition"` first estimates the background contribution and
+#' subtracts it from the deposited amounts before fitting, appropriate for
+#' standards deposited onto tissue. Note that this is
+#' **background-corrected on-tissue calibration** rather than classical standard
+#' addition, which would estimate the endogenous amount from the x-intercept
+#' across added amounts. The argument value is retained for compatibility.
 #'
 #' @import Cardinal
 #' @include setClasses.R
 #'
-#' @param MSIobject A `quant_MSImagingExperiment` whose `@calibrationInfo@cal_response_data`
-#'   slot has been populated by [summarise_cal_levels()].
-#' @param cal_type string of approach to generate claibration curve - 'std_addition' if standards are on tissue and 'cal' if direct onto glass slide.
-#' @param level Column header to find background label from 'MSIobject@calibrationInfo@cal_response_data'
-#' @param background string referring to background level from "level" label in 'MSIobject@calibrationInfo@cal_response_data'.
-#' @return MSIobject with slots updated for i) cal_list - List of linear models for each m/z (response v concentration, where concentration is pg/pixel) and ii) r2 values for each calibration iii) calibration metadata
+#' @param MSIobject A `quant_MSImagingExperiment` whose `cal_response_data` has
+#'   been populated by [summarise_cal_levels()].
+#' @param cal_type Character. `"cal"` for standards deposited onto the slide,
+#'   `"std_addition"` for background-corrected on-tissue calibration.
+#' @param level Character. Column of `cal_response_data` holding the level
+#'   labels (default `"level"`).
+#' @param background Character. Value of `level` marking the background level
+#'   subtracted when `cal_type = "std_addition"`.
+#' @return The input object with `cal_list` (one `lm` per standard, response
+#'   versus amount in pg per pixel), `r2_df` (fit R-squared per standard) and
+#'   the calibration metadata populated.
 #'
 #' @examples
 #' cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
@@ -21,6 +42,7 @@ setGeneric("create_cal_curve", function(MSIobject, ...) standardGeneric("create_
 #'                             cal_label = "Cal", id = "identifier")
 #' cal <- create_cal_curve(cal, cal_type = "cal")
 #'
+#' @family calibration
 #' @aliases create_cal_curve
 #' @export
 setMethod("create_cal_curve", "quant_MSImagingExperiment",

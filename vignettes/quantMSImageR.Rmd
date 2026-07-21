@@ -7,7 +7,7 @@ output:
   BiocStyle::html_document:
     toc_float: true
 vignette: >
-  %\VignetteIndexEntry{Introduction to quantMSImageR}
+  %\VignetteIndexEntry{1. Introduction to quantMSImageR}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -19,21 +19,114 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", warning = FALSE,
 
 # Introduction
 
-`quantMSImageR` extends
-[Cardinal](https://bioconductor.org/packages/Cardinal/) with tools for
-processing and **quantifying** targeted DESI-MRM mass spectrometry imaging (MSI)
-data: signal-to-noise (SNR) filtering, tissue/background separation,
-per-feature ion images, and quantile heatmaps.
+## The problem
 
-This vignette walks through the core imaging workflow on the small synthetic
-dataset bundled with the package. Absolute quantification against calibration
-standards is covered separately in the *Absolute quantification with
-calibration standards* vignette
+A targeted DESI-MRM imaging run produces one intensity per transition per pixel,
+across tens of thousands of pixels and several acquisitions. Turning that into a
+biological result runs into three problems at once.
+
+**Most pixels are not tissue.** A section occupies part of the scanned area, and
+the surrounding slide still returns signal -- chemical background, carryover and
+detector noise. Left in, those pixels drag down every summary statistic and make
+images look more uniform than they are. Which pixels are tissue has to be
+decided per acquisition, and the decision has to survive being re-applied to a
+different MRM panel of the same sample.
+
+**Not every transition is real.** A transition can be listed in the method and
+still carry no usable signal in a given section, or sit so close to background
+that it is indistinguishable from it. Reporting those alongside genuine
+measurements is how spurious hits reach a figure.
+
+**Intensity is not concentration.** Response depends on ionisation efficiency
+and local matrix suppression, so intensities cannot be compared between
+analytes, sections or instruments without calibration standards.
+
+## What this package does
+
+`quantMSImageR` addresses each of those: signal-to-noise (SNR) filtering against
+background pixels, tissue/background separation, per-feature ion images and
+quantile heatmaps -- and **quantification** against calibration standards for
+the third.
+
+## Scope
+
+The package is built for **targeted** imaging data, and is designed to handle:
+
+- targeted DESI-MRM acquisitions (and, in principle, other targeted imaging
+  data with a transition list);
+- background-referenced filtering against non-tissue pixels;
+- targeted ion-image visualisation and `.txt` export;
+- cross-sample summaries such as quantile heatmaps;
+- calibration-based amount estimation.
+
+It does **not** do the following, by design -- other tools do them better:
+
+| Not provided | Use instead |
+|---|---|
+| Untargeted peak detection | a general MSI processing package |
+| Feature annotation / molecular identification | dedicated annotation tools |
+| Vendor-neutral raw-data conversion | vendor or community converters |
+| Histological registration | [tmaps](https://github.com/MJS-708) |
+| General-purpose image segmentation | image-analysis packages |
+| Complex spatial / colocalisation analysis | [corrMSI](https://github.com/MJS-708/corrMSI/tree/dev) |
+
+## The pipeline
+
+Functions are grouped into families, and each section below opens with the
+family it belongs to. The whole pipeline is:
+
+```
+  .raw acquisition            ion library CSV
+         |                          |
+         +--------> read_mrm() <----+
+                        |  MSImagingExperiment, fData joined to library
+                        v
+        select_tissue_pixels() --> tissue_pixels.csv  (x, y, tissue/background)
+                        |
+    +-------------------+-------------------+
+    |  ASSEMBLE   setCommonAxis                                  |
+    |             align_features -> combine_MSIs / bind_panels   |
+    |             trim_MSI                                       |
+    +-------------------+-------------------+
+                        v   quant_MSImagingExperiment
+    +-------------------+-------------------+
+    |  FILTER     int2response  (IS-normalise)   |
+    |             zero2na, remove_blank_mzs      |
+    |             int2snr -> applySNR, back2NA   |
+    +-------------------+-------------------+
+                        v
+         +--------------+--------------+
+         v                             v
+   VISUALISE                     QUANTIFY  (needs a standards acquisition)
+   imageR                        summarise_cal_levels
+   quantile_hm                          v
+                                 create_cal_curve
+                                        v
+                                 int2conc -> "pg_pixel", "pg_mm2"
+                                        v
+                                 plot_cal_coverage   (does calibration cover the data?)
+
+  WORKFLOW:  run_study() (YAML)  .  generate_txt_images()  .  run_example()
+```
+
+Quantification is covered in the companion vignette; everything else is below.
+
+Per-feature images can also be exported as plain `.txt` intensity matrices,
+which load directly into ImageJ and similar tools -- useful for downstream
+multimodal analysis such as co-registration with histology or other imaging
+modalities.
+
+Quantification against calibration standards is covered separately in the
+*Quantification with calibration standards* vignette
 (`vignette("quantification", package = "quantMSImageR")`).
 
-Every acquisition is a `Cardinal::MSImagingExperiment`; most `quantMSImageR`
-functions operate on the `quant_MSImagingExperiment` subclass, so we coerce
-first.
+The workflow implemented here is described and applied in
+[Smith *et al.*, *Analytical Chemistry* (2024)](https://pubs.acs.org/doi/10.1021/acs.analchem.4c02350).
+
+The package builds on
+[Cardinal](https://bioconductor.org/packages/Cardinal/): every acquisition is a
+`Cardinal::MSImagingExperiment`, and most `quantMSImageR` functions operate on
+the `quant_MSImagingExperiment` subclass, so we coerce first.
 
 # Installation
 
@@ -48,7 +141,7 @@ BiocManager::install("quantMSImageR")
 The fastest way to see the whole pipeline is `run_example()`, which runs the
 imaging workflow on two synthetic groups (**A**, circular tissue, n = 3;
 **B**, square tissue, n = 3), renders the HTML report, and also demonstrates
-absolute quantification on the bundled calibration standards:
+quantification on the bundled calibration standards:
 
 ```{r quickstart, eval = FALSE}
 library(quantMSImageR)
@@ -58,52 +151,95 @@ res$calibrated                # the calibrated object
 
 The rest of this vignette reproduces the key steps by hand.
 
-# Loading an acquisition
+# The data model
 
-```{r load}
+Every acquisition is a `Cardinal::MSImagingExperiment`. `quantMSImageR` adds the
+`quant_MSImagingExperiment` subclass, which carries two extra slots for
+calibration and tissue metadata, so most functions coerce with `as()` first.
+
+The object is **features x pixels**: one row per MRM transition, one column per
+pixel. Derived layers are added as further *spectra slots* alongside
+`intensity`, so the original values are never overwritten:
+
+| Component | Contains | Accessor |
+|---|---|---|
+| spectra slots | `intensity` (raw), `response` (IS-normalised), `snr`, `pg_pixel` / `pg_mm2` (calibrated) | `spectra(x, "name")`, `spectraData(x)` |
+| feature metadata | `mz`, `name`, transition m/z, analyte type, ion-library columns | `fData(x)` |
+| pixel metadata | `x`, `y`, `run`, tissue/background label | `pData(x)` |
+| calibration | fitted models, calibration levels, R² | `calibrationModels(x)`, `calibrationLevels(x)`, `calibrationR2(x)` |
+| tissue summaries | pixel and ROI matrices | `tissueMatrix(x)`, `tissueData(x)` |
+
+Multiple acquisitions are held in **one object**, distinguished by the `run`
+column of `pData()` -- that is what `combine_MSIs()` produces and what every
+per-sample summary groups on.
+
+Pixel metadata uses a consistent vocabulary: `run` identifies the acquisition,
+`x`/`y` are grid coordinates, and the tissue mask lives in `sample_name` as
+`tissue_pixels` / `background_pixels`. (Masks written by earlier versions used
+`noise_pixels`; both spellings are still accepted.) The calibration path uses
+`sample_type` with `Cal` / `Tissue` / `Background`.
+
+```{r data-model}
 library(quantMSImageR)
 
-p <- system.file("extdata", "example.raw", "section01.RDS",
-                 package = "quantMSImageR")
+p   <- system.file("extdata", "example.raw", "section01.RDS",
+                   package = "quantMSImageR")
 obj <- as(readRDS(p), "quant_MSImagingExperiment")
-obj
+
+dim(obj)                        # features x pixels
+names(spectraData(obj))         # available layers
+head(as.data.frame(fData(obj)), 3)
+head(as.data.frame(pData(obj)), 3)
 ```
 
-# Selecting tissue pixels
+# Reading your own data
 
-Before SNR filtering, each acquisition needs a tissue mask. `select_tissue_pixels()`
-displays every feature's ion image so you can pick the one that best separates
-tissue from background, then opens an interactive ROI selector:
+The bundled example ships as `.RDS` so the vignette is reproducible, but real
+acquisitions enter through `read_mrm()`, which reads a Waters DESI-MRM `.raw`
+folder and joins the ion library to the features:
 
-```{r select, eval = FALSE}
-select_tissue_pixels(
-  name         = "my_acquisition",     # .raw folder name (no suffix)
-  data_path    = "D:/studies/raw",
-  lib_ion_path = "D:/studies/ion_library.csv"
+```{r read-mrm, eval = FALSE}
+obj <- read_mrm(
+  name         = "my_acquisition",        # .raw folder name, without the suffix
+  folder       = "path/to/raw",           # directory containing my_acquisition.raw
+  lib_ion_path = "path/to/ion_library.csv"
 )
 ```
 
-It writes the resulting logical mask as `tissue_pixels.csv` **inside the
-acquisition's `.raw` folder**, where `int2snr()` (below) and
-`generate_txt_images()` read it to label `tissue_pixels` vs `noise_pixels`. The
-bundled sections already carry this mask embedded in their `sample_name` column,
-so the steps below run without it.
+The `.raw` folder must contain the exported per-transition text files (an
+`imaging/` subdirectory) or a previously cached `MSImagingExperiment.rds`. The
+ion library is a CSV with one row per transition; the columns used for matching
+are the precursor and product m/z, plus `transition_id` for the display name and
+`Type` to mark internal standards. Any additional columns -- pathway class,
+polarity, collision energy -- are carried through to `fData()` and become
+available for grouping, as shown in *Joining ion-library metadata* below.
 
-# Ion images
+The result is a features x pixels object exactly like the one inspected above,
+ready for `select_tissue_pixels()` and the rest of the workflow.
 
-`imageR()` returns a `ggplot` ion image for a chosen feature:
+# Loading the acquisitions
 
-```{r image, fig.small = TRUE}
-imageR(obj, feat_ind = 1, sample_lab = "run", scale = "suppress")
-```
+*Families: `acquisition`, `combining acquisitions`.*
 
-# Quantile heatmaps across samples
+| Function | Takes | Produces |
+|---|---|---|
+| `read_mrm()` | `.raw` folder + ion-library CSV | `MSImagingExperiment`, `fData` joined to the library |
+| `trim_MSI()` | object with a tissue mask | object with pure-background border rows/columns dropped |
+| `remove_blank_mzs()` | object | object with features that have no data removed |
+| `setCommonAxis()` | **list** of objects + reference `fData` | list sharing one m/z axis |
+| `align_features()` | two objects | both reduced to common features, m/z-keyed |
+| `combine_MSIs()` | two or more aligned objects | one object, each acquisition its own `run` |
+| `bind_panels()` / `bind_polarities()` | two objects on a shared `(x, y)` grid | features of both on the pixel-grid intersection |
 
-`quantile_hm()` summarises each feature to a per-sample quantile and returns a
-`ComplexHeatmap::Heatmap`, with columns grouped by study group. We combine the
-six bundled sections (three per group) into one object with `combine_MSIs()`:
+The bundled example is six sections: three of group **A** (circular tissue) and
+three of group **B** (square tissue). They ship as RDS, so `read_mrm()` is not
+needed here. `combine_MSIs()` binds them into a single object, keeping each
+section as its own `run`:
 
-```{r combine}
+```{r load}
+library(quantMSImageR)
+library(ggplot2)
+
 sections <- sprintf("section%02d", 1:6)
 objs <- lapply(sections, function(s)
   readRDS(system.file("extdata", "example.raw", paste0(s, ".RDS"),
@@ -111,73 +247,202 @@ objs <- lapply(sections, function(s)
 combined <- do.call(combine_MSIs, objs)
 
 groups <- c("A", "A", "A", "B", "B", "B")   # sections 01-03 = A, 04-06 = B
+combined
 ```
 
-The `quant_val` argument chooses which quantile summarises each feature -- a
-median (`0.5`) reflects the bulk of the tissue, while a high quantile (`0.95`)
-emphasises hot-spots:
+Each section contributed its pixels as a separate `run`, on the same feature
+axis:
 
-```{r heatmap-median, fig.small = TRUE}
-quantile_hm(combined, quant_val = 0.5,
-            heatmap_order = sections, heatmap_labs = groups)
+```{r load-check}
+dim(combined)                       # features x (pixels from all six sections)
+table(pData(combined)$run)
 ```
 
-```{r heatmap-95, fig.small = TRUE}
-quantile_hm(combined, quant_val = 0.95,
-            heatmap_order = sections, heatmap_labs = groups)
+Everything below operates on this one `combined` object.
+
+# Selecting tissue pixels
+
+*Family: `acquisition`.*
+
+| Function | Takes | Produces |
+|---|---|---|
+| `select_tissue_pixels()` | acquisition name, data path, ion library | `tissue_pixels.csv` (`x`, `y`, `tissue_pixels`, `background_pixels`) plus a preview of the saved mask |
+
+Before SNR filtering, each acquisition needs a tissue mask. `select_tissue_pixels()`
+displays every feature's ion image so you can pick the one that best separates
+tissue from background, then opens an interactive ROI selector:
+
+```{r select, eval = FALSE}
+select_tissue_pixels(
+  name         = "my_acquisition",          # .raw folder name (no suffix)
+  data_path    = "path/to/raw",
+  lib_ion_path = "path/to/ion_library.csv"
+)
 ```
 
-# Signal-to-noise filtering
+It writes the resulting mask as `tissue_pixels.csv` **inside the acquisition's
+`.raw` folder**, where `int2snr()` and `generate_txt_images()` read it. The mask
+is simply a per-pixel label -- tissue versus background -- which the bundled
+sections already carry in their `sample_name` column:
 
-`int2snr()` computes a per-pixel signal-to-noise ratio for each feature against
-the noise pixels, and `applySNR()` then sets every sub-threshold pixel to `NA`
-in the intensity slot. Compare feature 1 before and after: the low-signal
-background is removed, leaving the tissue.
+```{r mask-table}
+mask_tbl <- as.data.frame(pData(combined))[, c("run", "x", "y", "sample_name")]
 
-```{r snr-before, fig.small = TRUE}
-# before -- raw intensity (background still present)
-imageR(obj, feat_ind = 1, sample_lab = "run", val_slot = "intensity",
-       scale = "suppress")
+DT::datatable(head(mask_tbl, 500), rownames = FALSE,
+              options = list(pageLength = 5))
 ```
 
-```{r snr-apply}
-obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
-               noise = "noise_pixels", tissue = "tissue_pixels", snr_thresh = 3)
-obj <- applySNR(obj, val_slot = "intensity")
+**Table 1.** Per-pixel tissue/background labelling used by `int2snr()` (first 500
+pixels).
+
+Plotting that column over the pixel coordinates shows the mask itself, which is
+the quickest way to confirm a selection before running the pipeline -- the
+circular group A and square group B tissue should stand out cleanly from the
+surrounding background:
+
+```{r mask-plot, fig.wide = TRUE, fig.cap = "Tissue masks for all six sections. Green pixels are labelled tissue_pixels and contribute to every downstream summary; grey pixels are background_pixels and are used to estimate the noise level in int2snr()."}
+ggplot(mask_tbl, aes(x, -y, fill = sample_name)) +
+  geom_tile() +
+  facet_wrap(~ run, ncol = 3) +
+  coord_equal() +
+  scale_fill_manual(values = c(tissue_pixels     = "#1b7837",
+                               background_pixels = "grey85")) +
+  labs(x = NULL, y = NULL, fill = NULL) +
+  theme_minimal() +
+  theme(axis.text = element_blank(), panel.grid = element_blank(),
+        strip.text = element_text(size = 7),
+        legend.text = element_text(size = 7))
 ```
 
-```{r snr-after, fig.small = TRUE}
-# after -- pixels with SNR < 3 are masked out
-imageR(obj, feat_ind = 1, sample_lab = "run", val_slot = "intensity",
-       scale = "suppress")
+# Ion images
+
+*Family: `visualisation`.*
+
+| Function | Takes | Produces |
+|---|---|---|
+| `imageR()` | object, `feat_ind`, `val_slot`, `sample_lab`, `scale` | a **`ggplot`** ion image |
+| `quantile_hm()` | object, `quant_val`, sample order/labels, `row_split` | a `ComplexHeatmap::Heatmap` (rows = features, columns = samples) |
+
+`imageR()` returns a `ggplot` ion image for a chosen feature. Because it is a
+plain `ggplot`, the layout can be adjusted -- here into a 3 x 2 grid:
+
+```{r image, fig.wide = TRUE, fig.cap = "Ion image of the first feature across all six sections, before SNR filtering. Sections 01-03 are group A (circular tissue), 04-06 are group B (square)."}
+imageR(combined, feat_ind = 1, sample_lab = "run", scale = "suppress") +
+  facet_wrap(~ sample, ncol = 3) +
+  theme(strip.text = element_text(size = 7),
+        legend.text = element_text(size = 7))
 ```
+
+The same per-feature images can be written to disk as `.txt` intensity matrices
+(`generate_txt_images(output_txt = TRUE)`, or `output_txt: true` in the YAML
+config). Those files open directly in ImageJ, which is the usual route into
+multimodal workflows.
 
 # Joining ion-library metadata
 
 `build_feature_meta()` joins ion-library annotation to features by rounded
-`(precursor, product)` m/z, so extra columns (e.g. a pathway class) can drive
-row grouping in reports.
+`(precursor, product)` m/z, so extra columns -- such as the pathway class
+`Met-1` -- become available for grouping. We do this before the heatmap because
+the heatmap uses `Met-1` to split its rows.
 
 ```{r meta}
 lib <- read.csv(system.file("extdata", "example_ion_library.csv",
                             package = "quantMSImageR"), check.names = FALSE)
 fm <- build_feature_meta(combined, lib)
-head(fm[, c("name", "Met-1")])
+
+DT::datatable(fm[, c("name", "precursor_mz", "product_mz", "Type", "Met-1")],
+              rownames = FALSE, options = list(pageLength = 10))
+```
+
+**Table 2.** Ion-library metadata joined to each feature by m/z.
+
+# Quantile heatmaps across samples
+
+`quantile_hm()` summarises each feature to a per-sample quantile and returns a
+`ComplexHeatmap::Heatmap`, with columns grouped by study group and rows split by
+the `Met-1` class joined above. The `quant_val` argument chooses which quantile
+summarises each feature -- a median (`0.5`) reflects the bulk of the tissue,
+while a high quantile (`0.95`) emphasises hot-spots:
+
+```{r heatmap-median, fig.wide = TRUE, fig.cap = "Median (50th percentile) feature intensity per section, columns grouped by study group and rows split by Met-1 class."}
+row_split <- fm[["Met-1"]]
+
+quantile_hm(combined, quant_val = 0.5,
+            heatmap_order = sections, heatmap_labs = groups,
+            row_split = row_split, row_split_name = "Met-1")
+```
+
+```{r heatmap-95, fig.wide = TRUE, fig.cap = "The same summary at the 95th percentile, which emphasises hot-spots rather than the bulk of the tissue."}
+quantile_hm(combined, quant_val = 0.95,
+            heatmap_order = sections, heatmap_labs = groups,
+            row_split = row_split, row_split_name = "Met-1")
+```
+
+# Signal-to-noise filtering
+
+*Family: `filtering`.*
+
+| Function | Takes | Produces |
+|---|---|---|
+| `int2response()` | object + internal-standard name | intensities normalised to the IS (`response`) |
+| `int2snr()` | object, `background`/`tissue` labels, `snr_thresh`, optional `snr_overrides` | adds an **`snr`** slot; below threshold and non-tissue become `NA` |
+| `applySNR()` | object carrying an `snr` slot | sub-threshold pixels set to `NA` in `val_slot` |
+| `back2NA()` | object + background label | background pixels set to `NA` |
+| `zero2na()` | object, `val_slot` | zeros replaced with `NA` |
+
+`int2snr()` computes a per-pixel signal-to-noise ratio for each feature against
+the background pixels, and `applySNR()` then sets every sub-threshold pixel to
+`NA` in the intensity slot.
+
+```{r snr-apply}
+combined <- int2snr(combined, val_slot = "intensity",
+                    sample_type = "sample_name", background = "background_pixels",
+                    tissue = "tissue_pixels", snr_thresh = 3)
+combined <- applySNR(combined, val_slot = "intensity")
+```
+
+`int2snr()` added an `snr` layer rather than replacing anything, and
+`applySNR()` then set the sub-threshold pixels of `intensity` to `NA`:
+
+```{r snr-check}
+names(spectraData(combined))                            # snr layer added
+mean(is.na(spectra(combined, "intensity"))) |> round(3) # fraction now masked
+```
+
+Compare the filtered image below with the unfiltered ion images in
+*Ion images* above: the low-signal background has been removed, leaving the
+tissue.
+
+```{r snr-after, fig.wide = TRUE, fig.cap = "The same feature after applySNR(). Sub-threshold pixels are now NA, so the low-signal background has been removed and only tissue signal remains."}
+imageR(combined, feat_ind = 1, sample_lab = "run", val_slot = "intensity",
+       scale = "suppress") +
+  facet_wrap(~ sample, ncol = 3) +
+  theme(strip.text = element_text(size = 7),
+        legend.text = element_text(size = 7))
 ```
 
 # Running a full study from a YAML config
 
-In practice a whole study -- multiple acquisitions, SNR sweeps, fold-change
-layers, ion ratios and optional calibration -- is driven from a single YAML
-configuration. A minimal config looks like:
+*Family: `workflow`.*
+
+| Function | Takes | Produces |
+|---|---|---|
+| `run_study()` | a YAML configuration file | runs the whole study: `.txt` images, optional calibration, one HTML report per SNR threshold |
+| `generate_txt_images()` | acquisition names, paths, ion library, SNR settings | list of combined/SNR-filtered objects; optional per-feature `.txt` images |
+| `run_example()` | nothing (all paths resolved internally) | the same list plus `calibrated` and `report`, having rendered the HTML report |
+
+Everything above runs inside `generate_txt_images()`, which `run_study()` drives
+from a YAML file. In practice a whole study -- multiple acquisitions, SNR
+sweeps, ion ratios and optional calibration -- is configured in one place. A
+minimal config looks like:
 
 ```yaml
 study: "my_study"
 paths:
-  data_path:    "D:/study/raw"
-  out_path:     "D:/study/results"
-  image_dir:    "D:/study/images"
-  lib_ion_path: "D:/study/ion_library.csv"
+  data_path:    "path/to/raw"
+  out_path:     "path/to/results"
+  image_dir:    "path/to/images"
+  lib_ion_path: "path/to/ion_library.csv"
 samples:
   - pos: "acq_ctrl"
     run_id: "S1"
@@ -189,23 +454,36 @@ parameters:
   snr_thresh: [3]
 output:
   render_report: true
+  output_txt:    true      # write per-feature .txt images for ImageJ
 ```
 
 The shipped template documents every option (SNR overrides, ratios,
-calibration, …) -- open it to use as a starting point:
+calibration, ...) -- open it to use as a starting point:
 
 ```{r yaml-template, eval = FALSE}
 file.show(system.file("config_template.yaml", package = "quantMSImageR"))
 ```
 
-Point `CONFIG_FILE` at your filled-in config and source the runner:
+Then point `run_study()` at your filled-in config:
 
 ```{r run-study, eval = FALSE}
-CONFIG_FILE <- "path/to/study_config.yaml"
-source(system.file("run_study.R", package = "quantMSImageR"))
+run_study("path/to/study_config.yaml")
 ```
 
-# Session info
+The same runner is available from the command line, which is the usual way to
+run a large study unattended:
+
+```sh
+Rscript -e 'quantMSImageR::run_study("study_config.yaml")'
+```
+
+# References
+
+Smith MJ, *et al.* Quantitative mass spectrometry imaging of lipid mediators
+using DESI-MRM. *Analytical Chemistry* (2024).
+<https://pubs.acs.org/doi/10.1021/acs.analchem.4c02350>
+
+# Session information
 
 ```{r session}
 sessionInfo()

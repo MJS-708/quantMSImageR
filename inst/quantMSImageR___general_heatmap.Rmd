@@ -859,9 +859,157 @@ for (i in seq_along(ord)) {
 }
 ```
 
-# 6. Session Information
+```{r cal-detect, echo=FALSE, include=FALSE}
+# The calibration section only appears when the caller (run_example() or
+# run_study.R with `calibration: enabled: true`) put a calibrated object in the
+# render environment. Everything below is gated on this flag.
+.cal_obj <- if (exists("calibrated", inherits = TRUE)) get("calibrated") else NULL
+.has_cal <- !is.null(.cal_obj) &&
+  methods::is(.cal_obj, "quant_MSImagingExperiment") &&
+  length(quantMSImageR::calibrationModels(.cal_obj)) > 0
+```
 
-Packages used for the creation of this file
+```{r cal-heading, results="asis", echo=FALSE, eval=.has_cal}
+# Headings are emitted from code, not written as markdown, so the whole section
+# disappears cleanly when no calibration was run.
+cat("# 6. Quantification\n\n",
+    "Tissue intensities were converted to absolute amounts using the ",
+    "calibration standards acquisition. Each analyte's response-versus-amount ",
+    "curve was fitted with `create_cal_curve()` and inverted by `int2conc()` ",
+    "to give `pg_pixel` and `pg_mm2` layers. These are calibrated amount ",
+    "estimates, not volumetric concentrations, and are conditional on the ",
+    "calibration design, matrix matching and acquisition conditions.\n\n",
+    "## 6.1 Calibration fits\n\n", sep = "")
+```
+
+```{r cal-r2, echo=FALSE, eval=.has_cal}
+.r2 <- quantMSImageR::calibrationR2(.cal_obj)
+.cl <- quantMSImageR::calibrationModels(.cal_obj)
+
+.eqn <- data.frame(
+  analyte   = names(.cl),
+  slope     = vapply(.cl, function(m) unname(stats::coef(m)[2]), numeric(1)),
+  intercept = vapply(.cl, function(m) unname(stats::coef(m)[1]), numeric(1)),
+  row.names = NULL
+)
+.eqn$r2 <- .r2$r2[match(.eqn$analyte, .r2$feature)]
+
+DT::datatable(.eqn, rownames = FALSE,
+              options = list(dom = "t", pageLength = nrow(.eqn))) |>
+  DT::formatSignif(c("slope", "intercept", "r2"), digits = 4)
+```
+
+```{r cal-cov-heading, results="asis", echo=FALSE, eval=.has_cal}
+cat("A low R-squared flags a standard that misbehaved; concentrations derived ",
+    "from that analyte's curve should not be trusted.\n\n",
+    "## 6.2 Calibration coverage\n\n",
+    "Converting intensities to concentrations is only valid where the ",
+    "standards constrain the fit. The lower panel shows the standard spots and ",
+    "the fitted model; the upper panel shows where this study's pixels ",
+    "actually fall on the same axis, with the calibration levels marked. ",
+    "Pixels inside the marked range are interpolated between real standards ",
+    "rather than extrapolated.\n\n", sep = "")
+```
+
+```{r cal-coverage, echo=FALSE, eval=.has_cal, warning=FALSE, message=FALSE, fig.width=10, fig.height=6}
+tryCatch(
+  print(quantMSImageR::plot_cal_coverage(.cal_obj, val_slot = "intensity")),
+  error = function(e) {
+    message("Calibration coverage plot failed: ", e$message)
+    plot.new(); title("Calibration coverage unavailable")
+  })
+```
+
+```{r cal-img-heading, results="asis", echo=FALSE, eval=.has_cal}
+# Prefer areal amount (comparable between acquisitions of different pixel size)
+# and fall back to per-pixel when the acquisition carried no pixelSize. The
+# helper also accepts the pre-rename slot spellings.
+.conc_slot <- quantMSImageR:::.pick_conc_slot(.cal_obj, prefer = "mm2")
+.conc_unit <- quantMSImageR:::.conc_unit(.conc_slot)
+
+cat("## 6.3 Calibrated amount ion images\n\n",
+    "The same sections imaged after `int2conc()`. The colour scale is now an ",
+    "estimated amount (", .conc_unit, ") rather than instrument response, ",
+    "which is far more interpretable than raw response and transferable ",
+    "between acquisitions where standards, matrix and acquisition conditions ",
+    "are matched. Only analytes with a calibration curve appear here.\n\n",
+    sep = "")
+```
+
+```{r cal-images, results="asis", echo=FALSE, eval=.has_cal, warning=FALSE, message=FALSE, fig.width=7.5, fig.height=6}
+# Mirrors the section 5 dropdown, with its own element ids and JS handler so the
+# two selectors on the same page do not collide. make_safe_id is defined in the
+# section 5 chunk; redefine it here so this section does not depend on that
+# chunk having run.
+if (!exists("make_safe_id"))
+  make_safe_id <- function(x) gsub("[^A-Za-z0-9_\\-]", "_", x)
+
+.cal_feats <- as.character(fData(.cal_obj)$name)
+.cal_ord   <- order(tolower(.cal_feats))
+.cal_sorted <- .cal_feats[.cal_ord]
+.cal_ids    <- vapply(.cal_sorted, make_safe_id, character(1))
+
+cat('
+<label for="conc_select" style="font-weight:600;">Select feature:</label>
+<select id="conc_select" style="margin: 0 0 12px 8px; padding: 4px 6px;"
+        onchange="showConcFeature(this.value)">
+')
+
+for (.i in seq_along(.cal_sorted)) {
+  .sel <- if (.i == 1) ' selected' else ''
+  cat(sprintf('<option value="%s"%s>%s</option>\n',
+              .cal_ids[.i], .sel, .cal_sorted[.i]))
+}
+
+cat('</select>
+
+<script>
+function showConcFeature(id){
+  var blocks = document.querySelectorAll(".conc_feature_block");
+  for (var i=0; i<blocks.length; i++) { blocks[i].style.display = "none"; }
+  var el = document.getElementById("conc_" + id);
+  if (el) el.style.display = "block";
+}
+</script>
+')
+
+for (.i in seq_along(.cal_ord)) {
+
+  .idx   <- .cal_ord[.i]                      # row index in .cal_obj
+  .style <- if (.i == 1) "block" else "none"
+
+  cat(sprintf('<div class="conc_feature_block" id="conc_%s" style="display:%s;">\n',
+              .cal_ids[.i], .style))
+  cat(sprintf("<p style='margin-top:10px;font-size:1.17em;font-weight:600;'>%s</p>\n",
+              .cal_sorted[.i]))
+
+  tryCatch({
+    # imageR() returns a ggplot, so the panels can be laid out to match the
+    # 3 x 2 grid used by the intensity images in section 5.
+    print(
+      quantMSImageR::imageR(.cal_obj, feat_ind = .idx, sample_lab = "run",
+                            val_slot = .conc_slot, value = .conc_unit,
+                            scale = "suppress") +
+        ggplot2::facet_wrap(~ sample, ncol = 3) +
+        ggplot2::theme(strip.text  = ggplot2::element_text(size = 8),
+                       legend.text = ggplot2::element_text(size = 8))
+    )
+  }, error = function(e) {
+    message("Concentration image failed for ", .cal_sorted[.i], ": ", e$message)
+    grid::grid.newpage()
+    grid::grid.text(paste0(.cal_sorted[.i], "\n(concentration image unavailable)"),
+                    gp = grid::gpar(fontsize = 11, col = "grey40"))
+  })
+
+  cat("</div>\n")
+}
+```
+
+```{r session-heading, results="asis", echo=FALSE}
+# Numbered relative to whether the calibration section above was rendered.
+cat("# ", if (.has_cal) 7 else 6, ". Session Information\n\n",
+    "Packages used for the creation of this file\n", sep = "")
+```
 
 ```{r session, echo = FALSE, warning=FALSE}
 

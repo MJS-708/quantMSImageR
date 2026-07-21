@@ -2,7 +2,7 @@
 % Please edit documentation in R/trim_MSI.R
 \name{trim_MSI}
 \alias{trim_MSI}
-\title{Remove pure-noise border rows and columns from an MSI object}
+\title{Remove pure-background border rows and columns from an MSI object}
 \usage{
 trim_MSI(MSI_data)
 }
@@ -11,14 +11,15 @@ trim_MSI(MSI_data)
 columns \code{x}, \code{y}, and \code{sample_name} (populated by \code{makeFactor()}).}
 }
 \value{
-A subset \code{quant_MSImagingExperiment} with pure-noise border pixels
-removed.
+A subset \code{quant_MSImagingExperiment} with pure-background border
+pixels removed.
 }
 \description{
 Drops any x-column or y-row in which \strong{every} pixel is labelled as
-\code{"noise_pixels"} in \code{pData(MSI_data)$sample_name}. This trims empty
-scan borders that arise from the Waters acquisition geometry without
-affecting tissue or mixed-content rows/columns.
+\code{"background_pixels"} (or the historical \code{"noise_pixels"}) in
+\code{pData(MSI_data)$sample_name}. This trims empty scan borders that arise from
+the Waters acquisition geometry without affecting tissue or mixed-content
+rows/columns.
 }
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",
@@ -27,3 +28,10 @@ obj <- as(readRDS(p), "quant_MSImagingExperiment")
 obj <- trim_MSI(obj)
 
 }
+\seealso{
+Other acquisition:
+\code{\link[=read_mrm]{read_mrm()}},
+\code{\link{remove_blank_mzs,quant_MSImagingExperiment-method}},
+\code{\link[=select_tissue_pixels]{select_tissue_pixels()}}
+}
+\concept{acquisition}

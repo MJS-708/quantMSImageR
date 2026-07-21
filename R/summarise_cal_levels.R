@@ -1,16 +1,30 @@
 setGeneric("summarise_cal_levels", function(MSIobject, ...) standardGeneric("summarise_cal_levels"))
 
-#' Function to calculate the mean response or intensity per pixel for the ROI at each calibration level across all calibration replicates (ng/pixel).
+#' Summarise the response at each calibration level
+#'
+#' Averages the signal across the pixels of each calibration spot, giving one
+#' response value per standard per level. This is the input
+#' [create_cal_curve()] fits its models to.
+#'
 #' @import Cardinal
 #' @include setClasses.R
 #'
-#' @param MSIobject MSI object from Cardinal
-#' @param cal_metadata dataframe containing calibration metdata info - including "lipid" = feature name in fData(), "identifier" header to map pData, and "amount_pg" relating to amount of std at each spot.
-#' @param val_slot character defining slot name to normalise - takes "intensity" as default
-#' @param cal_header Header in pixel metadata to select calibration data from. Default = "sample_type"
-#' @param cal_label Label in pixel metadata under the `cal_header` which corresponds to calibration data. Default = "Cal".
-#' @param id header in calibration metadata and pData to map (defaults to "identifier") and label unique ROIs
-#' @return MSIobject with slots updated for i) matrix of average ng/pixel of m/z (rows = m/z and cols = cal level) ii) list of pixel counts per cal level
+#' @param MSIobject A `quant_MSImagingExperiment` whose `pData()` carries the
+#'   calibration labels and spot identifiers.
+#' @param cal_metadata Data frame of calibration metadata, with columns
+#'   `lipid` (feature name as in `fData()$name`), `identifier` (maps to
+#'   `pData()`), `amount_pg` (amount of standard deposited at each spot) and
+#'   `level` (dilution level).
+#' @param val_slot Character. Spectra slot to summarise (default `"intensity"`).
+#' @param cal_header Character. Column of `pData()` used to select calibration
+#'   pixels (default `"sample_type"`).
+#' @param cal_label Character. Value of `cal_header` marking calibration pixels
+#'   (default `"Cal"`).
+#' @param id Character. Column present in both `cal_metadata` and `pData()`
+#'   that identifies a unique calibration spot (default `"identifier"`).
+#' @return The input object with `cal_response_data` populated: mean response
+#'   per pixel for every (standard, calibration level) pair, together with the
+#'   per-level pixel counts. Amounts are expressed in **pg per pixel**.
 #'
 #' @examples
 #' cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
@@ -20,10 +34,11 @@ setGeneric("summarise_cal_levels", function(MSIobject, ...) standardGeneric("sum
 #' cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
 #'                             cal_label = "Cal", id = "identifier")
 #'
+#' @family calibration
 #' @aliases summarise_cal_levels
 #' @export
 setMethod("summarise_cal_levels", "quant_MSImagingExperiment",
-          function(MSIobject, cal_metadata, val_slot = "response", cal_header = "sample_type", cal_label = "Cal", id = "identifier"){
+          function(MSIobject, cal_metadata, val_slot = "intensity", cal_header = "sample_type", cal_label = "Cal", id = "identifier"){
 
             MSIobject@calibrationInfo@cal_metadata = cal_metadata
 

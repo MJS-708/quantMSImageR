@@ -12,7 +12,9 @@ setGeneric("back2NA", function(MSIobject, ...) standardGeneric("back2NA"))
 #'   a column identifying pixel type.
 #' @param val_slot Character. Name of the spectra slot to modify (default `"intensity"`).
 #' @param background Character. Value in `pData(MSIobject)[[sample_type]]` that
-#'   labels background/noise pixels (default `"Noise"`).
+#'   labels background pixels (default `"background_pixels"`). The historical
+#'   `"noise_pixels"` / `"Noise"` labels are matched too, so masks made with
+#'   earlier versions keep working.
 #' @param tissue Character. Value that labels tissue pixels (default `"Tissue"`).
 #'   Currently unused but kept for API symmetry with `int2snr`.
 #' @param sample_type Character. Column name in `pData()` holding pixel-type
@@ -27,21 +29,24 @@ setGeneric("back2NA", function(MSIobject, ...) standardGeneric("back2NA"))
 #' p <- system.file("extdata", "example.raw", "section01.RDS",
 #'                  package = "quantMSImageR")
 #' obj <- as(readRDS(p), "quant_MSImagingExperiment")
-#' obj <- back2NA(obj, val_slot = "intensity", background = "noise_pixels",
+#' obj <- back2NA(obj, val_slot = "intensity", background = "background_pixels",
 #'                tissue = "tissue_pixels", sample_type = "sample_name")
 #'
+#' @family filtering
 #' @aliases back2NA
 #' @export
 setMethod("back2NA", "quant_MSImagingExperiment",
-          function(MSIobject, val_slot = "response", background = "Noise", tissue = "Tissue",sample_type = "sample_type", ...){
+          function(MSIobject, val_slot = "intensity", background = "background_pixels", tissue = "Tissue",sample_type = "sample_type", ...){
 
-            if(!any(pData(MSIobject)[[sample_type]] == background)){
+            .bg <- .bg_labels(background)
+
+            if(!any(pData(MSIobject)[[sample_type]] %in% .bg)){
               message("No background pixels. Return same values")
               return(MSIobject)
             }
 
             #Set background and tissue pixels
-            background_pixels = which(pData(MSIobject)[[sample_type]] == background)
+            background_pixels = which(pData(MSIobject)[[sample_type]] %in% .bg)
 
             # Iterate over features in study
             for(mz_ind in seq_len(nrow(fData(MSIobject)))){

@@ -19,11 +19,11 @@ test_that("generate_txt_images returns the expected named list", {
   )
 
   expect_true(all(c("combined", "combined_snr", "combined_snr_list",
-                    "combined_FC", "combined_NAbackground") %in% names(result)))
+                    "combined_NAbackground") %in% names(result)))
   expect_s4_class(result$combined,              "quant_MSImagingExperiment")
   expect_s4_class(result$combined_snr,          "quant_MSImagingExperiment")
-  expect_s4_class(result$combined_FC,           "quant_MSImagingExperiment")
   expect_s4_class(result$combined_NAbackground, "quant_MSImagingExperiment")
+  expect_false("combined_FC" %in% names(result))   # tissue fold-change removed
 })
 
 test_that("output_txt = FALSE writes no files", {

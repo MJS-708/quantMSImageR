@@ -10,7 +10,8 @@ select_tissue_pixels(
   lib_ion_path,
   feature = NULL,
   enhance = "histogram",
-  overwrite = FALSE
+  overwrite = FALSE,
+  preview = TRUE
 )
 }
 \arguments{
@@ -31,10 +32,15 @@ Default \code{"histogram"}.}
 
 \item{overwrite}{Logical. If \code{TRUE}, an existing \code{tissue_pixels.csv} will
 be overwritten.  Default \code{FALSE}.}
+
+\item{preview}{Logical. Draw the saved mask (tissue versus background over
+the pixel coordinates) once selection finishes, so it can be checked before
+the pipeline uses it. Default \code{TRUE}.}
 }
 \value{
-Invisibly returns a data frame with columns \code{tissue_pixels} and
-\code{noise_pixels} (logical), one row per pixel, in acquisition order.
+Invisibly returns a data frame with columns \code{x}, \code{y},
+\code{tissue_pixels} and \code{background_pixels} (logical), one row per pixel, in
+acquisition order.
 }
 \description{
 Loads a DESI-MRM acquisition, displays ion images of all features so the
@@ -50,17 +56,24 @@ that does not yet have a \code{tissue_pixels.csv}.  It requires an interactive R
 session with a graphics device (i.e. not inside \code{Rscript --no-save}).
 }
 \examples{
-\dontrun{
-# Step 1 (once per acquisition, before running the YAML):
-select_tissue_pixels(
-  name         = "14Dec_AntibodyStudy_1",
-  data_path    = "D:/studies/raw",
-  lib_ion_path = "D:/studies/ion_library.csv"
-)
+# Requires a graphics device and user input, so it only runs interactively.
+if (interactive()) {
+  # Step 1 (once per acquisition, before running the study):
+  select_tissue_pixels(
+    name         = "my_acquisition",
+    data_path    = "path/to/raw",
+    lib_ion_path = "path/to/ion_library.csv"
+  )
 
-# Step 2: run the full pipeline via YAML
-CONFIG_FILE <- "path/to/study.yaml"
-source(system.file("run_study.R", package = "quantMSImageR"))
+  # Step 2: run the full pipeline from the study config
+  run_study("path/to/study.yaml")
 }
 
 }
+\seealso{
+Other acquisition:
+\code{\link[=read_mrm]{read_mrm()}},
+\code{\link{remove_blank_mzs,quant_MSImagingExperiment-method}},
+\code{\link[=trim_MSI]{trim_MSI()}}
+}
+\concept{acquisition}

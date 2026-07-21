@@ -3,7 +3,7 @@
 \name{int2response,quant_MSImagingExperiment-method}
 \alias{int2response,quant_MSImagingExperiment-method}
 \alias{int2response}
-\title{Function to normalise the intensity values to response per pixel if internal standard is present. Currently only works for a single internal standard to normalise all lipids to.}
+\title{Normalise pixel intensities to internal-standard response}
 \usage{
 \S4method{int2response}{quant_MSImagingExperiment}(
   MSIobject,
@@ -15,23 +15,33 @@
 )
 }
 \arguments{
-\item{MSIobject}{MSI MSIobject from Cardinal}
+\item{MSIobject}{A \code{quant_MSImagingExperiment} object.}
 
-\item{val_slot}{character defining slot name to normalise - takes "intensity" as default}
+\item{val_slot}{Character. Spectra slot to normalise (default
+\code{"intensity"}).}
 
-\item{IS_name}{character defining the IS to use in fData(MSIobject) under the analyte header. Currently only works for a single internal standard to normalise all lipids to. "None" use individual lipids to normalise.}
+\item{IS_name}{Character. Name of the internal standard in
+\code{fData(MSIobject)} under the analyte header. \code{"None"} (the default)
+normalises each feature to itself.}
 
-\item{mode}{Mode iby which to apply normalisation. "sample" = normalise to median intensity of IS per sample, "line" = normalise to median intensity of IS per line, "pixel" = normalise to intensity of IS per pixel.}
+\item{mode}{Character. Level at which the standard is summarised:
+\code{"sample"} (median internal-standard intensity per sample), \code{"line"}
+(per acquisition line, the default) or \code{"pixel"} (per pixel).}
 
-\item{remove_IS}{Logical whether to remove internal standard feature from object}
+\item{remove_IS}{Logical. Drop the internal-standard feature from the
+returned object (default \code{TRUE}).}
 
 \item{...}{Additional arguments (currently unused).}
 }
 \value{
-MSIobject with intensity values replaced with response
+The input object with a \code{response} spectra slot holding the
+internal-standard-normalised values.
 }
 \description{
-Function to normalise the intensity values to response per pixel if internal standard is present. Currently only works for a single internal standard to normalise all lipids to.
+Divides each feature's intensity by the internal standard measured in the
+same pixel, line or sample, which suppresses drift and much of the local
+variation in ionisation efficiency. Only a single internal standard is
+supported.
 }
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",
@@ -41,3 +51,11 @@ obj <- as(readRDS(p), "quant_MSImagingExperiment")
 obj <- int2response(obj, val_slot = "intensity", IS_name = "None")
 
 }
+\seealso{
+Other filtering:
+\code{\link{applySNR,quant_MSImagingExperiment-method}},
+\code{\link{back2NA,quant_MSImagingExperiment-method}},
+\code{\link{int2snr,quant_MSImagingExperiment-method}},
+\code{\link{zero2na,quant_MSImagingExperiment-method}}
+}
+\concept{filtering}

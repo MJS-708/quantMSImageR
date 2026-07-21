@@ -3,26 +3,31 @@
 \name{int2snr,quant_MSImagingExperiment-method}
 \alias{int2snr,quant_MSImagingExperiment-method}
 \alias{int2snr}
-\title{Function to convert the intensity values to SNR per pixel based on same transitions in noise/background pixels.Run after IS normalization.}
+\title{Calculate background-referenced signal-to-noise ratios}
 \usage{
 \S4method{int2snr}{quant_MSImagingExperiment}(
   MSIobject,
-  val_slot = "response",
-  noise = "Noise",
+  val_slot = "intensity",
+  background = "background_pixels",
   tissue = "Tissue",
   snr_thresh = 3,
   sample_type = "sample_type",
   average = c("mean", "median"),
   snr_overrides = NULL,
+  noise = NULL,
   ...
 )
 }
 \arguments{
-\item{MSIobject}{quant_MSImagingExperiment - including pData(MSIobject)$sample_type == Noise}
+\item{MSIobject}{quant_MSImagingExperiment - including a background label in \code{pData(MSIobject)[[sample_type]]}}
 
-\item{val_slot}{character defining slot name to normalise - takes "intensity" as default}
+\item{val_slot}{Character. Spectra slot holding the measured response
+(default \code{"intensity"}; use \code{"response"} after \code{\link[=int2response]{int2response()}}).}
 
-\item{noise}{character in pData(MSIobject)$sample_type which indicates background / noise pixels}
+\item{background}{character in \code{pData(MSIobject)[[sample_type]]} marking the
+background (non-tissue) pixels used to estimate the noise level. Defaults to
+\code{"background_pixels"}; the historical \code{"noise_pixels"} / \code{"Noise"} labels are
+matched too, so masks made with earlier versions keep working.}
 
 \item{tissue}{character in pData(MSIobject)$sample_type which indicates tissue pixels to calculate SNR for}
 
@@ -33,7 +38,7 @@ Applied to every feature unless overridden by \code{snr_overrides}.}
 labels (default "sample_type").}
 
 \item{average}{character, "mean" or "median": statistic used to summarise the
-noise-pixel vector per feature.}
+background-pixel vector per feature.}
 
 \item{snr_overrides}{Optional named numeric vector mapping feature name
 (as in \code{fData(MSIobject)$name}) to a feature-specific SNR threshold. A
@@ -41,19 +46,52 @@ feature listed here uses its own threshold instead of \code{snr_thresh};
 features not listed fall back to \code{snr_thresh}. Default \code{NULL} (all
 features use the global threshold).}
 
+\item{noise}{Deprecated alias for \code{background}, kept for backward
+compatibility. When supplied it overrides \code{background}.}
+
 \item{...}{Additional arguments (currently unused).}
 }
 \value{
 MSIobject with intensity values replaced with SNR values
 }
 \description{
-Function to convert the intensity values to SNR per pixel based on same transitions in noise/background pixels.Run after IS normalization.
+Expresses each tissue pixel's response as a ratio to the same feature's
+response in the background pixels of the same acquisition.
+}
+\details{
+For feature \code{f} and tissue pixel \code{p}, with background-pixel set \code{B}:
+
+\deqn{SNR_{f,p} = I_{f,p} / \mathrm{summary}_{b \in B}(I_{f,b})}
+
+where \code{summary} is the mean or median selected by \code{average}. This is a
+background-referenced signal ratio, not the classical analytical definition
+based on the standard deviation of the noise.
+
+\code{median} is the default because a background region that clips part of the
+tissue, or contains a spot of carryover, shifts a mean far more than a
+median. Zero background values are treated as missing and imputed at one
+tenth of the smallest non-zero background value for that feature, so a
+feature whose background is entirely zero or \code{NA} is skipped and its \code{snr}
+stays \code{NA}.
+
+Run this \strong{after} internal-standard normalisation (\code{\link[=int2response]{int2response()}}) when
+one is used. A threshold of 3 is a detection-level criterion; a stricter
+threshold is advisable before converting a feature to calibrated amounts.
 }
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",
                  package = "quantMSImageR")
 obj <- as(readRDS(p), "quant_MSImagingExperiment")
 obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
-               noise = "noise_pixels", tissue = "tissue_pixels", snr_thresh = 3)
+               background = "background_pixels", tissue = "tissue_pixels",
+               snr_thresh = 3)
 
 }
+\seealso{
+Other filtering:
+\code{\link{applySNR,quant_MSImagingExperiment-method}},
+\code{\link{back2NA,quant_MSImagingExperiment-method}},
+\code{\link{int2response,quant_MSImagingExperiment-method}},
+\code{\link{zero2na,quant_MSImagingExperiment-method}}
+}
+\concept{filtering}

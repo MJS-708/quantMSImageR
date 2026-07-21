@@ -2,7 +2,7 @@ test_that("summarise_cal_levels summarises calibration ROIs", {
 
   cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
   skip_if_not(file.exists(file.path(cal_dir, "cal_MSI.RDS")),
-              "synthetic cal data not generated (run inst/generate_cal_data.R)")
+              "synthetic cal data not generated (run inst/scripts/generate_cal_data.R)")
 
   cal  <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
              "quant_MSImagingExperiment")

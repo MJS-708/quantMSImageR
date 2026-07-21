@@ -30,6 +30,7 @@
 #'                             package = "quantMSImageR"), check.names = FALSE)
 #' fm <- build_feature_meta(obj, lib)
 #'
+#' @seealso [quantile_hm()], [generate_txt_images()]
 #' @export
 build_feature_meta <- function(combined, ion_lib_meta, verbose = TRUE) {
   if (is.null(ion_lib_meta)) return(NULL)

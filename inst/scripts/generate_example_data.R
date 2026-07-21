@@ -81,8 +81,8 @@ make_section <- function(section_name, seed_offset = 0L,
   }
 
   sample_name <- factor(
-    ifelse(tissue_mask, "tissue_pixels", "noise_pixels"),
-    levels = c("tissue_pixels", "noise_pixels")
+    ifelse(tissue_mask, "tissue_pixels", "background_pixels"),
+    levels = c("tissue_pixels", "background_pixels")
   )
 
   pdata <- PositionDataFrame(
@@ -99,10 +99,16 @@ make_section <- function(section_name, seed_offset = 0L,
     name         = features$name
   )
 
+  # Acquisition metadata: pixelSize (micrometres) is required by int2conc() to
+  # convert pg/pixel into pg/mm2, so the sections carry it like real data.
+  exp_meta <- CardinalIO::ImzMeta()
+  exp_meta$pixelSize <- 100
+
   obj <- MSImagingExperiment(
-    spectraData = SimpleList(intensity = imat),
-    featureData = fdata,
-    pixelData   = pdata
+    spectraData    = SimpleList(intensity = imat),
+    featureData    = fdata,
+    pixelData      = pdata,
+    experimentData = exp_meta
   )
   featureNames(obj) <- features$name
   obj

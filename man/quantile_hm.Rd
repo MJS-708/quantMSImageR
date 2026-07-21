@@ -56,3 +56,8 @@ hm <- quantile_hm(obj, quant_val = 0.5,
                   heatmap_order = "section01", heatmap_labs = "A")
 
 }
+\seealso{
+Other visualisation:
+\code{\link{imageR,quant_MSImagingExperiment-method}}
+}
+\concept{visualisation}

@@ -4,14 +4,16 @@ Version: 0.99.0
 Authors@R:
     person("Matthew J.", "Smith", , "mattyjsmith123@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-7357-2670"))
-Description: Software tools (largely extended from the R package Cardinal) for
-    quantification of mass spectrometry imaging (MSI) data, including
-    signal-to-noise filtering, tissue fold-change computation, quantile
-    heatmaps, and batch export of per-feature text images for external viewers.
+Description: Implements tools for processing and quantifying targeted DESI-MRM
+    mass spectrometry imaging (MSI) datasets, extending the Cardinal package.
+    Includes signal-to-noise filtering against background pixels,
+    tissue/background separation, per-feature ion images, quantile heatmaps,
+    quantification against on-slide or on-tissue calibration standards, and
+    batch export of per-feature text images for external viewers.
 License: MIT + file LICENSE
 URL: https://github.com/MJS-708/quantMSImageR
 BugReports: https://github.com/MJS-708/quantMSImageR/issues
-biocViews: MassSpectrometry, ImagingMassSpectrometry, Metabolomics,
+biocViews: Software, MassSpectrometry, ImagingMassSpectrometry, Metabolomics,
     Lipidomics, QualityControl, Normalization, Visualization
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -38,7 +40,9 @@ Imports:
     dplyr (>= 1.1.4),
     ggplot2 (>= 4.0.0),
     tibble (>= 3.2.1),
-    tidyr (>= 1.3.1)
+    tidyr (>= 1.3.1),
+    patchwork (>= 1.2.0),
+    yaml (>= 2.3.0)
 Suggests:
     testthat (>= 3.0.0),
     knitr (>= 1.40),
@@ -48,13 +52,12 @@ Suggests:
     htmltools (>= 0.5.0),
     magick (>= 2.8.4),
     openxlsx (>= 4.2.0),
-    patchwork (>= 1.2.0),
-    yaml (>= 2.3.0),
     matter (>= 2.0.0)
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Collate:
     'setClasses.R'
+    'accessors.R'
     'align_features.R'
     'applySNR.R'
     'back2NA.R'
@@ -71,11 +74,13 @@ Collate:
     'int2conc.R'
     'int2response.R'
     'int2snr.R'
+    'plot_cal_coverage.R'
     'quantMSImageR-package.R'
     'quantile_hm.R'
     'read_mrm.R'
     'remove_blank_mzs.R'
     'run_example.R'
+    'run_study.R'
     'select_tissue_pixels.R'
     'setCommonAxis.R'
     'summarise_cal_levels.R'

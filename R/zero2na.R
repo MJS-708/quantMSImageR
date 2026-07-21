@@ -1,12 +1,17 @@
 setGeneric("zero2na", function(MSIobject, ...) standardGeneric("zero2na"))
 
-#' Function to convert intensity values from 0 to NA in MSI dataset.
+#' Replace zero intensities with NA
+#'
+#' Zeros in an MRM acquisition mean "nothing recorded" rather than "measured as
+#' zero", and left in place they bias means and compress colour scales. This
+#' converts them to `NA` so they are excluded from summaries.
+#'
 #' @import Cardinal
 #' @include setClasses.R
 #'
-#' @param MSIobject MSI object from Cardinal
-#' @param val_slot character defining the spectra slot to modify (default "intensity")
-#' @return MSIobject with zero intensity values replaced with NA
+#' @param MSIobject A `quant_MSImagingExperiment` object.
+#' @param val_slot Character. Spectra slot to modify (default `"intensity"`).
+#' @return The input object with zero values in `val_slot` replaced by `NA`.
 #'
 #' @examples
 #' p <- system.file("extdata", "example.raw", "section01.RDS",
@@ -14,6 +19,7 @@ setGeneric("zero2na", function(MSIobject, ...) standardGeneric("zero2na"))
 #' obj <- as(readRDS(p), "quant_MSImagingExperiment")
 #' obj <- zero2na(obj, val_slot = "intensity")
 #'
+#' @family filtering
 #' @aliases zero2na
 #' @export
 setMethod("zero2na", "quant_MSImagingExperiment",

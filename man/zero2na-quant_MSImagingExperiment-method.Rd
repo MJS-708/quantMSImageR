@@ -3,20 +3,22 @@
 \name{zero2na,quant_MSImagingExperiment-method}
 \alias{zero2na,quant_MSImagingExperiment-method}
 \alias{zero2na}
-\title{Function to convert intensity values from 0 to NA in MSI dataset.}
+\title{Replace zero intensities with NA}
 \usage{
 \S4method{zero2na}{quant_MSImagingExperiment}(MSIobject, val_slot = "intensity")
 }
 \arguments{
-\item{MSIobject}{MSI object from Cardinal}
+\item{MSIobject}{A \code{quant_MSImagingExperiment} object.}
 
-\item{val_slot}{character defining the spectra slot to modify (default "intensity")}
+\item{val_slot}{Character. Spectra slot to modify (default \code{"intensity"}).}
 }
 \value{
-MSIobject with zero intensity values replaced with NA
+The input object with zero values in \code{val_slot} replaced by \code{NA}.
 }
 \description{
-Function to convert intensity values from 0 to NA in MSI dataset.
+Zeros in an MRM acquisition mean "nothing recorded" rather than "measured as
+zero", and left in place they bias means and compress colour scales. This
+converts them to \code{NA} so they are excluded from summaries.
 }
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",
@@ -25,3 +27,11 @@ obj <- as(readRDS(p), "quant_MSImagingExperiment")
 obj <- zero2na(obj, val_slot = "intensity")
 
 }
+\seealso{
+Other filtering:
+\code{\link{applySNR,quant_MSImagingExperiment-method}},
+\code{\link{back2NA,quant_MSImagingExperiment-method}},
+\code{\link{int2response,quant_MSImagingExperiment-method}},
+\code{\link{int2snr,quant_MSImagingExperiment-method}}
+}
+\concept{filtering}

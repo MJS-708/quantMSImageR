@@ -43,3 +43,6 @@ lib <- read.csv(system.file("extdata", "example_ion_library.csv",
 fm <- build_feature_meta(obj, lib)
 
 }
+\seealso{
+\code{\link[=quantile_hm]{quantile_hm()}}, \code{\link[=generate_txt_images]{generate_txt_images()}}
+}

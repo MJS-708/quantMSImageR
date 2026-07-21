@@ -9,3 +9,6 @@ CLAUDE.md
 .claude/
 man/figures/
 *.BiocCheck/
+/doc/
+
+Rplots.pdf

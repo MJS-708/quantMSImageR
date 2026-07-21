@@ -1,13 +1,43 @@
 setGeneric("int2snr", function(MSIobject, ...) standardGeneric("int2snr"))
 
-#' Function to convert the intensity values to SNR per pixel based on same transitions in noise/background pixels.Run after IS normalization.
+#' Calculate background-referenced signal-to-noise ratios
+#'
+#' Expresses each tissue pixel's response as a ratio to the same feature's
+#' response in the background pixels of the same acquisition.
+#'
+#' @details
+#' For feature `f` and tissue pixel `p`, with background-pixel set `B`:
+#'
+#' \deqn{SNR_{f,p} = I_{f,p} / \mathrm{summary}_{b \in B}(I_{f,b})}
+#'
+#' where `summary` is the mean or median selected by `average`. This is a
+#' background-referenced signal ratio, not the classical analytical definition
+#' based on the standard deviation of the noise.
+#'
+#' `median` is the default because a background region that clips part of the
+#' tissue, or contains a spot of carryover, shifts a mean far more than a
+#' median. Zero background values are treated as missing and imputed at one
+#' tenth of the smallest non-zero background value for that feature, so a
+#' feature whose background is entirely zero or `NA` is skipped and its `snr`
+#' stays `NA`.
+#'
+#' Run this **after** internal-standard normalisation ([int2response()]) when
+#' one is used. A threshold of 3 is a detection-level criterion; a stricter
+#' threshold is advisable before converting a feature to calibrated amounts.
+#'
 #' @import Cardinal
 #' @include setClasses.R
 #'
-#' @param MSIobject quant_MSImagingExperiment - including pData(MSIobject)$sample_type == Noise
-#' @param noise character in pData(MSIobject)$sample_type which indicates background / noise pixels
+#' @param MSIobject quant_MSImagingExperiment - including a background label in `pData(MSIobject)[[sample_type]]`
+#' @param background character in `pData(MSIobject)[[sample_type]]` marking the
+#'   background (non-tissue) pixels used to estimate the noise level. Defaults to
+#'   `"background_pixels"`; the historical `"noise_pixels"` / `"Noise"` labels are
+#'   matched too, so masks made with earlier versions keep working.
+#' @param noise Deprecated alias for `background`, kept for backward
+#'   compatibility. When supplied it overrides `background`.
 #' @param tissue character in pData(MSIobject)$sample_type which indicates tissue pixels to calculate SNR for
-#' @param val_slot character defining slot name to normalise - takes "intensity" as default
+#' @param val_slot Character. Spectra slot holding the measured response
+#'   (default `"intensity"`; use `"response"` after [int2response()]).
 #' @param snr_thresh Global minimum SNR to accept (below this value SNR = NA).
 #'   Applied to every feature unless overridden by `snr_overrides`.
 #' @param snr_overrides Optional named numeric vector mapping feature name
@@ -18,7 +48,7 @@ setGeneric("int2snr", function(MSIobject, ...) standardGeneric("int2snr"))
 #' @param sample_type character column in pData(MSIobject) holding the pixel-type
 #'   labels (default "sample_type").
 #' @param average character, "mean" or "median": statistic used to summarise the
-#'   noise-pixel vector per feature.
+#'   background-pixel vector per feature.
 #' @param ... Additional arguments (currently unused).
 #' @return MSIobject with intensity values replaced with SNR values
 #'
@@ -27,30 +57,38 @@ setGeneric("int2snr", function(MSIobject, ...) standardGeneric("int2snr"))
 #'                  package = "quantMSImageR")
 #' obj <- as(readRDS(p), "quant_MSImagingExperiment")
 #' obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
-#'                noise = "noise_pixels", tissue = "tissue_pixels", snr_thresh = 3)
+#'                background = "background_pixels", tissue = "tissue_pixels",
+#'                snr_thresh = 3)
 #'
+#' @family filtering
 #' @aliases int2snr
 #' @export
 setMethod("int2snr", "quant_MSImagingExperiment",
-          function(MSIobject, val_slot = "response", noise = "Noise", tissue = "Tissue", snr_thresh = 3,
-                   sample_type = "sample_type", average = c("mean", "median"),
-                   snr_overrides = NULL, ...){
+          function(MSIobject, val_slot = "intensity",
+                   background = "background_pixels", tissue = "Tissue",
+                   snr_thresh = 3, sample_type = "sample_type",
+                   average = c("mean", "median"), snr_overrides = NULL,
+                   noise = NULL, ...){
             average <- match.arg(average)
 
-            if(!any(pData(MSIobject)[[sample_type]] == noise)){
-              # No noise pixels to compute SNR against -- fall back to a
+            # Backward compatibility: `noise` was the previous argument name.
+            if (!is.null(noise)) background <- noise
+            .bg <- .bg_labels(background)
+
+            if(!any(pData(MSIobject)[[sample_type]] %in% .bg)){
+              # No background pixels to compute SNR against -- fall back to a
               # non-filtering snr slot (copy of intensity). Adding the slot
               # here is required so that downstream applySNR() and combine_MSIs()
               # (cbind) see a consistent set of spectra arrays across sections.
-              warning("int2snr: no '", noise, "' pixels in sample_type='",
+              warning("int2snr: no '", background, "' pixels in sample_type='",
                       sample_type, "'. Returning intensity as snr (no SNR filtering).",
                       call. = FALSE)
               spectra(MSIobject, "snr") <- spectra(MSIobject, val_slot)
               return(MSIobject)
             }
 
-            #Set noise and tissue pixels
-            noise_pixels = which(pData(MSIobject)[[sample_type]] == noise)
+            #Set background and tissue pixels
+            bg_pixels = which(pData(MSIobject)[[sample_type]] %in% .bg)
             tissue_pixels = which(pData(MSIobject)[[sample_type]] == tissue)
 
             spectra(MSIobject, "snr") = matrix(nrow = nrow(MSIobject), ncol = ncol(MSIobject))
@@ -58,8 +96,8 @@ setMethod("int2snr", "quant_MSImagingExperiment",
             # Iterate over features in study
             for(mz_ind in seq_len(nrow(fData(MSIobject)))){
 
-              # Save noise response vector
-              noise_vec = spectraData(MSIobject)[[val_slot]][mz_ind, noise_pixels]
+              # Save background response vector
+              noise_vec = spectraData(MSIobject)[[val_slot]][mz_ind, bg_pixels]
 
               # Skip features with no usable noise signal -- typical of panel-
               # padded rows (a transition that exists in the other acquisition's

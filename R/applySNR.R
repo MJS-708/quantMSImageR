@@ -23,14 +23,16 @@ setGeneric("applySNR", function(MSIobject, ...) standardGeneric("applySNR"))
 #'                  package = "quantMSImageR")
 #' obj <- as(readRDS(p), "quant_MSImagingExperiment")
 #' obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
-#'                noise = "noise_pixels", tissue = "tissue_pixels", snr_thresh = 3)
+#'                background = "background_pixels", tissue = "tissue_pixels",
+#'                snr_thresh = 3)
 #' obj <- applySNR(obj, val_slot = "intensity")
 #'
 #' @seealso [int2snr()]
+#' @family filtering
 #' @aliases applySNR
 #' @export
 setMethod("applySNR", "quant_MSImagingExperiment",
-          function(MSIobject, val_slot = "response", ...){
+          function(MSIobject, val_slot = "intensity", ...){
 
             # Iterate over features in study
             for(mz_ind in seq_len(nrow(fData(MSIobject)))){

@@ -10,7 +10,7 @@
 #   inst/extdata/cal_example.raw/calibration_metadata.csv
 #
 # The object carries the vocabulary the calibration functions require:
-#   pData$sample_type in {"Cal","Tissue","Noise"} and pData$identifier per
+#   pData$sample_type in {"Cal","Tissue","Background"} and pData$identifier per
 #   calibration spot, fData$name matching cal_metadata$lipid, an intensity
 #   slot scaling with amount, and experimentData$pixelSize. It powers the
 #   runnable examples/tests for summarise_cal_levels -> create_cal_curve ->
@@ -28,7 +28,9 @@ y  <- rep(seq_len(ny), times = nx)
 n_pix <- nx * ny
 
 # ----- features (3 lipid standards) ------------------------------------------
-lipids <- c("SM 16:0", "PC 34:1", "LPC 16:0")
+# Names deliberately match features in example.raw so the fitted curves can be
+# applied to a study section (see the quantification vignette).
+lipids <- c("12-HHTrE", "12-HOPE", "9-HOTE")
 n_feat <- length(lipids)
 slope     <- c(300, 500, 200)   # intensity per pg/pixel, per lipid
 intercept <- c(50, 80, 30)
@@ -38,7 +40,7 @@ levels_amt <- c(L1 = 10, L2 = 20, L3 = 40, L4 = 80, L5 = 160)  # pg per spot
 reps <- 1:3
 pixels_per_spot <- 4L
 
-sample_type <- rep("Noise", n_pix)
+sample_type <- rep("Background", n_pix)
 identifier  <- rep(NA_character_, n_pix)
 
 for (i in seq_along(levels_amt)) {
@@ -54,7 +56,7 @@ for (i in seq_along(levels_amt)) {
 # tissue block (x 15-20, y 12-17)
 tinds <- which(x >= 15 & x <= 20 & y >= 12 & y <= 17)
 sample_type[tinds] <- "Tissue"
-ninds <- which(sample_type == "Noise")
+ninds <- which(sample_type == "Background")
 
 # ----- intensity matrix ------------------------------------------------------
 imat <- matrix(0, nrow = n_feat, ncol = n_pix)
@@ -77,7 +79,7 @@ for (f in seq_len(n_feat)) {
 pdata <- PositionDataFrame(
   run         = factor(rep("cal_slide", n_pix)),
   coord       = data.frame(x = x, y = y),
-  sample_type = factor(sample_type, levels = c("Cal", "Tissue", "Noise")),
+  sample_type = factor(sample_type, levels = c("Cal", "Tissue", "Background")),
   identifier  = identifier
 )
 

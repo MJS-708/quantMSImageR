@@ -1,28 +1,38 @@
 setGeneric("imageR", function(MSIobject, ...) standardGeneric("imageR"))
 
-#' Function to create ion images (using ggplot)
+#' Draw an ion image for one feature
+#'
+#' Renders a single feature's spatial distribution as a `ggplot`. Because the
+#' result is an ordinary `ggplot`, the layout, theme and scales can be modified
+#' with the usual `+` syntax -- for example `+ facet_wrap(~ sample, ncol = 3)`
+#' to arrange several acquisitions in a grid.
 #'
 #' @import Cardinal
 #' @include setClasses.R
 #'
 #' @param MSIobject A `quant_MSImagingExperiment` object.
-#' @param val_slot character defining the spectra slot to image (default "intensity").
-#' @param value character stating what values pertain to
-#' @param scale suppress, histogram, sqrt
-#' @param percentile percentile to suppress colour scale (for suppress.)if scale == "suppress")
-#' @param threshold percintile to remove from colour scale (i.e background noise)
-#' @param sample_lab character header from pData(MSIobject) to label images (defaults to "sample_ID")
-#' @param pixels character from `pData(MSIobject)[[sample_lab]]` to take pixels to plot (defaults to NA)
-#' @param overlay whether to overlay features (not yet implemented!)
-#' @param feat_ind Index of feature from fData(MSIobject) to image
-#' @param perc_scale Logical to normalise scale to % (TRUE) or displar raw values (FALSE)
+#' @param val_slot Character. Spectra slot to image (default `"intensity"`).
+#' @param value Character. Legend label describing what the values represent
+#'   (e.g. `"pg/mm2"` for a calibrated layer).
+#' @param scale Character. Colour-scale treatment: `"suppress"` (cap at
+#'   `percentile`), `"histogram"` (contrast-enhance per image) or `"sqrt"`.
+#' @param percentile Numeric. Percentile at which the colour scale is capped
+#'   when `scale = "suppress"` (default `99`).
+#' @param threshold Numeric. Lowest percentile removed from the colour scale,
+#'   to stop residual background dominating it (default `1`).
+#' @param sample_lab Character. Column of `pData(MSIobject)` used to label and
+#'   facet the images (default `"sample_ID"`).
+#' @param pixels Character. Value of `pData(MSIobject)$sample_type` selecting
+#'   which pixels to plot; `NA` (the default) plots all.
+#' @param feat_ind Integer. Row index of the feature in `fData(MSIobject)` to
+#'   image (default `1`).
+#' @param perc_scale Logical. Express the colour scale as a percentage of the
+#'   maximum (`TRUE`) rather than raw values (`FALSE`, the default).
 #' @param blank_back Logical; when TRUE background/zero pixels are drawn transparent.
 #' @param aspect_ratio numeric plot aspect ratio (default 1).
 #' @param text_image Logical; when TRUE return the image as a numeric matrix
 #'   (for text export) rather than a ggplot.
-#' @param roi_labels optional data.frame of ROI overlay points (used when
-#'   `overlay = TRUE`); default NA.
-#' @return ggplot object
+#' @return A `ggplot` object, or a numeric matrix when `text_image = TRUE`.
 #'
 #' @examples
 #' p <- system.file("extdata", "example.raw", "section01.RDS",
@@ -30,13 +40,14 @@ setGeneric("imageR", function(MSIobject, ...) standardGeneric("imageR"))
 #' obj <- as(readRDS(p), "quant_MSImagingExperiment")
 #' gg <- imageR(obj, feat_ind = 1, sample_lab = "run", scale = "suppress")
 #'
+#' @family visualisation
 #' @aliases imageR
 #' @export
 setMethod("imageR", "quant_MSImagingExperiment",
           function(MSIobject, val_slot = "intensity", value = "response %", scale = "suppress", threshold = 1,
-                   sample_lab = "sample_ID", pixels = NA, percentile=99.0, overlay = FALSE,
-                   feat_ind = 1, perc_scale = FALSE, blank_back = TRUE, aspect_ratio=1, text_image = FALSE,
-                   roi_labels = NA){
+                   sample_lab = "sample_ID", pixels = NA, percentile=99.0,
+                   feat_ind = 1, perc_scale = FALSE, blank_back = TRUE, aspect_ratio=1,
+                   text_image = FALSE){
 
             MSIobject = as(MSIobject[feat_ind, ], "quant_MSImagingExperiment")
 
@@ -141,38 +152,18 @@ setMethod("imageR", "quant_MSImagingExperiment",
             } else{
               image_df[is.na(image_df)] <- 0
 
-              if(overlay == TRUE){
-
-                p = ggplot()+
-                  geom_tile(data=image_df,aes(x=x,y=-y,fill=response), alpha=0.25) +
-                  theme_minimal() +
-                  theme(aspect.ratio=aspect_ratio,
-                        axis.title = element_blank(),
-                        axis.text = element_blank(),
-                        axis.line = element_blank(),
-                        panel.grid = element_blank(),
-                        plot.title = element_text(hjust = 0.5, face="bold", size = 15)) +
-                  scale_fill_viridis(na.value = "white") +
-                  labs(fill=value) +
-                  geom_point(data = roi_labels, aes(x = transformed_x, y = -transformed_y, col = Cell_type),
-                             shape = 8, na.rm = TRUE, size = 1.5)
-
-              } else{
-
-                p = ggplot(data=image_df,aes(x=x,y=-y,fill=response))+
-                  geom_tile() +
-                  theme_minimal() +
-                  theme(aspect.ratio=aspect_ratio,
-                        axis.title = element_blank(),
-                        axis.text = element_blank(),
-                        axis.line = element_blank(),
-                        panel.grid = element_blank(),
-                        plot.title = element_text(hjust = 0.5, face="bold", size = 15)) +
-                  scale_fill_viridis(na.value = "white") +
-                  labs(fill=value) +
-                  facet_grid(sample~feature)
-
-              }
+              p = ggplot(data=image_df,aes(x=x,y=-y,fill=response))+
+                geom_tile() +
+                theme_minimal() +
+                theme(aspect.ratio=aspect_ratio,
+                      axis.title = element_blank(),
+                      axis.text = element_blank(),
+                      axis.line = element_blank(),
+                      panel.grid = element_blank(),
+                      plot.title = element_text(hjust = 0.5, face="bold", size = 15)) +
+                scale_fill_viridis(na.value = "white") +
+                labs(fill=value) +
+                facet_grid(sample~feature)
             }
 
             return(p)
