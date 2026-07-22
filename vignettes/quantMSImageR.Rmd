@@ -328,6 +328,25 @@ ggplot(mask_tbl, aes(x, -y, fill = sample_name)) +
 |---|---|---|
 | `imageR()` | object, `feat_ind`, `val_slot`, `sample_lab`, `scale` | a **`ggplot`** ion image |
 | `quantile_hm()` | object, `quant_val`, sample order/labels, `feature_split` | a `ComplexHeatmap::Heatmap` (rows = samples, columns = features) |
+| `quant_palettes()` | palette name, optional `n` | the hex colours used by both, for reuse in your own plots |
+
+Colours are consistent across the package and selectable per plot. `imageR()`
+takes `palette = "viridis"` or `"heatmap0"`; `quantile_hm()` takes a diverging
+`palette` plus `group_palette` / `feature_palette` for the metadata bars. In a
+YAML-driven study all four are set once in the `colours:` block:
+
+```yaml
+colours:
+  ion_image: "heatmap0"   # heatmap0 | viridis
+  heatmap:   "heatmap2"   # heatmap2 | heatmap0
+  group:     "hat"        # hat | reading | heatmap0
+  feature:   "reading"    # reading | hat | heatmap0
+```
+
+```{r palettes}
+names(quant_palettes())
+quant_palettes("heatmap0")
+```
 
 `imageR()` returns a `ggplot` ion image for a chosen feature. Because it is a
 plain `ggplot`, the layout can be adjusted -- here into a 3 x 2 grid:

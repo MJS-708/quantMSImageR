@@ -32,12 +32,25 @@ parameters:
   snr_overrides:                       # per-analyte fixed SNR (else global) | omit
     #"PGE2":     5                     # display or ion-library names
     #"12-HETE":  1.2
-  heatmap_row_split: "Met-1"           # ion-library column to split heatmap rows | omit
+  heatmap_row_split: "Met-1"           # ion-library column to split heatmap columns | omit
   thresh:         20                   # cold-spot percentile removed
   perc:           97                   # hot-spot percentile suppressed
   rot_clockwise:  0                    # image rotation: 0/1/2/3 x 90 deg
   average_method: "median"             # background summary: mean | median
   baseline_label: "Ctrl"              # group used as fold-change denominator
+
+# =========================== COLOURS ===========================
+# Palettes used in the HTML report. See quant_palettes() for the hex values.
+#   viridis   sequential, perceptually uniform, colour-blind safe
+#   heatmap0  sequential, dark blue -> teal -> sand -> red (9 colours)
+#   heatmap2  diverging,  blue -> white -> red (5 colours)
+#   hat       qualitative, 10 well-separated hues
+#   reading   qualitative, 8 softer hues
+colours:
+  ion_image: "heatmap0"                # ion images:        heatmap0 | viridis
+  heatmap:   "heatmap2"                # z-score heatmap:   heatmap2 | heatmap0
+  group:     "hat"                     # sample-group bar:  hat | reading | heatmap0
+  feature:   "reading"                 # feature-class bar: reading | hat | heatmap0
 
 # ====================== FEATURE CONTROL ======================
 features:

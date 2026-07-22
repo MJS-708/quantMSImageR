@@ -214,6 +214,12 @@ run_example <- function(render_report = TRUE,
     ion_lib_meta      <- .ion_lib
     feature_meta      <- build_feature_meta(combined, ion_lib_meta)
     heatmap_row_split <- "Met-1"
+    # Mirrors the YAML `colours:` block, so the example report is coloured the
+    # same way a real study would be.
+    pal_ion           <- "heatmap0"
+    pal_heatmap       <- "heatmap2"
+    pal_group         <- "hat"
+    pal_feature       <- "reading"
     out_path          <- tmp_dir
     report_fn         <- "Example"
     ratios_cfg        <- NULL

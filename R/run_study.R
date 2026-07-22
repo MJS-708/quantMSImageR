@@ -211,6 +211,13 @@ run_study <- function(config_file) {
   baseline_label    <- trimws(cfg$parameters$baseline_label %||% heatmap_labs[1])
   heatmap_row_split <- cfg$parameters$heatmap_row_split %||% NULL
 
+  # Report palettes (see the `colours:` block of config_template.yaml). Read
+  # here so the report picks them up from this frame at render time.
+  pal_ion     <- cfg$colours$ion_image %||% "heatmap0"
+  pal_heatmap <- cfg$colours$heatmap   %||% "heatmap2"
+  pal_group   <- cfg$colours$group     %||% "hat"
+  pal_feature <- cfg$colours$feature   %||% "reading"
+
   render_report  <- cfg$output$render_report  %||% TRUE
   output_txt     <- cfg$output$output_txt     %||% TRUE
   output_ratios  <- cfg$output$output_ratios  %||% TRUE

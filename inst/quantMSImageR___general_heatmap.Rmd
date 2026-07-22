@@ -239,6 +239,25 @@ Rows are individual sections ordered by group; columns are features. Cells are
 drawn square, so the panel grows with the study rather than distorting to fill
 a fixed area.
 
+```{r palettes, echo=FALSE, include=FALSE}
+# Palettes come from the YAML `colours:` block via run_study(); run_example()
+# sets the same names. Fall back to the package defaults when absent so the
+# report still renders if a config predates the block.
+.pal_ion     <- if (exists("pal_ion"))     pal_ion     else "heatmap0"
+.pal_heatmap <- if (exists("pal_heatmap")) pal_heatmap else "heatmap2"
+.pal_group   <- if (exists("pal_group"))   pal_group   else "hat"
+.pal_feature <- if (exists("pal_feature")) pal_feature else "reading"
+
+# Cardinal's image() takes a colour vector rather than a palette name.
+# Braces matter here: a bare `else` starting a new line at top level is a
+# parse error.
+.ion_cols <- if (identical(.pal_ion, "viridis")) {
+  viridis::viridis(256)
+} else {
+  grDevices::colorRampPalette(quantMSImageR::quant_palettes(.pal_ion))(256)
+}
+```
+
 ```{r hm-size, echo=FALSE, include=FALSE}
 # Cells are now an absolute size, so the figure must grow with the study or a
 # large sample set would be clipped. 6 mm per sample row plus headroom for the
@@ -274,7 +293,10 @@ for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
                                            !is.null(heatmap_row_split) &&
                                            nzchar(heatmap_row_split))
                                          heatmap_row_split else "Pathway",
-                  group_split_name = "Group")
+                  group_split_name = "Group",
+                  palette          = .pal_heatmap,
+                  group_palette    = .pal_group,
+                  feature_palette  = .pal_feature)
 
   # ComplexHeatmap's draw() targets the active grid device. Inside a
   # results="asis" chunk that device is the screen, not the chunk's PNG
@@ -826,7 +848,7 @@ for (i in seq_along(ord)) {
       if (is.finite(q95)) ints_q95[!is.na(ints_q95) & ints_q95 > q95] <- q95
       spectraData(combined_q95)[["intensity"]] <- ints_q95
       p1 <- image(combined_q95, scale = FALSE, zlim = c(0, q95), mz = mz_val,
-                  free = "xy", axes = FALSE, grid = FALSE) |>
+                  free = "xy", axes = FALSE, grid = FALSE, col = .ion_cols) |>
         matter::set_title("Scaled to 95th quantile")
       plot(p1)
     }, error = function(e) {
@@ -840,7 +862,7 @@ for (i in seq_along(ord)) {
   } else {
     tryCatch({
       p2 <- image(combined_img, enhance = "histogram", scale = TRUE, mz = mz_val,
-                  free = "xy", axes = FALSE, grid = FALSE) |>
+                  free = "xy", axes = FALSE, grid = FALSE, col = .ion_cols) |>
         matter::set_title("Histogram normalization & scaled")
       plot(p2)
     }, error = function(e) {
@@ -859,7 +881,7 @@ for (i in seq_along(ord)) {
       glim <- max(ints_p3, na.rm = TRUE)
       spectraData(combined_p3)[["intensity"]] <- ints_p3
       p3 <- image(combined_p3, scale = FALSE, zlim = c(0, glim), mz = mz_val,
-                  free = "xy", axes = FALSE, grid = FALSE) |>
+                  free = "xy", axes = FALSE, grid = FALSE, col = .ion_cols) |>
         matter::set_title("No scaling or normalization")
       plot(p3)
     }, error = function(e) {
@@ -1012,7 +1034,7 @@ for (.i in seq_along(.cal_ord)) {
     print(
       quantMSImageR::imageR(.cal_obj, feat_ind = .idx, sample_lab = "run",
                             val_slot = .conc_slot, value = .conc_unit,
-                            scale = "suppress") +
+                            scale = "suppress", palette = .pal_ion) +
         ggplot2::facet_wrap(~ sample, ncol = 3) +
         ggplot2::theme(strip.text  = ggplot2::element_text(size = 8),
                        legend.text = ggplot2::element_text(size = 8))
