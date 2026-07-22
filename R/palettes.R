@@ -7,6 +7,8 @@
 #' Four of these -- `heatmap0`, `heatmap2`, `hat` and `reading` -- are taken
 #' from the `ltc` package by Loukas Theodosiou
 #' (<https://github.com/loukesio/ltc-color-palettes>), which is MIT licensed.
+#' `heatmap2` and `hat` are re-ordered relative to ltc -- see below -- but the
+#' colours themselves are unchanged.
 #' They are reproduced here rather than depended on: `ltc` brings in 34
 #' recursive dependencies, which is a large amount of installation surface for
 #' four colour vectors in a package that is otherwise light.
@@ -20,8 +22,9 @@
 #'   \item{`heatmap2`}{Five-colour diverging ramp, blue to white to red. Suits
 #'     z-scores, where the midpoint is meaningful.}
 #'   \item{`hat`, `reading`}{Qualitative, for categorical metadata such as study
-#'     group or pathway class. `hat` carries 10 well-separated hues; `reading`
-#'     is a softer 8-colour set.}
+#'     group or pathway class. `hat` carries 10 well-separated hues, re-sequenced
+#'     from ltc's ordering so that the first few are maximally distinct;
+#'     `reading` is a softer 8-colour set.}
 #' }
 #'
 #' @param name Optional palette name. When `NULL` (default) the whole list is
@@ -49,9 +52,13 @@ quant_palettes <- function(name = NULL, n = NULL) {
     # Diverging ramp, blue (low) -> white -> red (high). Reversed relative to
     # ltc's ordering so that low values are blue, as z-score maps expect.
     heatmap2 = rev(c("#ca0020", "#f4a582", "#f7f7f7", "#92c5de", "#0571b0")),
-    # Qualitative sets for categorical metadata
-    hat      = c("#efb306", "#eb990c", "#e8351e", "#cd023d", "#852f88",
-                 "#4e54ac", "#0f8096", "#7db954", "#17a769", "#000000"),
+    # Qualitative sets for categorical metadata. `hat` holds ltc's ten colours
+    # but re-sequenced: ltc orders them around the colour wheel, so the first
+    # few classes of a pathway annotation come out as adjacent yellows and
+    # oranges. This ordering interleaves hue and lightness, so the classes you
+    # actually get (usually two to five) are distinguishable at a glance.
+    hat      = c("#4e54ac", "#e8351e", "#17a769", "#efb306", "#000000",
+                 "#852f88", "#0f8096", "#cd023d", "#7db954", "#eb990c"),
     reading  = c("#EFBC68", "#919F89", "#EDBDAE", "#57717C", "#5F97A4",
                  "#CAEAC8", "#95A1AE", "#C8CFD6")
   )

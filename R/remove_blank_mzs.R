@@ -4,7 +4,7 @@ setGeneric("remove_blank_mzs", function(MSIobject) standardGeneric("remove_blank
 #'
 #' Drops any feature whose intensities are entirely zero or `NA` -- typically a
 #' transition present in the acquisition method but never detected, or a panel
-#' row padded in by [setCommonAxis()]. Reporting these alongside real
+#' row padded in when acquisitions were aligned. Reporting these alongside real
 #' measurements is how empty transitions reach a figure.
 #'
 #' @import Cardinal

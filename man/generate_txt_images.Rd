@@ -19,7 +19,12 @@ generate_txt_images(
   rename = NULL,
   ratios = NULL,
   output_ratios = TRUE,
-  snr_overrides = NULL
+  snr_overrides = NULL,
+  is_name = NULL,
+  is_mode = "line",
+  is_window = 15,
+  remove_IS = TRUE,
+  type_header = "Type"
 )
 }
 \arguments{
@@ -95,6 +100,28 @@ display names. Listed features use their own threshold in every report;
 all other features use the global \code{snr_thresh}. Ignored for any report
 whose global threshold is \code{0} (the mask-free smoke-test pass). Default
 \code{NULL} (all features use \code{snr_thresh}).}
+
+\item{is_name}{Character. Value identifying the internal standard in
+\code{fData()$analyte} -- that is, the ion library's \code{Type} column, typically
+\code{"IS"}. It is \strong{not} a transition name.
+When supplied, each acquisition is normalised with \code{\link[=int2response]{int2response()}} before
+SNR filtering, and every downstream step -- SNR, background masking, images
+and ratios -- works on the resulting \code{response} layer instead of
+\code{intensity}. \code{NULL} or \code{"None"} (the default) skips normalisation.}
+
+\item{is_mode}{Character. Level at which the internal standard is
+summarised: \code{"line"} (default), \code{"sample"}, \code{"pixel"} or \code{"window"} (a
+rolling median over \code{is_window} consecutive pixels along the acquisition
+line). See \code{\link[=int2response]{int2response()}}.}
+
+\item{is_window}{Integer. Number of consecutive pixels averaged when
+\code{is_mode = "window"} (default \code{15}).}
+
+\item{remove_IS}{Logical. Drop the internal-standard feature after
+normalising (default \code{TRUE}).}
+
+\item{type_header}{Character. Ion-library column holding the feature type,
+passed to \code{\link[=read_mrm]{read_mrm()}} and matched by \code{is_name} (default \code{"Type"}).}
 }
 \value{
 Invisibly returns a named list:
@@ -137,7 +164,9 @@ res <- generate_txt_images(
 \code{\link[=int2snr]{int2snr()}}, \code{\link[=applySNR]{applySNR()}}, \code{\link[=back2NA]{back2NA()}}, \code{\link[=imageR]{imageR()}}
 
 Other workflow:
+\code{\link[=print.quant_validation]{print.quant_validation()}},
 \code{\link[=run_example]{run_example()}},
-\code{\link[=run_study]{run_study()}}
+\code{\link[=run_study]{run_study()}},
+\code{\link[=validate_config]{validate_config()}}
 }
 \concept{workflow}

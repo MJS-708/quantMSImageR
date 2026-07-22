@@ -68,6 +68,23 @@
 #'   all other features use the global `snr_thresh`. Ignored for any report
 #'   whose global threshold is `0` (the mask-free smoke-test pass). Default
 #'   `NULL` (all features use `snr_thresh`).
+#' @param is_name Character. Value identifying the internal standard in
+#'   `fData()$analyte` -- that is, the ion library's `Type` column, typically
+#'   `"IS"`. It is **not** a transition name.
+#'   When supplied, each acquisition is normalised with [int2response()] before
+#'   SNR filtering, and every downstream step -- SNR, background masking, images
+#'   and ratios -- works on the resulting `response` layer instead of
+#'   `intensity`. `NULL` or `"None"` (the default) skips normalisation.
+#' @param is_mode Character. Level at which the internal standard is
+#'   summarised: `"line"` (default), `"sample"`, `"pixel"` or `"window"` (a
+#'   rolling median over `is_window` consecutive pixels along the acquisition
+#'   line). See [int2response()].
+#' @param is_window Integer. Number of consecutive pixels averaged when
+#'   `is_mode = "window"` (default `15`).
+#' @param remove_IS Logical. Drop the internal-standard feature after
+#'   normalising (default `TRUE`).
+#' @param type_header Character. Ion-library column holding the feature type,
+#'   passed to [read_mrm()] and matched by `is_name` (default `"Type"`).
 #'
 #' @return Invisibly returns a named list:
 #'   \describe{
@@ -115,10 +132,24 @@ generate_txt_images <- function(
   rename         = NULL,
   ratios         = NULL,
   output_ratios  = TRUE,
-  snr_overrides  = NULL
+  snr_overrides  = NULL,
+  is_name        = NULL,
+  is_mode        = "line",
+  is_window      = 15,
+  remove_IS      = TRUE,
+  type_header    = "Type"
 ) {
 
   average_method <- match.arg(average_method, c("mean", "median"))
+
+  # Internal-standard normalisation. int2response() adds a `response` layer
+  # rather than overwriting `intensity`, so when it runs everything downstream
+  # -- SNR, background masking, images -- must work on `response` instead.
+  .use_is <- !is.null(is_name) && nzchar(is_name) && !identical(is_name, "None")
+  .val    <- if (.use_is) "response" else "intensity"
+  if (.use_is)
+    message("Internal-standard normalisation: dividing by '", is_name,
+            "' per ", is_mode, "; downstream steps use the 'response' layer.")
   snr_thresh_vec <- sort(unique(as.numeric(unlist(snr_thresh))))
 
   # Normalise snr_overrides (a name -> threshold map, possibly a YAML list)
@@ -254,7 +285,8 @@ generate_txt_images <- function(
       if (!is(obj, "quant_MSImagingExperiment"))
         obj <- as(obj, "quant_MSImagingExperiment")
     } else {
-      obj  <- read_mrm(name = fn_name, folder = data_path, lib_ion_path = lib_ion_path)
+      obj  <- read_mrm(name = fn_name, folder = data_path, lib_ion_path = lib_ion_path,
+                       type_header = type_header)
 
       # Skip tissue mask entirely when no SNR > 0 is requested. Every pixel
       # is labelled `tissue_pixels` so downstream code that reads sample_name
@@ -402,6 +434,23 @@ generate_txt_images <- function(
       tissue <- load_and_prep_acq(fn_entry)
     }
 
+    # Internal-standard normalisation, per acquisition and before SNR, since
+    # int2snr() references the background of whichever layer it is given.
+    if (.use_is) {
+      # int2response() matches the standard on fData()$analyte -- the ion
+      # library's Type column, typically "IS" -- not on the transition name.
+      if (!is_name %in% as.character(fData(tissue)$analyte))
+        stop("generate_txt_images: no feature with analyte = '", is_name,
+             "' in '", fn_label, "'. `is_name` is the value of the ion ",
+             "library's Type column (e.g. \"IS\"), not a transition name. ",
+             "Values present: ",
+             paste(unique(as.character(fData(tissue)$analyte)), collapse = ", "),
+             call. = FALSE)
+      tissue <- int2response(tissue, val_slot = "intensity", IS_name = is_name,
+                             mode = is_mode, window = is_window,
+                             remove_IS = remove_IS)
+    }
+
     # Per-feature overrides resolved against THIS acquisition's features.
     .ov <- resolve_overrides(as.character(fData(tissue)$name))
 
@@ -414,12 +463,12 @@ generate_txt_images <- function(
         tissue
       } else {
         tmp <- int2snr(
-          MSIobject = tissue, val_slot = "intensity", pixel_header = "sample_name",
+          MSIobject = tissue, val_slot = .val, pixel_header = "sample_name",
           background = "background_pixels", tissue = "tissue_pixels",
           snr_thresh = thr, average = average_method,
           snr_overrides = .ov
         )
-        applySNR(MSIobject = tmp, val_slot = "intensity")
+        applySNR(MSIobject = tmp, val_slot = .val)
       }
 
       if (is.null(combined_snr_list[[si]])) {
@@ -439,7 +488,7 @@ generate_txt_images <- function(
   }
 
   combined_NAbackground <- if (.needs_mask) back2NA(
-    combined, val_slot = "intensity",
+    combined, val_slot = .val,
     background = "background_pixels", pixel_header = "sample_name"
   ) else combined
 
@@ -490,7 +539,7 @@ generate_txt_images <- function(
         feat_name <- safe_feat_name(feat_names_all[feat_ind])
 
         # SNR-filtered raw intensities
-        mat_snr <- make_txt_mat(combined_snr_tmp, feat_ind, "intensity",
+        mat_snr <- make_txt_mat(combined_snr_tmp, feat_ind, .val,
                                  "DESI-MRM response - S/N filtered", 0, 100)
         write_if_nonempty(mat_snr, file.path(dirs$snr_filt, paste0(feat_name, ".txt")))
 
@@ -501,7 +550,7 @@ generate_txt_images <- function(
         # COMBINED: embed global max in [1,1] for cross-sample colour scaling
         if (nrow(scaled_snr) > 0) {
           global_max <- max(
-            as.numeric(spectraData(combined_snr_i[feat_ind, ])[["intensity"]]),
+            as.numeric(spectraData(combined_snr_i[feat_ind, ])[[.val]]),
             na.rm = TRUE
           )
           scaled_snr_combined       <- scaled_snr
@@ -512,13 +561,13 @@ generate_txt_images <- function(
 
         # raw doesn't vary with SNR threshold -- write only on first pass
         if (snr_i == 1L) {
-          mat_raw <- make_txt_mat(combined_back_tmp, feat_ind, "intensity",
+          mat_raw <- make_txt_mat(combined_back_tmp, feat_ind, .val,
                                    "DESI-MRM response", 0, 100)
           write_if_nonempty(mat_raw, file.path(dirs$raw, paste0(feat_name, ".txt")))
         }
 
         # SNR-filtered + hot/cold-spot removal
-        mat_hs <- make_txt_mat(combined_snr_tmp, feat_ind, "intensity",
+        mat_hs <- make_txt_mat(combined_snr_tmp, feat_ind, .val,
                                 "DESI-MRM response - S/N filtered", thresh, perc)
         write_if_nonempty(mat_hs, file.path(dirs$hs_filt, paste0(feat_name, ".txt")))
 
@@ -554,9 +603,9 @@ generate_txt_images <- function(
 
           # Extract raw pixel matrices with no hs/cs scaling (percentile=100,
           # threshold=0) so the ratio reflects true signal proportions.
-          num_raw <- make_txt_mat(combined_snr_tmp, num_idx[1], "intensity",
+          num_raw <- make_txt_mat(combined_snr_tmp, num_idx[1], .val,
                                    "ratio_num", 0, 100)
-          den_raw <- make_txt_mat(combined_snr_tmp, den_idx[1], "intensity",
+          den_raw <- make_txt_mat(combined_snr_tmp, den_idx[1], .val,
                                    "ratio_den", 0, 100)
 
           if (nrow(num_raw) == 0 || nrow(den_raw) == 0) next

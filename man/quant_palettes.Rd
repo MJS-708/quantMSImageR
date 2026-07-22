@@ -26,6 +26,8 @@ colour bars, returned as named character vectors of hex colours.
 Four of these -- \code{heatmap0}, \code{heatmap2}, \code{hat} and \code{reading} -- are taken
 from the \code{ltc} package by Loukas Theodosiou
 (\url{https://github.com/loukesio/ltc-color-palettes}), which is MIT licensed.
+\code{heatmap2} and \code{hat} are re-ordered relative to ltc -- see below -- but the
+colours themselves are unchanged.
 They are reproduced here rather than depended on: \code{ltc} brings in 34
 recursive dependencies, which is a large amount of installation surface for
 four colour vectors in a package that is otherwise light.
@@ -39,8 +41,9 @@ sand to red. An alternative for ion images.}
 \item{\code{heatmap2}}{Five-colour diverging ramp, blue to white to red. Suits
 z-scores, where the midpoint is meaningful.}
 \item{\code{hat}, \code{reading}}{Qualitative, for categorical metadata such as study
-group or pathway class. \code{hat} carries 10 well-separated hues; \code{reading}
-is a softer 8-colour set.}
+group or pathway class. \code{hat} carries 10 well-separated hues, re-sequenced
+from ltc's ordering so that the first few are maximally distinct;
+\code{reading} is a softer 8-colour set.}
 }
 }
 \examples{

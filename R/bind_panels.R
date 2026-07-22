@@ -12,8 +12,8 @@
 #' in both keep real intensities from both inputs, so cross-panel /
 #' cross-polarity colocalisation is meaningful at the combined object.
 #'
-#' [bind_polarities()] is a thin wrapper for the common positive/negative-mode
-#' pairing.
+#' The common use is pairing a positive- and a negative-mode acquisition of the
+#' same section, but any two panels of the same physical area work.
 #'
 #' @import Cardinal
 #' @include setClasses.R

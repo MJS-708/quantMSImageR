@@ -72,6 +72,8 @@ if (interactive()) {
 \seealso{
 Other workflow:
 \code{\link[=generate_txt_images]{generate_txt_images()}},
-\code{\link[=run_study]{run_study()}}
+\code{\link[=print.quant_validation]{print.quant_validation()}},
+\code{\link[=run_study]{run_study()}},
+\code{\link[=validate_config]{validate_config()}}
 }
 \concept{workflow}

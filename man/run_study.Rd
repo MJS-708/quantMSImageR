@@ -72,6 +72,8 @@ names(res)
 \seealso{
 Other workflow:
 \code{\link[=generate_txt_images]{generate_txt_images()}},
-\code{\link[=run_example]{run_example()}}
+\code{\link[=print.quant_validation]{print.quant_validation()}},
+\code{\link[=run_example]{run_example()}},
+\code{\link[=validate_config]{validate_config()}}
 }
 \concept{workflow}

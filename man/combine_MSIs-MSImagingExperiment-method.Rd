@@ -13,7 +13,7 @@
 
 \item{...}{Further \code{MSImagingExperiment} objects to combine. All must share
 the feature axis and the \code{pData()} columns of \code{MSIobject} -- use
-\code{\link[=align_features]{align_features()}} or \code{\link[=setCommonAxis]{setCommonAxis()}} first if they do not.}
+\code{\link[=align_features]{align_features()}} first if they do not.}
 }
 \value{
 A single \code{quant_MSImagingExperiment} holding every input's pixels,
@@ -36,8 +36,6 @@ combined <- combine_MSIs(readRDS(p1), readRDS(p2))
 \seealso{
 Other combining acquisitions:
 \code{\link[=align_features]{align_features()}},
-\code{\link[=bind_panels]{bind_panels()}},
-\code{\link[=bind_polarities]{bind_polarities()}},
-\code{\link{setCommonAxis,list-method}}
+\code{\link[=bind_panels]{bind_panels()}}
 }
 \concept{combining acquisitions}

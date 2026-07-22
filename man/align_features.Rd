@@ -68,8 +68,6 @@ al <- align_features(readRDS(p1), readRDS(p2))
 
 Other combining acquisitions:
 \code{\link[=bind_panels]{bind_panels()}},
-\code{\link[=bind_polarities]{bind_polarities()}},
-\code{\link{combine_MSIs,MSImagingExperiment-method}},
-\code{\link{setCommonAxis,list-method}}
+\code{\link{combine_MSIs,MSImagingExperiment-method}}
 }
 \concept{combining acquisitions}

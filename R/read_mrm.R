@@ -20,6 +20,10 @@
 #'   `Polarity`, `Type` (`"Analyte"` for in-tissue analytes, `"IS"` for
 #'   internal standards). Additional metadata columns are preserved by
 #'   downstream code via [build_feature_meta()].
+#' @param type_header Character. Name of the ion-library column holding the
+#'   feature type -- the values that mark internal standards versus analytes
+#'   (default `"Type"`). Its contents become `fData()$analyte`, which is what
+#'   [int2response()] matches `IS_name` against.
 #' @param overwrite Logical. When `TRUE` (default) the raw text files are
 #'   re-parsed; when `FALSE` and a cached `MSImagingExperiment.rds` exists
 #'   inside the `.raw` folder, it is returned instead.
@@ -38,7 +42,8 @@
 #'
 #' @family acquisition
 #' @export
-read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE) {
+read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE,
+                     type_header = "Type") {
 
   # set Imaging folder
   imaging_folder <- sprintf("%s/%s.raw/imaging", folder, name)
@@ -187,7 +192,7 @@ read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE) {
   # feature metadata
   fdata <- MassDataFrame(
     mz           = ion_lib$new_transition_int,
-    analyte      = ion_lib$Type,
+    analyte      = ion_lib[[type_header]],
     precursor_mz = ion_lib$precursor_mz,
     product_mz   = ion_lib$product_mz,
     name         = ion_lib$transition_id_name

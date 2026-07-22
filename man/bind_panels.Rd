@@ -38,8 +38,8 @@ coverage in the more densely sampled acquisition typically. Pixels present
 in both keep real intensities from both inputs, so cross-panel /
 cross-polarity colocalisation is meaningful at the combined object.
 
-\code{\link[=bind_polarities]{bind_polarities()}} is a thin wrapper for the common positive/negative-mode
-pairing.
+The common use is pairing a positive- and a negative-mode acquisition of the
+same section, but any two panels of the same physical area work.
 }
 \examples{
 # Both inputs must be the SAME physical area measured twice, so the example
@@ -61,8 +61,6 @@ nrow(fData(merged))   # features from both panels
 
 Other combining acquisitions:
 \code{\link[=align_features]{align_features()}},
-\code{\link[=bind_polarities]{bind_polarities()}},
-\code{\link{combine_MSIs,MSImagingExperiment-method}},
-\code{\link{setCommonAxis,list-method}}
+\code{\link{combine_MSIs,MSImagingExperiment-method}}
 }
 \concept{combining acquisitions}

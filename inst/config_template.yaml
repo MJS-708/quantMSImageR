@@ -37,6 +37,18 @@ parameters:
   perc:           97                   # hot-spot percentile suppressed
   rot_clockwise:  0                    # image rotation: 0/1/2/3 x 90 deg
   average_method: "median"             # background summary: mean | median
+
+  # Which ion-library column carries the feature type (IS / Analyte / ...).
+  # Its values become fData()$analyte and are what is_name matches against.
+  type_header:    "Type"                # ion-library column holding the feature type
+
+  # Internal-standard normalisation. When is_name is set, each acquisition is
+  # divided by that standard before SNR filtering, and everything downstream
+  # (SNR, images, ratios, and calibration) uses the resulting `response` layer.
+  is_name:        "None"               # ion-library Type value, e.g. "IS" | None = skip
+  is_mode:        "line"                # summarise IS per: line | window | sample | pixel
+  is_window:      15                    # n consecutive pixels when is_mode: window
+  remove_IS:      True                 # drop the IS feature after normalising
   baseline_label: "Ctrl"              # group used as fold-change denominator
 
 # =========================== COLOURS ===========================
@@ -82,6 +94,6 @@ ratios:                                # pixel-wise numerator / denominator imag
 
 # =========================== OUTPUTS ===========================
 output:
-  render_report: true                  # build HTML report
-  output_txt:    false                 # write per-feature txt images
-  output_ratios: false                 # write ratio txt images (needs ratios.execute)
+  render_report: True                  # build HTML report
+  output_txt:    False                 # write per-feature txt images
+  output_ratios: False                 # write ratio txt images (needs ratios.execute)

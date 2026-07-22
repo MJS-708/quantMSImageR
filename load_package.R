@@ -1,14 +1,8 @@
-#install.packages(c("devtools", "BiocManager", "remotes"))
-
-#BiocManager::install(c("Cardinal", "ComplexHeatmap"))
-
+remove.packages("quantMSImageR")
+unlink("C:/R/R-4.5.3/library/quantMSImageR", recursive = TRUE, force = TRUE)
 .rs.restartR()
 
 "quantMSImageR" %in% loadedNamespaces()   # must now be FALSE
-
-remove.packages("quantMSImageR")
-
-unlink("C:/R/R-4.5.3/library/quantMSImageR", recursive = TRUE, force = TRUE)
 
 devtools::document(
   "C:/Users/matsmi/OneDrive - Karolinska Institutet/Dokument/Bioinformatics/quantMSImageR"

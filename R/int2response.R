@@ -13,16 +13,33 @@ setGeneric("int2response", function(MSIobject, ...) standardGeneric("int2respons
 #' @param MSIobject A `quant_MSImagingExperiment` object.
 #' @param val_slot Character. Spectra slot to normalise (default
 #'   `"intensity"`).
-#' @param IS_name Character. Name of the internal standard in
-#'   `fData(MSIobject)` under the analyte header. `"None"` (the default) performs
+#' @param IS_name Character. Value identifying the internal standard in the
+#'   **`analyte` column** of `fData(MSIobject)` -- the ion library's `Type`
+#'   column, typically `"IS"`. This is a type label, not a transition name:
+#'   passing a feature name will not match. `"None"` (the default) performs
 #'   **within-feature normalisation** instead: each feature is divided by its own
 #'   summary at the chosen `mode`. That is not internal-standard normalisation,
 #'   and it is not the same as skipping normalisation -- it removes
 #'   between-line or between-sample scale differences within each feature. To
 #'   leave values untouched, simply do not call this function.
 #' @param mode Character. Level at which the standard is summarised:
-#'   `"sample"` (median internal-standard intensity per sample), `"line"`
-#'   (per acquisition line, the default) or `"pixel"` (per pixel).
+#'   \describe{
+#'     \item{`"line"`}{Median across a whole acquisition line (the default). A
+#'       *line* is one horizontal raster row -- constant `y`, varying `x` --
+#'       which is the order DESI acquires in, so it is also the axis along which
+#'       source drift accumulates.}
+#'     \item{`"sample"`}{Median across the whole acquisition.}
+#'     \item{`"pixel"`}{The standard in that pixel alone -- responsive to local
+#'       suppression, but carries the standard's own shot noise.}
+#'     \item{`"window"`}{Rolling median over `window` consecutive pixels along
+#'       the same horizontal row, ordered by `x`. A compromise between `"pixel"`
+#'       and `"line"`: it smooths the standard's own shot noise while still
+#'       tracking drift across the row. The window is truncated at the ends of a
+#'       row rather than wrapping, so pixels from different rows are never
+#'       mixed.}
+#'   }
+#' @param window Integer. Number of consecutive pixels averaged when
+#'   `mode = "window"` (default `15`). Ignored for the other modes.
 #' @param remove_IS Logical. Drop the internal-standard feature from the
 #'   returned object (default `TRUE`).
 #' @param ... Additional arguments (currently unused).
@@ -40,7 +57,11 @@ setGeneric("int2response", function(MSIobject, ...) standardGeneric("int2respons
 #' @aliases int2response
 #' @export
 setMethod("int2response", "quant_MSImagingExperiment",
-          function(MSIobject, val_slot = "intensity", IS_name = "None", mode = "line", remove_IS = TRUE, ...){
+          function(MSIobject, val_slot = "intensity", IS_name = "None",
+                   mode = c("line", "sample", "pixel", "window"),
+                   window = 15, remove_IS = TRUE, ...){
+
+            mode <- match.arg(mode)
 
             if(IS_name == "None"){
               IS_ind = NULL
@@ -69,31 +90,39 @@ setMethod("int2response", "quant_MSImagingExperiment",
 
                 ints = spectraData(tempMSIobject)[[val_slot]][mz_ind, ]
 
+                # Denominator vector: the internal standard where one was
+                # found, otherwise the feature itself (within-feature
+                # normalisation).
+                denom_src = if(!is.null(IS_ind)) IS_vec else ints
+
+                # Build `response` by index rather than by concatenation. The
+                # per-line and per-window modes group pixels, and groups are not
+                # guaranteed to be contiguous or in pixel order, so appending
+                # results group-by-group would misalign them on assignment.
+                response = rep(NA_real_, length(ints))
+
                 if(mode == "pixel"){
-                  if(!is.null(IS_ind)){
-                    response = ints / IS_vec
-                  } else{
-                    response = ints / ints
-                  }
-                }
-                if(mode == "sample"){
-                  if(!is.null(IS_ind)){
-                    response = ints / median(IS_vec, na.rm = TRUE)
-                  } else{
-                    response = ints / median(ints, na.rm = TRUE)
-                  }
-                }
-                if(mode == "line"){
-                  response = c()
+                  response = ints / denom_src
+
+                } else if(mode == "sample"){
+                  response = ints / median(denom_src, na.rm = TRUE)
+
+                } else if(mode == "line"){
                   for(line in unique(pData(tempMSIobject)$y)){
+                    lp = which(pData(tempMSIobject)$y == line)
+                    response[lp] = ints[lp] / median(denom_src[lp], na.rm = TRUE)
+                  }
 
-                    line_pixels = which(pData(tempMSIobject)$y == line)
-
-                    if(!is.null(IS_ind)){
-                      response = c(response, (ints[line_pixels] / median(IS_vec[line_pixels], na.rm = TRUE)))
-                    } else{
-                      response = c(response, (ints[line_pixels] / median(ints[line_pixels], na.rm = TRUE)))
-                    }
+                } else if(mode == "window"){
+                  # Rolling median of the standard over `window` consecutive
+                  # pixels along each acquisition line, ordered by x. The window
+                  # is truncated at the ends of a line rather than wrapping, so
+                  # pixels from different lines are never mixed.
+                  for(line in unique(pData(tempMSIobject)$y)){
+                    lp = which(pData(tempMSIobject)$y == line)
+                    lp = lp[order(pData(tempMSIobject)$x[lp])]
+                    d  = .roll_median(denom_src[lp], window)
+                    response[lp] = ints[lp] / d
                   }
                 }
 

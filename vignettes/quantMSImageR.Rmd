@@ -87,8 +87,7 @@ family it belongs to. The whole pipeline is:
         select_tissue_pixels() --> tissue_pixels.csv  (x, y, tissue/background)
                         |
     +-------------------+-------------------+
-    |  ASSEMBLE   setCommonAxis                                  |
-    |             align_features -> combine_MSIs / bind_panels   |
+    |  ASSEMBLE   align_features -> combine_MSIs / bind_panels   |
     |             trim_MSI                                       |
     +-------------------+-------------------+
                         v   quant_MSImagingExperiment
@@ -232,10 +231,26 @@ ready for `select_tissue_pixels()` and the rest of the workflow.
 | `read_mrm()` | `.raw` folder + ion-library CSV | `MSImagingExperiment`, `fData` joined to the library |
 | `trim_MSI()` | object with a tissue mask | object with pure-background border rows/columns dropped |
 | `remove_blank_mzs()` | object | object with features that have no data removed |
-| `setCommonAxis()` | **list** of objects + reference `fData` | list sharing one m/z axis |
 | `align_features()` | two objects | both reduced to common features, m/z-keyed |
 | `combine_MSIs()` | two or more aligned objects | one object, each acquisition its own `run` |
-| `bind_panels()` / `bind_polarities()` | two objects on a shared `(x, y)` grid | features of both on the pixel-grid intersection |
+| `bind_panels()` | two objects on a shared `(x, y)` grid | features of both on the pixel-grid intersection |
+
+Note the difference between the last two. `combine_MSIs()` stacks **different
+sections** side by side, adding pixels. `bind_panels()` merges **two
+acquisitions of the same physical area** -- typically a positive- and a
+negative-mode run of one section, or two MRM panels -- adding features to the
+same pixels:
+
+```{r bind-panels, eval = FALSE}
+pos <- read_mrm("acq_section1_pos", folder = "path/to/raw",
+                lib_ion_path = "path/to/ion_library.csv")
+neg <- read_mrm("acq_section1_neg", folder = "path/to/raw",
+                lib_ion_path = "path/to/ion_library.csv")
+
+# Pixels are matched on (x, y), so the two runs need not have identical grids;
+# pixels present in only one are dropped.
+both <- bind_panels(pos, neg, label = "S1")
+```
 
 The bundled example is six sections: three of group **A** (circular tissue) and
 three of group **B** (square tissue). They ship as RDS, so `read_mrm()` is not

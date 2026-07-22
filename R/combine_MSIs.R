@@ -14,7 +14,7 @@ setGeneric("combine_MSIs", function(MSIobject, ...) standardGeneric("combine_MSI
 #'   `fData()` defines the shared feature axis.
 #' @param ... Further `MSImagingExperiment` objects to combine. All must share
 #'   the feature axis and the `pData()` columns of `MSIobject` -- use
-#'   [align_features()] or [setCommonAxis()] first if they do not.
+#'   [align_features()] first if they do not.
 #' @return A single `quant_MSImagingExperiment` holding every input's pixels,
 #'   with the shared `fData()` restored and one `run` level per acquisition.
 #'

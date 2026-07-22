@@ -72,6 +72,18 @@ run_study <- function(config_file) {
 
   cfg <- yaml::read_yaml(config_file)
 
+  # Validate before anything is read or written. Every check runs, so a config
+  # with several problems reports all of them once rather than failing on each
+  # in turn across successive runs.
+  .v <- validate_config(cfg)
+  if (length(.v$warnings))
+    for (w in .v$warnings) warning("Config: ", w, call. = FALSE)
+  if (length(.v$errors)) {
+    print(.v)
+    stop("Config validation failed with ", length(.v$errors),
+         " error(s); see above. Nothing has been processed.", call. = FALSE)
+  }
+
 
   # ---------------------------------------------------------------------------
   # Expand samples: when a YAML entry has `sections:` (list of pre-saved RDS
@@ -208,6 +220,11 @@ run_study <- function(config_file) {
   perc           <- cfg$parameters$perc           %||% 97
   rot_clockwise  <- cfg$parameters$rot_clockwise  %||% 0
   average_method <- cfg$parameters$average_method %||% "median"
+  is_name        <- cfg$parameters$is_name        %||% NULL
+  is_mode        <- cfg$parameters$is_mode        %||% "line"
+  is_window      <- cfg$parameters$is_window      %||% 15
+  type_header    <- cfg$parameters$type_header    %||% "Type"
+  remove_IS      <- cfg$parameters$remove_IS      %||% TRUE
   baseline_label    <- trimws(cfg$parameters$baseline_label %||% heatmap_labs[1])
   heatmap_row_split <- cfg$parameters$heatmap_row_split %||% NULL
 
@@ -274,7 +291,12 @@ run_study <- function(config_file) {
     rename         = feat_rename,
     ratios         = feat_ratios,
     output_ratios  = output_ratios,
-    snr_overrides  = snr_overrides
+    snr_overrides  = snr_overrides,
+    is_name        = is_name,
+    is_mode        = is_mode,
+    is_window      = is_window,
+    remove_IS      = remove_IS,
+    type_header    = type_header
   )
 
   # ---------------------------------------------------------------------------
@@ -287,7 +309,11 @@ run_study <- function(config_file) {
   if (!is.null(.cal) && isTRUE(.cal$enabled %||% .cal$execute)) {
     message("Calibration enabled: building curves from '", .cal$cal_acquisition, "'.")
 
-    cal_val  <- .cal$val_slot         %||% "intensity"
+    .use_is  <- !is.null(is_name) && nzchar(is_name) && !identical(is_name, "None")
+  # The study is quantified from whichever layer the pipeline produced. Using
+  # un-normalised standards against an IS-normalised tissue would mix units and
+  # silently produce wrong amounts, so the default follows the pipeline.
+  cal_val  <- .cal$val_slot         %||% (if (.use_is) "response" else "intensity")
 
     # No fallback: "cal" and "std_addition" do materially different things, so
     # the config must say which.
@@ -301,8 +327,15 @@ run_study <- function(config_file) {
 
     # 1. Load the calibration acquisition and label its Cal ROIs.
     cal_obj <- read_mrm(name = .cal$cal_acquisition, folder = data_path,
-                        lib_ion_path = lib_ion_path, overwrite = FALSE)
+                        lib_ion_path = lib_ion_path, overwrite = FALSE,
+                      type_header = type_header)
     cal_obj <- as(cal_obj, "quant_MSImagingExperiment")
+
+  # Normalise the standards the same way as the study.
+  if (.use_is && identical(cal_val, "response"))
+    cal_obj <- int2response(cal_obj, val_slot = "intensity", IS_name = is_name,
+                            mode = is_mode, window = is_window,
+                            remove_IS = remove_IS)
 
     roi <- read.csv(.cal$cal_roi_csv)
     if (all(c("x", "y") %in% names(roi))) {

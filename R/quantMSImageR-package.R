@@ -48,6 +48,24 @@ utils::globalVariables(c(
 # which describes them more accurately than the historical "noise_pixels" /
 # "Noise". Both spellings are accepted everywhere a background label is matched,
 # so masks and acquisitions created with earlier versions keep working.
+# Centred rolling median over `k` consecutive values, truncated at both ends
+# rather than padded or wrapped. Used by int2response(mode = "window") to
+# smooth the internal standard along an acquisition line without borrowing
+# pixels from the neighbouring line.
+.roll_median <- function(v, k) {
+  n <- length(v)
+  if (n == 0L) return(v)
+  k <- max(1L, as.integer(k))
+  if (k >= n) return(rep(stats::median(v, na.rm = TRUE), n))
+
+  half <- k %/% 2L
+  vapply(seq_len(n), function(i) {
+    lo <- max(1L, i - half)
+    hi <- min(n,  i + half)
+    stats::median(v[lo:hi], na.rm = TRUE)
+  }, numeric(1))
+}
+
 .bg_labels <- function(x) {
   alias <- c(background_pixels = "noise_pixels",
              noise_pixels      = "background_pixels",

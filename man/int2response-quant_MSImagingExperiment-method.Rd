@@ -9,7 +9,8 @@
   MSIobject,
   val_slot = "intensity",
   IS_name = "None",
-  mode = "line",
+  mode = c("line", "sample", "pixel", "window"),
+  window = 15,
   remove_IS = TRUE,
   ...
 )
@@ -20,8 +21,10 @@
 \item{val_slot}{Character. Spectra slot to normalise (default
 \code{"intensity"}).}
 
-\item{IS_name}{Character. Name of the internal standard in
-\code{fData(MSIobject)} under the analyte header. \code{"None"} (the default) performs
+\item{IS_name}{Character. Value identifying the internal standard in the
+\strong{\code{analyte} column} of \code{fData(MSIobject)} -- the ion library's \code{Type}
+column, typically \code{"IS"}. This is a type label, not a transition name:
+passing a feature name will not match. \code{"None"} (the default) performs
 \strong{within-feature normalisation} instead: each feature is divided by its own
 summary at the chosen \code{mode}. That is not internal-standard normalisation,
 and it is not the same as skipping normalisation -- it removes
@@ -29,8 +32,24 @@ between-line or between-sample scale differences within each feature. To
 leave values untouched, simply do not call this function.}
 
 \item{mode}{Character. Level at which the standard is summarised:
-\code{"sample"} (median internal-standard intensity per sample), \code{"line"}
-(per acquisition line, the default) or \code{"pixel"} (per pixel).}
+\describe{
+\item{\code{"line"}}{Median across a whole acquisition line (the default). A
+\emph{line} is one horizontal raster row -- constant \code{y}, varying \code{x} --
+which is the order DESI acquires in, so it is also the axis along which
+source drift accumulates.}
+\item{\code{"sample"}}{Median across the whole acquisition.}
+\item{\code{"pixel"}}{The standard in that pixel alone -- responsive to local
+suppression, but carries the standard's own shot noise.}
+\item{\code{"window"}}{Rolling median over \code{window} consecutive pixels along
+the same horizontal row, ordered by \code{x}. A compromise between \code{"pixel"}
+and \code{"line"}: it smooths the standard's own shot noise while still
+tracking drift across the row. The window is truncated at the ends of a
+row rather than wrapping, so pixels from different rows are never
+mixed.}
+}}
+
+\item{window}{Integer. Number of consecutive pixels averaged when
+\code{mode = "window"} (default \code{15}). Ignored for the other modes.}
 
 \item{remove_IS}{Logical. Drop the internal-standard feature from the
 returned object (default \code{TRUE}).}
