@@ -11,6 +11,15 @@ test_that("quant_palettes returns the documented palettes", {
   expect_equal(quant_palettes("hat", n = 3), quant_palettes("hat")[1:3])
 })
 
+test_that("hat carries no pure black and ends on a neutral grey", {
+  # Black reads as a border or as text rather than as a category, so it is
+  # replaced; grey sits last because that slot usually falls to "Other".
+  h <- quant_palettes("hat")
+  expect_false("#000000" %in% tolower(h))
+  expect_equal(tolower(h[length(h)]), "#7f7f7f")
+  expect_length(unique(h), length(h))
+})
+
 test_that("heatmap2 runs blue -> white -> red for z-scores", {
   # Low must be blue and high red: the ltc ordering is the other way round and
   # is reversed on import, so this guards that reversal.

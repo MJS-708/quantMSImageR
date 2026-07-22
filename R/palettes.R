@@ -7,8 +7,9 @@
 #' Four of these -- `heatmap0`, `heatmap2`, `hat` and `reading` -- are taken
 #' from the `ltc` package by Loukas Theodosiou
 #' (<https://github.com/loukesio/ltc-color-palettes>), which is MIT licensed.
-#' `heatmap2` and `hat` are re-ordered relative to ltc -- see below -- but the
-#' colours themselves are unchanged.
+#' `heatmap2` and `hat` are re-ordered relative to ltc -- see below -- and
+#' `hat` substitutes a grey for ltc's black; the remaining colours are
+#' unchanged.
 #' They are reproduced here rather than depended on: `ltc` brings in 34
 #' recursive dependencies, which is a large amount of installation surface for
 #' four colour vectors in a package that is otherwise light.
@@ -23,8 +24,9 @@
 #'     z-scores, where the midpoint is meaningful.}
 #'   \item{`hat`, `reading`}{Qualitative, for categorical metadata such as study
 #'     group or pathway class. `hat` carries 10 well-separated hues, re-sequenced
-#'     from ltc's ordering so that the first few are maximally distinct;
-#'     `reading` is a softer 8-colour set.}
+#'     from ltc's ordering so that the first few are maximally distinct, with
+#'     ltc's black replaced by a neutral grey placed last; `reading` is a softer
+#'     8-colour set.}
 #' }
 #'
 #' @param name Optional palette name. When `NULL` (default) the whole list is
@@ -52,13 +54,17 @@ quant_palettes <- function(name = NULL, n = NULL) {
     # Diverging ramp, blue (low) -> white -> red (high). Reversed relative to
     # ltc's ordering so that low values are blue, as z-score maps expect.
     heatmap2 = rev(c("#ca0020", "#f4a582", "#f7f7f7", "#92c5de", "#0571b0")),
-    # Qualitative sets for categorical metadata. `hat` holds ltc's ten colours
-    # but re-sequenced: ltc orders them around the colour wheel, so the first
-    # few classes of a pathway annotation come out as adjacent yellows and
-    # oranges. This ordering interleaves hue and lightness, so the classes you
-    # actually get (usually two to five) are distinguishable at a glance.
-    hat      = c("#4e54ac", "#e8351e", "#17a769", "#efb306", "#000000",
-                 "#852f88", "#0f8096", "#cd023d", "#7db954", "#eb990c"),
+    # Qualitative sets for categorical metadata. `hat` is re-sequenced from
+    # ltc's ordering, which runs around the colour wheel and so gives adjacent
+    # yellows and oranges to the first few classes of a pathway annotation.
+    # This ordering interleaves hue and lightness, so the two to five classes
+    # a study actually has are distinguishable at a glance.
+    #
+    # ltc's black is replaced by a neutral grey and moved to the end: black
+    # reads as a border or as text rather than as a category, and a grey is
+    # the natural colour for whatever class ends up last (often "Other").
+    hat      = c("#4e54ac", "#e8351e", "#17a769", "#efb306", "#852f88",
+                 "#0f8096", "#cd023d", "#7db954", "#eb990c", "#7f7f7f"),
     reading  = c("#EFBC68", "#919F89", "#EDBDAE", "#57717C", "#5F97A4",
                  "#CAEAC8", "#95A1AE", "#C8CFD6")
   )
