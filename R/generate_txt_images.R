@@ -69,12 +69,15 @@
 #'   whose global threshold is `0` (the mask-free smoke-test pass). Default
 #'   `NULL` (all features use `snr_thresh`).
 #' @param is_name Character. Value identifying the internal standard in
-#'   `fData()$analyte` -- that is, the ion library's `Type` column, typically
+#'   `fData()$feature_type` -- that is, the ion library's `Type` column, typically
 #'   `"IS"`. It is **not** a transition name.
 #'   When supplied, each acquisition is normalised with [int2response()] before
 #'   SNR filtering, and every downstream step -- SNR, background masking, images
 #'   and ratios -- works on the resulting `response` layer instead of
 #'   `intensity`. `NULL` or `"None"` (the default) skips normalisation.
+#' @param is_norm_header Character. Ion-library column mapping each analyte to
+#'   the standard that normalises it, needed only when `is_name` matches more
+#'   than one feature (default `"IS_norm"`). See [int2response()].
 #' @param is_mode Character. Level at which the internal standard is
 #'   summarised: `"line"` (default), `"sample"`, `"pixel"` or `"window"` (a
 #'   rolling median over `is_window` consecutive pixels along the acquisition
@@ -134,6 +137,7 @@ generate_txt_images <- function(
   output_ratios  = TRUE,
   snr_overrides  = NULL,
   is_name        = NULL,
+  is_norm_header = "IS_norm",
   is_mode        = "line",
   is_window      = 15,
   remove_IS      = TRUE,
@@ -209,12 +213,16 @@ generate_txt_images <- function(
       result <- imageR(
         MSIobject  = MSIobject, val_slot   = val_slot, value      = value_label,
         scale      = "suppress", threshold  = threshold, sample_lab = "run",
-        pixels     = NA, percentile = percentile, overlay    = FALSE,
+        pixels     = NA, percentile = percentile,
         feat_ind   = feat_ind, blank_back  = FALSE, text_image  = TRUE
       )
       pracma::rot90(as.matrix(result), k = rot_clockwise)
     }, error = function(e) {
-      message("imageR failed (", value_label, "): ", e$message)
+      # A warning, not a message: this handler exists for per-feature data
+      # problems, but it also swallows programming errors, and an empty matrix
+      # is silently skipped by write_if_nonempty() -- so a broken call here
+      # looks exactly like a successful run that wrote nothing.
+      warning("imageR failed (", value_label, "): ", e$message, call. = FALSE)
       matrix(NA_real_, 0, 0)
     })
   }
@@ -286,7 +294,7 @@ generate_txt_images <- function(
         obj <- as(obj, "quant_MSImagingExperiment")
     } else {
       obj  <- read_mrm(name = fn_name, folder = data_path, lib_ion_path = lib_ion_path,
-                       type_header = type_header)
+                       type_header = type_header, is_norm_header = is_norm_header)
 
       # Skip tissue mask entirely when no SNR > 0 is requested. Every pixel
       # is labelled `tissue_pixels` so downstream code that reads sample_name
@@ -437,16 +445,20 @@ generate_txt_images <- function(
     # Internal-standard normalisation, per acquisition and before SNR, since
     # int2snr() references the background of whichever layer it is given.
     if (.use_is) {
-      # int2response() matches the standard on fData()$analyte -- the ion
-      # library's Type column, typically "IS" -- not on the transition name.
-      if (!is_name %in% as.character(fData(tissue)$analyte))
-        stop("generate_txt_images: no feature with analyte = '", is_name,
+      # int2response() matches the standard on the feature-type column -- the
+      # ion library's Type column, typically "IS" -- not on the transition
+      # name. Checked here as well so the message names the acquisition.
+      .ft <- as.character(.feature_type(tissue))
+      if (!is_name %in% .ft)
+        stop("generate_txt_images: no feature typed '", is_name,
              "' in '", fn_label, "'. `is_name` is the value of the ion ",
              "library's Type column (e.g. \"IS\"), not a transition name. ",
              "Values present: ",
-             paste(unique(as.character(fData(tissue)$analyte)), collapse = ", "),
+             paste(unique(.ft), collapse = ", "),
              call. = FALSE)
-      tissue <- int2response(tissue, val_slot = "intensity", IS_name = is_name,
+      tissue <- int2response(tissue, val_slot = "intensity",
+                             normalisation = "internal_standard",
+                             IS_name = is_name, is_norm_header = is_norm_header,
                              mode = is_mode, window = is_window,
                              remove_IS = remove_IS)
     }

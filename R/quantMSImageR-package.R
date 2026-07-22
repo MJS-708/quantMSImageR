@@ -34,9 +34,9 @@
 # Non-standard-evaluation variables (dplyr/subset/aes) so R CMD check does not
 # flag them as undefined globals.
 utils::globalVariables(c(
-  "Polarity", "ROI", "Type", "all_noise", "amount_pg",
-  "collision_eV", "cone_V", "duplicate_mrms", "feature", "label", "lipid",
-  "pg_perpixel",
+  "Polarity", "ROI", "Type", "all_noise", "amount_pg", "analyte",
+  "collision_eV", "cone_V", "duplicate_mrms", "feature", "label",
+  "pg_perpixel", "response_perpixel", "sd_response",
   "pixel_ind", "precursor_mz", "product_mz", "response", "sample_name",
   "transition_id_int",
   "transition_id_name", "x", "x_loci", "y", "y_loci"
@@ -72,6 +72,65 @@ utils::globalVariables(c(
              Background        = "Noise",
              Noise             = "Background")
   unique(c(x, unname(alias[x][!is.na(alias[x])])))
+}
+
+# Feature-metadata column holding the analytical class of each feature -- "IS",
+# "Analyte" and so on, taken from the ion library's `Type` column.
+#
+# It used to be stored as `analyte`, which collided with the other meaning of
+# that word: `cal_metadata$analyte` names the *compound* being quantified,
+# whereas this column names its *role*. Objects built by earlier versions carry
+# the old spelling, so both are read.
+.FEAT_TYPE <- "feature_type"
+
+# "Not set", spelled the way a YAML config spells it.
+#
+# The configs use the literal string "None" for an option that is switched off
+# (is_name, features$exclude), so an argument fed straight from YAML can arrive
+# as "None" rather than NULL. Normalising once here keeps every caller from
+# having to know that.
+.none <- function(x) {
+  if (is.null(x)) return(NULL)
+  x <- as.character(x)
+  if (length(x) != 1L || is.na(x) || !nzchar(trimws(x)) ||
+      tolower(trimws(x)) %in% c("none", "null", "na")) return(NULL)
+  trimws(x)
+}
+
+.feature_col <- function(obj, column) {
+  column <- .none(column)
+  if (is.null(column)) return(NULL)
+  fd <- fData(obj)
+  if (!column %in% names(fd)) return(NULL)
+  fd[[column]]
+}
+
+.feature_type <- function(obj) {
+  fd <- fData(obj)
+  for (nm in c(.FEAT_TYPE, "analyte")) if (nm %in% names(fd)) return(fd[[nm]])
+  NULL
+}
+
+# Regression weights for a calibration fit.
+#
+# 1/x and 1/x^2 are undefined at a zero (blank) level. Substituting a tiny
+# amount and taking its reciprocal gives that one point a weight of order 1e9,
+# which is why this is handled explicitly: a blank is given the same weight as
+# the lowest positive standard, so it contributes once rather than deciding the
+# fit. Negative amounts (which standard addition can produce below the
+# x-intercept) are treated the same way.
+.cal_weights <- function(x, weighting = c("1/x", "none", "1/x2")) {
+  weighting <- match.arg(weighting)
+  if (weighting == "none") return(rep(1, length(x)))
+
+  pow <- if (weighting == "1/x") 1 else 2
+  pos <- is.finite(x) & x > 0
+  if (!any(pos)) return(rep(1, length(x)))
+
+  w <- rep(NA_real_, length(x))
+  w[pos] <- 1 / x[pos]^pow
+  w[!pos] <- min(w[pos], na.rm = TRUE)
+  w
 }
 
 # Calibrated-amount slot names.

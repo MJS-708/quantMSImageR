@@ -117,7 +117,7 @@ measured in tissue.
 
 | Function | Takes | Produces |
 |---|---|---|
-| `summarise_cal_levels()` | object with `Cal` pixels + `identifier`; `cal_metadata` (`identifier`, `lipid`, `amount_pg`, `level`) | fills `cal_response_data` and the per-level pixel counts |
+| `summarise_cal_levels()` | object with `Cal` pixels + `identifier`; `cal_metadata` (`identifier`, `analyte`, `amount_pg`, `level`) | fills `cal_response_data` and the per-level pixel counts |
 | `create_cal_curve()` | that object; `cal_type = "cal"` or `"std_addition"` | fills `cal_list` (one linear model per analyte) and `r2_df` |
 | `int2conc()` | object carrying `cal_list`; `pixel_header` / `pixels`; `experimentData$pixelSize` for the mm² layer | adds `pg_pixel` and `pg_mm2`; features without a curve are dropped |
 | `plot_cal_coverage()` | a calibrated object (after `int2conc()`) | a `patchwork` figure: pixel histogram above the calibration curve |
@@ -163,7 +163,7 @@ standard spots used to build the curves; `Tissue` and `Background` are the
 surrounding sample and background.
 
 The companion metadata table is the link between a physical standard spot and
-what was deposited on it: each `identifier` maps to an analyte (`lipid`), the
+what was deposited on it: each `identifier` maps to an `analyte`, the
 amount spotted (`amount_pg`) and which dilution `level` it belongs to.
 
 ```{r cal-meta}
@@ -248,7 +248,7 @@ cal_lines <- lapply(names(models), function(analyte) {
   m  <- models[[analyte]]
   xx <- seq(min(m$model$pg_perpixel), max(m$model$pg_perpixel),
             length.out = 100)
-  data.frame(lipid             = analyte,
+  data.frame(analyte           = analyte,
              pg_perpixel       = xx,
              response_perpixel = predict(m, newdata = data.frame(pg_perpixel = xx)))
 })
@@ -257,7 +257,7 @@ cal_lines <- do.call(rbind, cal_lines)
 ggplot(cal_data, aes(pg_perpixel, response_perpixel)) +
   geom_point() +
   geom_line(data = cal_lines, colour = "steelblue", linewidth = 0.8) +
-  facet_wrap(~ lipid, scales = "free") +
+  facet_wrap(~ analyte, scales = "free") +
   labs(x = "amount (pg / pixel)", y = "response per pixel")
 ```
 
@@ -305,20 +305,30 @@ the data.
 
 ## Handling out-of-range pixels
 
-Pixels outside the calibrated range are **kept, not silently discarded**, but
-`int2conc()` tells you about them: every feature with any extrapolated pixels is
-reported by `message()`, and a feature where more than `max_out_of_range` (90%
-by default) of pixels fall outside the range escalates to a warning, because at
-that point the analyte is not really being quantified. The proportion is also
-recorded per feature in `r2_df$out_of_range`, so it can be carried into a
-report:
+An amount read off the curve beyond the highest or lowest standard is an
+extrapolation: the model was never fitted there, and the assumption that the
+response stays linear is exactly the assumption the standards were supposed to
+test. `int2conc()` therefore reports every feature with any extrapolated pixels
+by `message()`, and **stops** when a feature exceeds `max_out_of_range`
+(`0.1` by default, so at least 90% of pixels must be interpolated between real
+standards). The error names each offending feature with its percentage.
+
+Two things resolve it, and the choice is deliberately yours. Either the
+calibration needs to bracket the tissue -- `plot_cal_coverage()` above shows
+which end it misses, and the fix is a wider dilution series -- or the
+extrapolation is acceptable for your purpose and you say so by raising
+`max_out_of_range` (`1` accepts any). What is not offered is quietly returning
+numbers the curve cannot support.
+
+The proportion is recorded per feature, so it can be carried into a report
+alongside R-squared:
 
 ```{r oor}
 calibrationDiagnostics(study)
 ```
 
-Set `max_out_of_range = 1` to suppress the warning when extrapolation is
-expected and acceptable -- but it is not the default, deliberately.
+Here the synthetic standards span 1.25 to 100 pg/pixel and every tissue pixel
+falls inside that, so `out_of_range` is zero throughout.
 
 The same section can now be imaged either way. First in raw response, where the
 colour scale is arbitrary instrument signal:

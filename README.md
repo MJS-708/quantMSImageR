@@ -108,8 +108,18 @@ in the RDS and this step is not required.
 Analysis is configured via a YAML file and run with a single command:
 
 ```r
-CONFIG_FILE <- "path/to/config.yaml"
-source(system.file("run_study.R", package = "quantMSImageR"))
+library(quantMSImageR)
+
+# Check the configuration before anything is read or written
+validate_config("path/to/config.yaml")
+
+run_study("path/to/config.yaml")
+```
+
+or from a shell:
+
+```bash
+Rscript -e 'quantMSImageR::run_study("path/to/config.yaml")'
 ```
 
 This will:

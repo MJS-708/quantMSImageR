@@ -4,7 +4,14 @@
 \alias{read_mrm}
 \title{Read a Waters DESI-MRM acquisition into an MSImagingExperiment}
 \usage{
-read_mrm(name, folder, lib_ion_path, overwrite = TRUE, type_header = "Type")
+read_mrm(
+  name,
+  folder,
+  lib_ion_path,
+  overwrite = TRUE,
+  type_header = "Type",
+  is_norm_header = "IS_norm"
+)
 }
 \arguments{
 \item{name}{Acquisition name (without the \code{.raw} suffix).}
@@ -23,8 +30,15 @@ inside the \code{.raw} folder, it is returned instead.}
 
 \item{type_header}{Character. Name of the ion-library column holding the
 feature type -- the values that mark internal standards versus analytes
-(default \code{"Type"}). Its contents become \code{fData()$analyte}, which is what
+(default \code{"Type"}). Its contents become \code{fData()$feature_type}, which is what
 \code{\link[=int2response]{int2response()}} matches \code{IS_name} against.}
+
+\item{is_norm_header}{Character. Name of the optional ion-library column that
+maps each analyte to the internal standard normalising it (default
+\code{"IS_norm"}). Carried through to \code{fData()} when present, so that
+\code{\link[=int2response]{int2response()}} can use it when a panel has more than one standard.
+\code{"None"} (or \code{NULL}), or simply omitting the column, is correct for a
+single-standard panel.}
 }
 \value{
 An \code{MSImagingExperiment} with feature metadata joined to the ion

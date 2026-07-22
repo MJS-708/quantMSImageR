@@ -346,7 +346,7 @@ ggplot(mask_tbl, aes(x, -y, fill = sample_name)) +
 | `quant_palettes()` | palette name, optional `n` | the hex colours used by both, for reuse in your own plots |
 
 Colours are consistent across the package and selectable per plot. `imageR()`
-takes `palette = "viridis"` or `"heatmap0"`; `quantile_hm()` takes a diverging
+takes `palette = "heatmap0"` (the default) or `"viridis"`; `quantile_hm()` takes a diverging
 `palette` plus `group_palette` / `feature_palette` for the metadata bars, and
 `cell_border` for the hairline that keeps neighbouring cells of the same colour
 from merging into one block. In a YAML-driven study these are set once in the
@@ -370,7 +370,8 @@ quant_palettes("heatmap0")
 plain `ggplot`, the layout can be adjusted -- here into a 3 x 2 grid:
 
 ```{r image, fig.wide = TRUE, fig.cap = "Ion image of the first feature across all six sections, before SNR filtering. Sections 01-03 are group A (circular tissue), 04-06 are group B (square)."}
-imageR(combined, feat_ind = 1, sample_lab = "run", scale = "suppress") +
+imageR(combined, feat_ind = 1, sample_lab = "run", scale = "suppress",
+       palette = "heatmap0") +
   facet_wrap(~ sample, ncol = 3) +
   theme(strip.text = element_text(size = 7),
         legend.text = element_text(size = 7))
@@ -388,16 +389,32 @@ multimodal workflows.
 `Met-1` -- become available for grouping. We do this before the heatmap because
 the heatmap uses `Met-1` to split its rows.
 
-```{r meta}
+The ion library is the CSV you supply as `lib_ion_path`, and it is worth looking
+at before anything else: it defines the panel. `transition_id`,
+`precursor_mz`, `product_mz`, `collision_eV`, `cone_V`, `Polarity` and `Type`
+are required; anything else is yours to add. Here `Met-1` carries the pathway
+class and `IS_norm` names the internal standard each analyte is normalised to
+(see [int2response()]).
+
+```{r ion-lib}
 lib <- read.csv(system.file("extdata", "example_ion_library.csv",
                             package = "quantMSImageR"), check.names = FALSE)
+
+DT::datatable(lib, rownames = FALSE, options = list(pageLength = 10))
+```
+
+**Table 2.** The example ion library, as supplied on disk.
+
+```{r meta}
 fm <- build_feature_meta(combined, lib)
 
-DT::datatable(fm[, c("name", "precursor_mz", "product_mz", "Type", "Met-1")],
+DT::datatable(fm[, c("name", "precursor_mz", "product_mz", "Type", "Met-1",
+                     "IS_norm")],
               rownames = FALSE, options = list(pageLength = 10))
 ```
 
-**Table 2.** Ion-library metadata joined to each feature by m/z.
+**Table 3.** The same metadata after `build_feature_meta()` has joined it to
+each measured feature by m/z.
 
 # Quantile heatmaps across samples
 
@@ -408,6 +425,10 @@ more samples than features, so the long dimension runs vertically. Cells are
 drawn square (stretching to at most 1.5:1 when one dimension is much longer),
 so the heatmap grows with the data rather than distorting to fill the device.
 
+`cell_size` sets that size in millimetres and `fontsize` the label size, which
+is what to reach for when long transition names crowd the panel: enlarge the
+cells and shrink the text rather than letting the labels dictate the layout.
+
 The `quant_val` argument chooses which quantile summarises each feature -- a
 median (`0.5`) reflects the bulk of the tissue, while a high quantile (`0.95`)
 emphasises hot-spots:
@@ -417,13 +438,15 @@ feature_split <- fm[["Met-1"]]
 
 quantile_hm(combined, quant_val = 0.5,
             heatmap_order = sections, heatmap_labs = groups,
-            feature_split = feature_split, feature_split_name = "Met-1")
+            feature_split = feature_split, feature_split_name = "Met-1",
+            cell_size = 10, fontsize = 7)
 ```
 
 ```{r heatmap-95, fig.wide = TRUE, fig.cap = "The same summary at the 95th percentile, which emphasises hot-spots rather than the bulk of the tissue."}
 quantile_hm(combined, quant_val = 0.95,
             heatmap_order = sections, heatmap_labs = groups,
-            feature_split = feature_split, feature_split_name = "Met-1")
+            feature_split = feature_split, feature_split_name = "Met-1",
+            cell_size = 10, fontsize = 7)
 ```
 
 # Signal-to-noise filtering

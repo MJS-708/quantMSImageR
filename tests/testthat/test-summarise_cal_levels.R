@@ -13,8 +13,10 @@ test_that("summarise_cal_levels summarises calibration ROIs", {
 
   rd <- out@calibrationInfo@cal_response_data
 
-  expect_equal(ncol(rd), 7L)
-  expect_equal(nrow(rd), 45L)              # 15 spots x 3 lipids
+  # cal_spot, level, analyte, amount_pg, the four response summaries,
+  # pixels, n_nonmissing and pg_perpixel.
+  expect_equal(ncol(rd), 11L)
+  expect_equal(nrow(rd), 45L)              # 15 spots x 3 analytes
   expect_true(all(rd$pixels == 4))         # 2x2 calibration spots
   expect_true(all(is.finite(rd$response_perpixel)))
   expect_true(all(rd$pg_perpixel > 0))

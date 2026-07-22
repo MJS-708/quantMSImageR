@@ -1,9 +1,9 @@
 # ============================================================
-# quantMSImageR — DESI-MRM study config
+# quantMSImageR - DESI-MRM study config
 # Run:  quantMSImageR::run_study("path/to/this.yaml")
 # ============================================================
 
-study: "my_study_name"                 # fallback report filename prefix
+study: "my_study_name"                  # fallback report filename prefix
 
 # ============================= PATHS =============================
 paths:
@@ -13,14 +13,13 @@ paths:
   lib_ion_path: "path/to/ion_library.csv"  # MRM ion-library CSV
 
 # ============================ SAMPLES ============================
-# one entry per sample (heatmap order). pos:/neg: = .raw name(s), no .raw suffix.
-# multiple .raw per polarity are combined; run_id unique; label = group.
+# one entry per sample. pos:/neg: = .raw name(s); run_id unique; label = group.
 samples:
-  - neg: "acq_run_ctrl_neg"            # pos: and/or neg: (string or list)
-    run_id: "S1"                       # unique per sample
-    label:  "Ctrl"                     # group (shared across replicates)
+  - neg: "acq_run_ctrl_neg"             # pos: and/or neg: (string or list)
+    run_id: "S1"                        # unique per sample
+    label:  "Ctrl"                      # group (shared across replicates)
 
-  - pos:                               # multiple acquisitions -> combined
+  - pos:                                # multiple acquisitions -> combined
       - "acq_run_trt_pos_rep1"
       - "acq_run_trt_pos_rep2"
     run_id: "S2"
@@ -28,28 +27,24 @@ samples:
 
 # ==================== PROCESSING PARAMETERS ====================
 parameters:
-  snr_thresh:     [1.2, 3]             # global SNR sweep (one report each) | 0 = raw, no mask
-  snr_overrides:                       # per-analyte fixed SNR (else global) | omit
-    #"PGE2":     5                     # display or ion-library names
+  snr_thresh:     [1.2, 3]              # global SNR sweep (one report each) | 0 = raw, no mask
+  snr_overrides:                        # per-analyte fixed SNR (else global) | omit
+    #"PGE2":     5                      # display or ion-library names
     #"12-HETE":  1.2
-  heatmap_row_split: "Met-1"           # ion-library column to split heatmap columns | omit
-  thresh:         20                   # cold-spot percentile removed
-  perc:           97                   # hot-spot percentile suppressed
-  rot_clockwise:  0                    # image rotation: 0/1/2/3 x 90 deg
-  average_method: "median"             # background summary: mean | median
+  heatmap_row_split: "Met-1"            # ion-library column to split heatmap columns | omit
+  thresh:         20                    # cold-spot percentile removed
+  perc:           97                    # hot-spot percentile suppressed
+  rot_clockwise:  0                     # image rotation: 0/1/2/3 x 90 deg
+  average_method: "median"              # background summary: mean | median
 
-  # Which ion-library column carries the feature type (IS / Analyte / ...).
-  # Its values become fData()$analyte and are what is_name matches against.
-  type_header:    "Type"                # ion-library column holding the feature type
-
-  # Internal-standard normalisation. When is_name is set, each acquisition is
-  # divided by that standard before SNR filtering, and everything downstream
-  # (SNR, images, ratios, and calibration) uses the resulting `response` layer.
-  is_name:        "None"               # ion-library Type value, e.g. "IS" | None = skip
+  # Internal-standard normalisation.
+  type_header:    "Type"                # ion-library column holding the feature type (E.g., Analyte and Internal standard)
+  is_name:        "None"                # ion-library Type value, e.g. "IS" | None = skip
+  is_norm_header: "None"                # None | ion-library column naming each analyte's IS. only when is_name matches >1 feature
   is_mode:        "line"                # summarise IS per: line | window | sample | pixel
   is_window:      15                    # n consecutive pixels when is_mode: window
-  remove_IS:      True                 # drop the IS feature after normalising
-  baseline_label: "Ctrl"              # group used as fold-change denominator
+  remove_IS:      True                  # drop the IS features after normalising
+  baseline_label: "Ctrl"                # group used as fold-change denominator
 
 # =========================== COLOURS ===========================
 # Palettes used in the HTML report. See quant_palettes() for the hex values.
@@ -59,35 +54,37 @@ parameters:
 #   hat       qualitative, 10 well-separated hues
 #   reading   qualitative, 8 softer hues
 colours:
-  ion_image: "heatmap0"                # ion images:        heatmap0 | viridis
-  heatmap:   "heatmap2"                # z-score heatmap:   heatmap2 | heatmap0
-  group:     "hat"                     # sample-group bar:  hat | reading | heatmap0
-  feature:   "reading"                 # feature-class bar: reading | hat | heatmap0
-  cell_border: "white"                 # line between heatmap cells: colour | "none"
+  ion_image: "heatmap0"                 # ion images:        heatmap0 | viridis
+  heatmap:   "heatmap2"                 # z-score heatmap:   heatmap2 | heatmap0
+  group:     "hat"                      # sample-group bar:  hat | reading | heatmap0
+  feature:   "reading"                  # feature-class bar: reading | hat | heatmap0
+  cell_border: "white"                  # line between heatmap cells: colour | "none"
 
 # ====================== FEATURE CONTROL ======================
 features:
-  exclude: None                        # None | list e.g. ["CUDA [M-H]-", "EKODE"]
+  exclude: None                         # None | list e.g. ["CUDA [M-H]-", "EKODE"]
 
-  rename:                              # display-name overrides (ion-library name -> new)
-    enabled: False                     # False = keep original names
+  rename:                               # display-name overrides (ion-library name -> new)
+    enabled: False                      # False = keep original names
     #"8-isoPGE2 || PGE2": "PGE2"
 
 # ========================= CALIBRATION =========================
 # Quantification from on-slide / on-tissue standards
 calibration:
-  enabled: False                       # False = skip calibration
-  cal_acquisition: "cal_run_slide1"    # .raw name of the standards acquisition
+  enabled: False                        # False = skip; set True once cal data is ready
+  cal_acquisition: "cal_run_name"       # .raw name of the standards acquisition (in data_path)
   cal_roi_csv:     "path/to/cal_ROIs.csv"              # pixel -> sample_type="Cal" + identifier
-  cal_metadata:    "path/to/calibration_metadata.csv"  # identifier,lipid,amount_pg,level
-  cal_type:        "std_addition"      # REQUIRED: std_addition (on-tissue) | cal (on-slide)
-  val_slot:        "intensity"         # slot to calibrate
-  background_level: "background"       # 'level' value used as the std-addition blank
-  quantify_pixels: ["tissue_pixels"]   # pixel label(s) in the study to quantify
+  cal_metadata:    "path/to/calibration_metadata.csv"  # identifier,analyte,amount_pg,level
+  cal_type:        "std_addition"       # REQUIRED: std_addition (on-tissue) | cal (on-slide)
+  weighting:       "1/x"                # regression weights: 1/x | 1/x2 | none
+  val_slot:        "intensity"          # slot to calibrate
+  background_level: "background"        # 'level' value used as the std-addition blank
+  quantify_pixels: ["tissue_pixels"]    # pixel label(s) in the study to quantify
+  max_out_of_range: 0.1                 # stop if >this fraction extrapolated | 1 = allow any
 
 # ========================= ION RATIOS =========================
-ratios:                                # pixel-wise numerator / denominator images
-  enabled: False                       # False = skip ratios
+ratios:                                 # pixel-wise numerator / denominator images
+  enabled: False                        # False = skip ratios
   entries:
     - num:   "PGE2"
       den:   "AA"
@@ -95,6 +92,6 @@ ratios:                                # pixel-wise numerator / denominator imag
 
 # =========================== OUTPUTS ===========================
 output:
-  render_report: True                  # build HTML report
-  output_txt:    False                 # write per-feature txt images
-  output_ratios: False                 # write ratio txt images (needs ratios.execute)
+  render_report: True                   # build HTML report
+  output_txt:    False                  # write per-feature txt images
+  output_ratios: False                  # write ratio txt images (needs ratios.enabled)

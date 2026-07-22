@@ -27,10 +27,21 @@ setGeneric("create_cal_curve", function(MSIobject, ...) standardGeneric("create_
 #'     axis.
 #' }
 #'
-#' In both modes the final fit is weighted by `1/amount`. This reduces the
-#' influence of the highest calibration levels, but whether it is the right
-#' weighting should be assessed from the residual structure of your own
-#' analytical method.
+#' @section Weighting:
+#' Calibration response in MSI is usually heteroscedastic -- absolute scatter
+#' grows with amount -- so an unweighted fit lets the top standards dominate and
+#' the low end, where most tissue pixels sit, is fitted worst. `weighting`
+#' therefore defaults to `"1/x"`; `"1/x2"` weights the low end harder still, and
+#' `"none"` is ordinary least squares.
+#'
+#' A zero (blank) level has no `1/x` weight. It is given the weight of the
+#' lowest positive level rather than a weight derived from a substituted tiny
+#' amount, which would let a single blank determine the whole regression.
+#'
+#' Weighting is an empirical model choice, not a property of the data. Check it
+#' against residual structure, back-calculated accuracy at each level and
+#' replicate precision rather than against R-squared -- see
+#' [calibrationDiagnostics()] and [plot_cal_coverage()].
 #'
 #' @import Cardinal
 #' @include setClasses.R
@@ -43,6 +54,8 @@ setGeneric("create_cal_curve", function(MSIobject, ...) standardGeneric("create_
 #'   labels (default `"level"`).
 #' @param background Character. Value of `level` marking the background level
 #'   subtracted when `cal_type = "std_addition"`.
+#' @param weighting Character. Regression weights: `"1/x"` (default), `"1/x2"`
+#'   or `"none"`. See the Weighting section.
 #' @return The input object with `cal_list` (one `lm` per standard, response
 #'   versus amount in pg per pixel), `r2_df` (fit R-squared per standard) and
 #'   the calibration metadata populated.
@@ -60,7 +73,10 @@ setGeneric("create_cal_curve", function(MSIobject, ...) standardGeneric("create_
 #' @aliases create_cal_curve
 #' @export
 setMethod("create_cal_curve", "quant_MSImagingExperiment",
-          function(MSIobject, cal_type, level = "level", background = "background"){
+          function(MSIobject, cal_type, level = "level", background = "background",
+                   weighting = c("1/x", "none", "1/x2")){
+
+            weighting <- match.arg(weighting)
 
             # No default: "cal" and "std_addition" apply materially different
             # processing, and silently assuming one of them is a quantitative
@@ -74,7 +90,7 @@ setMethod("create_cal_curve", "quant_MSImagingExperiment",
 
             cal_data = MSIobject@calibrationInfo@cal_response_data
 
-            features = unique(cal_data$lipid)
+            features = unique(cal_data$analyte)
 
             # Set outputs
             cal_list = list()
@@ -83,7 +99,7 @@ setMethod("create_cal_curve", "quant_MSImagingExperiment",
             for(i in seq_along(features)){
 
               feature = features[i]
-              cal_subset = subset(cal_data, lipid == feature)
+              cal_subset = subset(cal_data, analyte == feature)
 
               if(cal_type == "std_addition"){
 
@@ -100,10 +116,17 @@ setMethod("create_cal_curve", "quant_MSImagingExperiment",
 
               }
 
-              cal_subset = dplyr::mutate(cal_subset, pg_perpixel = ifelse(pg_perpixel == 0, yes= 1e-9, no = pg_perpixel))
+              # Fit weights. A zero (blank) level has no 1/x weight, and the
+              # obvious workaround -- substituting a tiny amount -- is not
+              # harmless: 1/1e-9 is a weight of a billion, which lets the blank
+              # dictate the entire regression. Give it the weight of the lowest
+              # positive level instead, so it counts once rather than
+              # overwhelmingly.
+              w <- .cal_weights(cal_subset$pg_perpixel, weighting)
 
               # Update equation
-              eqn = stats::lm(response_perpixel~pg_perpixel, data = cal_subset, na.action = stats::na.exclude, weights = (1/pg_perpixel))
+              eqn = stats::lm(response_perpixel~pg_perpixel, data = cal_subset,
+                              na.action = stats::na.exclude, weights = w)
 
               r2_df$r2[i] = summary(eqn)[["r.squared"]]
               cal_list[[feature]] = eqn

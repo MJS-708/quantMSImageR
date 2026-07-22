@@ -43,6 +43,10 @@ test_that("imageR palettes actually change the fill scale", {
 
   expect_false(identical(vir, h0))
   expect_equal(h0[1], toupper(quant_palettes("heatmap0")[1]))
+
+  # heatmap0 is the default, matching the YAML `colours: ion_image:` default,
+  # so a plain call and an explicit one agree.
+  expect_equal(cols_of(imageR(obj, feat_ind = 1, sample_lab = "run")), h0)
 })
 
 test_that("quantile_hm maps the z-score range onto the chosen palette", {

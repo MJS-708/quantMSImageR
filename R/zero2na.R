@@ -39,7 +39,10 @@ setMethod("zero2na", "quant_MSImagingExperiment",
                 message(sprintf("all intensities are NA for m/z %s. Doing nothing.", i))
               } else if(sum(ints, na.rm = TRUE) == 0){
                 message(sprintf("all intensities are 0 for m/z %s. Making NA.", i))
-                spectra(MSIobject)[i, ] = NA
+                # Write to the requested layer, not to whichever layer spectra()
+                # happens to return: with val_slot = "response" this branch used
+                # to blank the intensity layer instead.
+                spectraData(MSIobject)[[val_slot]][i, ] <- NA_real_
               } else{
                 ints[which(ints == 0)] = NA
                 spectraData(MSIobject)[[val_slot]][i, ] <- ints

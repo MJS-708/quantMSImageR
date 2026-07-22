@@ -31,9 +31,39 @@ setGeneric("combine_MSIs", function(MSIobject, ...) standardGeneric("combine_MSI
 setMethod("combine_MSIs", "MSImagingExperiment",
           function(MSIobject, ...){
 
-            objects <- c(as.list(environment()), list(...))
+            objects <- c(list(MSIobject), list(...))
 
             f_data = fData(MSIobject)
+
+            # Validate before cbind(). Cardinal's cbind fails on mismatched
+            # feature keys with a message about XDataFrames that says nothing
+            # about which acquisition is the odd one out, and it will happily
+            # combine objects whose run identifiers collide -- which silently
+            # merges two sections into one sample everywhere downstream.
+            .nm  <- function(o) as.character(fData(o)$name)
+            .lay <- function(o) sort(names(spectraData(o)))
+            for(ind in seq_along(objects)[-1]){
+              if(!identical(.nm(objects[[ind]]), .nm(objects[[1]])))
+                stop("combine_MSIs: object ", ind, " has different features ",
+                     "from object 1. Align them with align_features() first, ",
+                     "after checking they really are the same transitions.",
+                     call. = FALSE)
+              if(!identical(.lay(objects[[ind]]), .lay(objects[[1]])))
+                stop("combine_MSIs: object ", ind, " has spectra layers (",
+                     paste(.lay(objects[[ind]]), collapse = ", "),
+                     ") that differ from object 1 (",
+                     paste(.lay(objects[[1]]), collapse = ", "),
+                     "). Run the same processing steps on every acquisition ",
+                     "before combining.", call. = FALSE)
+            }
+
+            .runs <- unlist(lapply(objects, function(o)
+                       unique(as.character(pData(o)$run))))
+            if(anyDuplicated(.runs))
+              stop("combine_MSIs: run identifiers must be unique across ",
+                   "acquisitions, but these repeat: ",
+                   paste(unique(.runs[duplicated(.runs)]), collapse = ", "),
+                   ".", call. = FALSE)
 
             for(ind in seq_along(objects)[-1]){
 

@@ -14,6 +14,7 @@
   snr_thresh = 3,
   average = c("median", "mean"),
   snr_overrides = NULL,
+  no_background = c("error", "all_na", "copy"),
   noise = NULL,
   sample_type = NULL,
   ...
@@ -48,6 +49,14 @@ summarise the background-pixel vector per feature.}
 feature listed here uses its own threshold instead of \code{snr_thresh};
 features not listed fall back to \code{snr_thresh}. Default \code{NULL} (all
 features use the global threshold).}
+
+\item{no_background}{Character. What to do when \code{pixel_header} contains no
+background pixels, so there is nothing to reference the signal against:
+\code{"error"} (default), \code{"all_na"} (create the slot, all \code{NA}) or \code{"copy"}
+(copy \code{val_slot} into the \code{snr} slot -- note the slot then holds measured
+response, not a ratio). \code{"error"} and \code{"all_na"} apply only when
+\code{snr_thresh > 0}; with \code{snr_thresh = 0} no filtering was requested, so the
+values are copied through regardless.}
 
 \item{noise}{Deprecated alias for \code{background}, kept for backward
 compatibility. When supplied it overrides \code{background}.}

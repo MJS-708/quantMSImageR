@@ -8,7 +8,9 @@
 \S4method{int2response}{quant_MSImagingExperiment}(
   MSIobject,
   val_slot = "intensity",
-  IS_name = "None",
+  normalisation = c("internal_standard", "within_feature"),
+  IS_name = NULL,
+  is_norm_header = "IS_norm",
   mode = c("line", "sample", "pixel", "window"),
   window = 15,
   remove_IS = TRUE,
@@ -21,15 +23,21 @@
 \item{val_slot}{Character. Spectra slot to normalise (default
 \code{"intensity"}).}
 
+\item{normalisation}{Character. \code{"internal_standard"} (default) or
+\code{"within_feature"}. See Details.}
+
 \item{IS_name}{Character. Value identifying the internal standard in the
-\strong{\code{analyte} column} of \code{fData(MSIobject)} -- the ion library's \code{Type}
+feature-type column of \code{fData(MSIobject)} -- the ion library's \code{Type}
 column, typically \code{"IS"}. This is a type label, not a transition name:
-passing a feature name will not match. \code{"None"} (the default) performs
-\strong{within-feature normalisation} instead: each feature is divided by its own
-summary at the chosen \code{mode}. That is not internal-standard normalisation,
-and it is not the same as skipping normalisation -- it removes
-between-line or between-sample scale differences within each feature. To
-leave values untouched, simply do not call this function.}
+passing a feature name will not match. Required when
+\code{normalisation = "internal_standard"}; a value that matches no feature is
+an error, since falling back to a different normalisation would silently
+change the analytical method.}
+
+\item{is_norm_header}{Character. Feature-metadata column holding the
+analyte-to-standard mapping (default \code{"IS_norm"}). It is consulted \strong{only}
+when \code{IS_name} matches more than one feature, so \code{"None"} (or \code{NULL}) is
+correct for the common case of a single standard shared by every analyte.}
 
 \item{mode}{Character. Level at which the standard is summarised:
 \describe{
@@ -51,27 +59,59 @@ mixed.}
 \item{window}{Integer. Number of consecutive pixels averaged when
 \code{mode = "window"} (default \code{15}). Ignored for the other modes.}
 
-\item{remove_IS}{Logical. Drop the internal-standard feature from the
+\item{remove_IS}{Logical. Drop the internal-standard features from the
 returned object (default \code{TRUE}).}
 
 \item{...}{Additional arguments (currently unused).}
 }
 \value{
 The input object with a \code{response} spectra slot holding the
-internal-standard-normalised values.
+normalised values.
 }
 \description{
-Divides each feature's intensity by the internal standard measured in the
+Divides each feature's intensity by an internal standard measured in the
 same pixel, line or sample, which suppresses drift and much of the local
-variation in ionisation efficiency. Only a single internal standard is
-supported.
+variation in ionisation efficiency.
 }
+\details{
+\code{normalisation} states what is being done, so that no argument value has to
+be read as an instruction:
+\describe{
+\item{\code{"internal_standard"}}{Divide by the standard named in \code{IS_name}.
+This is the quantitative path.}
+\item{\code{"within_feature"}}{Divide each feature by its own summary at the
+chosen \code{mode}. This removes between-line or between-sample scale
+differences within a feature, but it is \emph{not} internal-standard
+normalisation and does not make features comparable to one another.}
+}
+To leave values untouched, do not call this function. There is deliberately
+no "none" value here: skipping a step is the caller's decision, not a mode of
+the step. The YAML pipeline exposes \code{normalisation: none} for that, and
+simply does not call this function.
+}
+\section{Multiple internal standards}{
+
+When \code{IS_name} matches exactly one feature, every analyte is normalised to
+it. When it matches several -- a panel carrying one class-specific standard
+per lipid class, for instance -- an explicit analyte-to-standard mapping is
+required, because dividing by several standards at once has no defined
+meaning. Supply it as an ion-library column (named by \code{is_norm_header},
+default \code{"IS_norm"}) whose value on each analyte row is the transition name
+of the standard that normalises it. Any analyte left unmapped is an error
+rather than a silent fallback.
+
+With a single standard the column is never read, so \code{is_norm_header = "None"}
+is the right setting for a panel where every analyte shares one standard.
+}
+
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",
                  package = "quantMSImageR")
 obj <- as(readRDS(p), "quant_MSImagingExperiment")
-# normalise each feature to itself per line (no internal standard)
-obj <- int2response(obj, val_slot = "intensity", IS_name = "None")
+# No internal standard in the example panel: normalise each feature to
+# itself, per acquisition line.
+obj <- int2response(obj, val_slot = "intensity",
+                    normalisation = "within_feature")
 
 }
 \seealso{

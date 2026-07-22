@@ -19,9 +19,9 @@
 calibration labels and spot identifiers.}
 
 \item{cal_metadata}{Data frame of calibration metadata, with columns
-\code{lipid} (feature name as in \code{fData()$name}), \code{identifier} (maps to
+\code{analyte} (feature name as in \code{fData()$name}), \code{identifier} (maps to
 \code{pData()}), \code{amount_pg} (amount of standard deposited at each spot) and
-\code{level} (dilution level).}
+\code{level} (dilution level). A legacy \code{lipid} column is read as \code{analyte}.}
 
 \item{val_slot}{Character. Spectra slot to summarise (default \code{"intensity"}).}
 
@@ -35,14 +35,28 @@ pixels (default \code{"sample_type"}).}
 that identifies a unique calibration spot (default \code{"identifier"}).}
 }
 \value{
-The input object with \code{cal_response_data} populated: mean response
-per pixel for every (standard, calibration level) pair, together with the
-per-level pixel counts. Amounts are expressed in \strong{pg per pixel}.
+The input object with \code{cal_response_data} populated: one row per
+(standard, calibration spot) pair holding \code{response_perpixel} (the mean),
+\code{median_response}, \code{sd_response}, \code{cv_response}, \code{pixels},
+\code{n_nonmissing} and \code{pg_perpixel}. Amounts are expressed in \strong{pg per
+pixel}.
 }
 \description{
 Averages the signal across the pixels of each calibration spot, giving one
 response value per standard per level. This is the input
 \code{\link[=create_cal_curve]{create_cal_curve()}} fits its models to.
+}
+\details{
+Every spot is also summarised for dispersion, because a mean and a pixel
+count cannot show whether a calibration level was measured reproducibly. The
+returned table carries \code{sd_response} and \code{cv_response} alongside the mean, so
+an imprecise level is visible rather than averaged away.
+
+Problems in the calibration design are errors rather than quiet \code{NA}s: an
+analyte that is not in the object, an identifier that matches no pixel, a
+spot with no usable response, and duplicated identifiers that disagree about
+amount or level all stop the function. Each of these would otherwise produce
+a curve that looks fitted but is not anchored to the data it claims.
 }
 \examples{
 cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")

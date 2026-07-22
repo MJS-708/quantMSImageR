@@ -221,6 +221,7 @@ run_study <- function(config_file) {
   rot_clockwise  <- cfg$parameters$rot_clockwise  %||% 0
   average_method <- cfg$parameters$average_method %||% "median"
   is_name        <- cfg$parameters$is_name        %||% NULL
+  is_norm_header  <- cfg$parameters$is_norm_header  %||% "IS_norm"
   is_mode        <- cfg$parameters$is_mode        %||% "line"
   is_window      <- cfg$parameters$is_window      %||% 15
   type_header    <- cfg$parameters$type_header    %||% "Type"
@@ -294,6 +295,7 @@ run_study <- function(config_file) {
     output_ratios  = output_ratios,
     snr_overrides  = snr_overrides,
     is_name        = is_name,
+    is_norm_header  = is_norm_header,
     is_mode        = is_mode,
     is_window      = is_window,
     remove_IS      = remove_IS,
@@ -302,7 +304,7 @@ run_study <- function(config_file) {
 
   # ---------------------------------------------------------------------------
   # Calibration (optional): gated by calibration.enabled. Builds a response-vs-
-  # amount curve per lipid from a standards acquisition, then converts the
+  # amount curve per analyte from a standards acquisition, then converts the
   # study's tissue-pixel intensities to pg/pixel + pg/mm2. Writes a calibrated
   # RDS alongside the reports.
   # ---------------------------------------------------------------------------
@@ -318,7 +320,9 @@ run_study <- function(config_file) {
 
     # No fallback: "cal" and "std_addition" do materially different things, so
     # the config must say which.
-    cal_type <- .cal$cal_type
+    cal_type      <- .cal$cal_type
+    cal_weighting <- .cal$weighting %||% "1/x"
+    cal_max_oor   <- .cal$max_out_of_range %||% 0.1
     if (is.null(cal_type) || !nzchar(cal_type))
       stop("Calibration is enabled but `calibration: cal_type:` is not set. ",
            "Use \"cal\" for standards on the slide, or \"std_addition\" for ",
@@ -329,12 +333,15 @@ run_study <- function(config_file) {
     # 1. Load the calibration acquisition and label its Cal ROIs.
     cal_obj <- read_mrm(name = .cal$cal_acquisition, folder = data_path,
                         lib_ion_path = lib_ion_path, overwrite = FALSE,
-                      type_header = type_header)
+                        type_header = type_header,
+                        is_norm_header = is_norm_header)
     cal_obj <- as(cal_obj, "quant_MSImagingExperiment")
 
   # Normalise the standards the same way as the study.
   if (.use_is && identical(cal_val, "response"))
-    cal_obj <- int2response(cal_obj, val_slot = "intensity", IS_name = is_name,
+    cal_obj <- int2response(cal_obj, val_slot = "intensity",
+                            normalisation = "internal_standard",
+                            IS_name = is_name, is_norm_header = is_norm_header,
                             mode = is_mode, window = is_window,
                             remove_IS = remove_IS)
 
@@ -354,7 +361,8 @@ run_study <- function(config_file) {
     # 2. Summarise calibration levels -> fit curves.
     cal_obj <- summarise_cal_levels(cal_obj, cal_metadata, val_slot = cal_val,
                                     cal_label = "Cal", id = "identifier")
-    cal_obj <- create_cal_curve(cal_obj, cal_type = cal_type, background = bg_level)
+    cal_obj <- create_cal_curve(cal_obj, cal_type = cal_type,
+                                background = bg_level, weighting = cal_weighting)
 
     # 3. Apply curves to the study's tissue pixels. The imaging pipeline labels
     #    pixels in `sample_name` (tissue_pixels/background_pixels), so bridge via
@@ -365,7 +373,8 @@ run_study <- function(config_file) {
     # the calibrated object preserves its provenance.
     calibrationData(combined_cal) <- calibrationData(cal_obj)
     combined_cal <- int2conc(combined_cal, val_slot = cal_val,
-                             pixel_header = "sample_name", pixels = q_pixels)
+                             pixel_header = "sample_name", pixels = q_pixels,
+                             max_out_of_range = cal_max_oor)
 
     dir.create(out_path, recursive = TRUE, showWarnings = FALSE)
     .cal_out <- file.path(out_path, paste0(cfg$study, "_calibrated.RDS"))

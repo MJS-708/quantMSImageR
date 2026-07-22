@@ -21,6 +21,7 @@ generate_txt_images(
   output_ratios = TRUE,
   snr_overrides = NULL,
   is_name = NULL,
+  is_norm_header = "IS_norm",
   is_mode = "line",
   is_window = 15,
   remove_IS = TRUE,
@@ -102,12 +103,16 @@ whose global threshold is \code{0} (the mask-free smoke-test pass). Default
 \code{NULL} (all features use \code{snr_thresh}).}
 
 \item{is_name}{Character. Value identifying the internal standard in
-\code{fData()$analyte} -- that is, the ion library's \code{Type} column, typically
+\code{fData()$feature_type} -- that is, the ion library's \code{Type} column, typically
 \code{"IS"}. It is \strong{not} a transition name.
 When supplied, each acquisition is normalised with \code{\link[=int2response]{int2response()}} before
 SNR filtering, and every downstream step -- SNR, background masking, images
 and ratios -- works on the resulting \code{response} layer instead of
 \code{intensity}. \code{NULL} or \code{"None"} (the default) skips normalisation.}
+
+\item{is_norm_header}{Character. Ion-library column mapping each analyte to
+the standard that normalises it, needed only when \code{is_name} matches more
+than one feature (default \code{"IS_norm"}). See \code{\link[=int2response]{int2response()}}.}
 
 \item{is_mode}{Character. Level at which the internal standard is
 summarised: \code{"line"} (default), \code{"sample"}, \code{"pixel"} or \code{"window"} (a

@@ -9,7 +9,8 @@
   MSIobject,
   cal_type,
   level = "level",
-  background = "background"
+  background = "background",
+  weighting = c("1/x", "none", "1/x2")
 )
 }
 \arguments{
@@ -24,6 +25,9 @@ labels (default \code{"level"}).}
 
 \item{background}{Character. Value of \code{level} marking the background level
 subtracted when \code{cal_type = "std_addition"}.}
+
+\item{weighting}{Character. Regression weights: \code{"1/x"} (default), \code{"1/x2"}
+or \code{"none"}. See the Weighting section.}
 }
 \value{
 The input object with \code{cal_list} (one \code{lm} per standard, response
@@ -55,12 +59,25 @@ it expresses \strong{total} amount present (endogenous + added);
 \item drops the rows at the \code{background} level and refits on that shifted
 axis.
 }
-
-In both modes the final fit is weighted by \code{1/amount}. This reduces the
-influence of the highest calibration levels, but whether it is the right
-weighting should be assessed from the residual structure of your own
-analytical method.
 }
+\section{Weighting}{
+
+Calibration response in MSI is usually heteroscedastic -- absolute scatter
+grows with amount -- so an unweighted fit lets the top standards dominate and
+the low end, where most tissue pixels sit, is fitted worst. \code{weighting}
+therefore defaults to \code{"1/x"}; \code{"1/x2"} weights the low end harder still, and
+\code{"none"} is ordinary least squares.
+
+A zero (blank) level has no \code{1/x} weight. It is given the weight of the
+lowest positive level rather than a weight derived from a substituted tiny
+amount, which would let a single blank determine the whole regression.
+
+Weighting is an empirical model choice, not a property of the data. Check it
+against residual structure, back-calculated accuracy at each level and
+replicate precision rather than against R-squared -- see
+\code{\link[=calibrationDiagnostics]{calibrationDiagnostics()}} and \code{\link[=plot_cal_coverage]{plot_cal_coverage()}}.
+}
+
 \examples{
 cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
 cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),

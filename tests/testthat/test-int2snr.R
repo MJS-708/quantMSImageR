@@ -79,24 +79,59 @@ test_that("invalid average_method is rejected", {
   )
 })
 
-test_that("returns object unchanged when no background pixels exist", {
+no_bg_obj <- function() {
   fdata <- MassDataFrame(mz = 1:2, name = c("f1", "f2"))
   pdata <- PositionDataFrame(run       = rep("s1", 4),
                               coord     = expand.grid(x = 1:2, y = 1:2),
                               sample_ID = rep("Tissue", 4))
   ints  <- matrix(c(10, 20, 30, 40, 100, 200, 300, 400), nrow = 2, byrow = TRUE)
-  obj   <- as(MSImagingExperiment(spectraData = ints, featureData = fdata,
-                                   pixelData = pdata),
-              "quant_MSImagingExperiment")
+  as(MSImagingExperiment(spectraData = ints, featureData = fdata,
+                          pixelData = pdata),
+     "quant_MSImagingExperiment")
+}
 
-  # Warning is part of the contract: no background means no SNR filtering, and
-  # the caller must be told rather than silently getting unfiltered data.
-  expect_warning(
-    result <- int2snr(obj, val_slot = "intensity",
-                      background = "Background", tissue = "Tissue",
-                      snr_thresh = 3, pixel_header = "sample_ID"),
+test_that("no background pixels is an error when filtering was asked for", {
+  # Without background there is no ratio to compute, and the previous
+  # behaviour -- copying intensity into a slot named `snr` -- let a downstream
+  # reader mistake raw response for a signal-to-background ratio.
+  expect_error(
+    int2snr(no_bg_obj(), val_slot = "intensity",
+            background = "Background", tissue = "Tissue",
+            snr_thresh = 3, pixel_header = "sample_ID"),
     regexp = "no 'Background' pixels"
   )
-  expect_equal(ncol(result), ncol(obj))
+})
+
+test_that("no_background gives explicit alternatives to failing", {
+  expect_warning(
+    na_res <- int2snr(no_bg_obj(), val_slot = "intensity",
+                      background = "Background", tissue = "Tissue",
+                      snr_thresh = 3, pixel_header = "sample_ID",
+                      no_background = "all_na"),
+    regexp = "NA for every pixel"
+  )
+  expect_true(all(is.na(spectra(na_res, "snr"))))
+
+  expect_warning(
+    cp_res <- int2snr(no_bg_obj(), val_slot = "intensity",
+                      background = "Background", tissue = "Tissue",
+                      snr_thresh = 3, pixel_header = "sample_ID",
+                      no_background = "copy"),
+    regexp = "not a ratio"
+  )
+  expect_equal(spectra(cp_res, "snr"), spectra(cp_res, "intensity"))
+})
+
+test_that("snr_thresh = 0 passes values through without failing", {
+  # No filtering was requested, so a missing background is not a failure to do
+  # something the caller wanted. This is the smoke-test pass run before ROIs
+  # have been drawn.
+  expect_warning(
+    result <- int2snr(no_bg_obj(), val_slot = "intensity",
+                      background = "Background", tissue = "Tissue",
+                      snr_thresh = 0, pixel_header = "sample_ID"),
+    regexp = "not a ratio"
+  )
+  expect_equal(ncol(result), 4L)
   expect_equal(spectra(result, "snr"), spectra(result, "intensity"))
 })

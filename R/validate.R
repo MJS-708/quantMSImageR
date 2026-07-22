@@ -243,6 +243,43 @@ validate_config = function(config, check_paths = TRUE){
           "parameters$is_name = '%s' is not a value of the ion library's '%s' column. Values present: %s. Note this is a type label, not a transition name.",
           is_name, type_header, paste(vals, collapse = ", ")))
       else .chk_add(chk, "is_name in library", "ok")
+
+      # The analyte-to-standard map is only needed when the panel actually has
+      # several standards, and the library says how many. Checking here means a
+      # multi-standard panel is caught before any data is read, and a
+      # single-standard one is never asked for a column it does not need.
+      n_is = sum(as.character(ion_lib[[type_header]]) == is_name, na.rm = TRUE)
+      hdr  = .none(par$is_norm_header %||% "IS_norm")
+
+      if(n_is > 1 && is.null(hdr))
+        .chk_add(chk, "is_norm_header", "error", sprintf(
+          "%d features are typed '%s', so parameters$is_norm_header cannot be None: each analyte must name the standard it uses.",
+          n_is, is_name))
+      else if(n_is > 1 && !hdr %in% colnames(ion_lib))
+        .chk_add(chk, "is_norm_header", "error", sprintf(
+          "%d features are typed '%s', but the ion library has no '%s' column mapping each analyte to its standard. Columns present: %s.",
+          n_is, is_name, hdr, paste(colnames(ion_lib), collapse = ", ")))
+      else if(n_is > 1){
+        # Every analyte must map to something that is itself a standard.
+        rows    = as.character(ion_lib[[type_header]]) != is_name
+        tgt     = trimws(as.character(ion_lib[[hdr]])[rows])
+        stds    = as.character(ion_lib$transition_id)[!rows]
+        blank   = as.character(ion_lib$transition_id)[rows][!nzchar(tgt)]
+        unknown = setdiff(tgt[nzchar(tgt)], stds)
+        if(length(blank) || length(unknown))
+          .chk_add(chk, "is_norm_header", "error", sprintf(
+            "ion library column '%s' is incomplete: %s.", hdr,
+            paste(c(if(length(blank))
+                      sprintf("no standard named for %s",
+                              paste(utils::head(blank, 5), collapse = ", ")),
+                    if(length(unknown))
+                      sprintf("%s is not a feature typed '%s'",
+                              paste(utils::head(unknown, 5), collapse = ", "),
+                              is_name)),
+                  collapse = "; ")))
+        else .chk_add(chk, "is_norm_header", "ok")
+      }
+      else .chk_add(chk, "is_norm_header", "ok")
     }
   }
 
@@ -309,19 +346,27 @@ validate_config = function(config, check_paths = TRUE){
          file.exists(cal$cal_metadata)){
         cm   = tryCatch(read.csv(cal$cal_metadata, check.names = FALSE),
                         error = function(e) NULL)
-        need = c("identifier", "lipid", "amount_pg", "level")
-        miss = if(is.null(cm)) need else setdiff(need, colnames(cm))
+        # `analyte` replaced `lipid`, which named the assay rather than the
+        # role; both are accepted.
+        a_col = if(is.null(cm)) NA_character_
+                else if("analyte" %in% colnames(cm)) "analyte"
+                else if("lipid" %in% colnames(cm)) "lipid"
+                else NA_character_
+        need = c("identifier", "amount_pg", "level")
+        miss = if(is.null(cm)) c(need, "analyte")
+               else c(setdiff(need, colnames(cm)),
+                      if(is.na(a_col)) "analyte" else character(0))
         if(length(miss))
           .chk_add(chk, "calibration metadata columns", "error", sprintf(
             "calibration metadata is missing column(s): %s.",
             paste(miss, collapse = ", ")))
         else .chk_add(chk, "calibration metadata columns", "ok")
 
-        # Calibration selects analytes by name, so a lipid that matches no
+        # Calibration selects analytes by name, so an analyte that matches no
         # transition simply produces no curve -- silently, unless flagged.
-        if(!is.null(cm) && "lipid" %in% colnames(cm) && !is.null(ion_lib) &&
+        if(!is.null(cm) && !is.na(a_col) && !is.null(ion_lib) &&
            "transition_id" %in% colnames(ion_lib)){
-          orphan = setdiff(unique(as.character(cm$lipid)),
+          orphan = setdiff(unique(as.character(cm[[a_col]])),
                            as.character(ion_lib$transition_id))
           if(length(orphan))
             .chk_add(chk, "calibration analytes in library", "warning", sprintf(

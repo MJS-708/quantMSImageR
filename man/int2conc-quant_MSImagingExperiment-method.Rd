@@ -28,12 +28,15 @@ a calibration acquisition.}
 quantify (default \code{"tissue_pixels"}, the imaging convention). Pass
 \code{pixels = "Tissue"} for a calibration acquisition.}
 
-\item{max_out_of_range}{Numeric in \verb{[0, 1]}. Warn when more than this
-proportion of a feature's pixels fall outside the calibrated range, i.e.
-are extrapolated rather than interpolated (default \code{0.1}, so at least 90\%
-of pixels must be interpolated between real standards). Any extrapolation
-at all is reported by \code{message()}; this controls only the escalation to a
-warning. Set to \code{1} to silence it.}
+\item{max_out_of_range}{Numeric in \verb{[0, 1]}. Largest proportion of a
+feature's pixels allowed to fall outside the calibrated range, i.e. to be
+extrapolated rather than interpolated (default \code{0.1}, so at least 90\% of
+pixels must be interpolated between real standards). Exceeding it is an
+\strong{error}, naming the features and pointing at \code{\link[=plot_cal_coverage]{plot_cal_coverage()}}:
+either the standards need to bracket the tissue, or the extrapolation has
+to be accepted explicitly by raising this value (\code{1} accepts any). Any
+extrapolation at all is reported by \code{message()}; this controls only the
+threshold at which that becomes fatal.}
 }
 \value{
 The object subset to \code{pixels}, with two spectra slots added:

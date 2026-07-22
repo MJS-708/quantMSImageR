@@ -19,7 +19,7 @@
   blank_back = TRUE,
   aspect_ratio = 1,
   text_image = FALSE,
-  palette = c("viridis", "heatmap0")
+  palette = c("heatmap0", "viridis")
 )
 }
 \arguments{
@@ -58,9 +58,9 @@ maximum (\code{TRUE}) rather than raw values (\code{FALSE}, the default).}
 \item{text_image}{Logical; when TRUE return the image as a numeric matrix
 (for text export) rather than a ggplot.}
 
-\item{palette}{Character. Colour scale for the image: \code{"viridis"} (default,
-perceptually uniform and colour-blind safe) or \code{"heatmap0"}. See
-\code{\link[=quant_palettes]{quant_palettes()}}.}
+\item{palette}{Character. Colour scale for the image: \code{"heatmap0"} (the
+default, matching the YAML \verb{colours: ion_image:} default) or \code{"viridis"}
+(perceptually uniform and colour-blind safe). See \code{\link[=quant_palettes]{quant_palettes()}}.}
 }
 \value{
 A \code{ggplot} object, or a numeric matrix when \code{text_image = TRUE}.

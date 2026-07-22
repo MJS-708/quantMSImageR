@@ -20,10 +20,10 @@ empty list) until the corresponding step has run:
 
 \describe{
 \item{\code{cal_metadata}}{\code{data.frame}. The calibration design supplied by the
-user: one row per (spot, analyte), with columns \code{identifier}, \code{lipid},
+user: one row per (spot, analyte), with columns \code{identifier}, \code{analyte},
 \code{amount_pg} and \code{level}. Set by \code{\link[=summarise_cal_levels]{summarise_cal_levels()}}.}
 \item{\code{cal_response_data}}{\code{data.frame}. Summarised response per
-calibration level, with columns \code{lipid}, \code{pg_perpixel},
+calibration level, with columns \code{analyte}, \code{pg_perpixel},
 \code{response_perpixel} and \code{level}. Set by \code{\link[=summarise_cal_levels]{summarise_cal_levels()}}.}
 \item{\code{cal_list}}{\code{list}. One \code{stats::lm} per analyte, of
 \code{response_perpixel ~ pg_perpixel}, \strong{named by analyte} so that

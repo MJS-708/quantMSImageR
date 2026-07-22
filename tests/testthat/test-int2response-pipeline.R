@@ -41,7 +41,7 @@ test_that("an unknown internal standard fails loudly", {
   # And the message must say which column is consulted, since passing a
   # transition name here is the easy mistake.
   expect_error(suppressMessages(run_with(is_name = "not_a_feature")),
-               "no feature with analyte")
+               "no feature typed")
   expect_error(suppressMessages(run_with(is_name = "not_a_feature")),
                "Type column")
 })

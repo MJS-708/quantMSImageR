@@ -28,9 +28,9 @@ setGeneric("imageR", function(MSIobject, ...) standardGeneric("imageR"))
 #'   image (default `1`).
 #' @param perc_scale Logical. Express the colour scale as a percentage of the
 #'   maximum (`TRUE`) rather than raw values (`FALSE`, the default).
-#' @param palette Character. Colour scale for the image: `"viridis"` (default,
-#'   perceptually uniform and colour-blind safe) or `"heatmap0"`. See
-#'   [quant_palettes()].
+#' @param palette Character. Colour scale for the image: `"heatmap0"` (the
+#'   default, matching the YAML `colours: ion_image:` default) or `"viridis"`
+#'   (perceptually uniform and colour-blind safe). See [quant_palettes()].
 #' @param blank_back Logical; when TRUE background/zero pixels are drawn transparent.
 #' @param aspect_ratio numeric plot aspect ratio (default 1).
 #' @param text_image Logical; when TRUE return the image as a numeric matrix
@@ -50,7 +50,7 @@ setMethod("imageR", "quant_MSImagingExperiment",
           function(MSIobject, val_slot = "intensity", value = "response %", scale = "suppress", threshold = 1,
                    sample_lab = "sample_ID", pixels = NA, percentile=99.0,
                    feat_ind = 1, perc_scale = FALSE, blank_back = TRUE, aspect_ratio=1,
-                   text_image = FALSE, palette = c("viridis", "heatmap0")){
+                   text_image = FALSE, palette = c("heatmap0", "viridis")){
 
             palette <- match.arg(palette)
 

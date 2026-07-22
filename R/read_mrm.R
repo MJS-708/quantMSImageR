@@ -22,8 +22,14 @@
 #'   downstream code via [build_feature_meta()].
 #' @param type_header Character. Name of the ion-library column holding the
 #'   feature type -- the values that mark internal standards versus analytes
-#'   (default `"Type"`). Its contents become `fData()$analyte`, which is what
+#'   (default `"Type"`). Its contents become `fData()$feature_type`, which is what
 #'   [int2response()] matches `IS_name` against.
+#' @param is_norm_header Character. Name of the optional ion-library column that
+#'   maps each analyte to the internal standard normalising it (default
+#'   `"IS_norm"`). Carried through to `fData()` when present, so that
+#'   [int2response()] can use it when a panel has more than one standard.
+#'   `"None"` (or `NULL`), or simply omitting the column, is correct for a
+#'   single-standard panel.
 #' @param overwrite Logical. When `TRUE` (default) the raw text files are
 #'   re-parsed; when `FALSE` and a cached `MSImagingExperiment.rds` exists
 #'   inside the `.raw` folder, it is returned instead.
@@ -43,7 +49,7 @@
 #' @family acquisition
 #' @export
 read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE,
-                     type_header = "Type") {
+                     type_header = "Type", is_norm_header = "IS_norm") {
 
   # set Imaging folder
   imaging_folder <- sprintf("%s/%s.raw/imaging", folder, name)
@@ -190,13 +196,21 @@ read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE,
   idata <- t(as.matrix(analyte_df[, trans_cols, drop = FALSE]))
 
   # feature metadata
-  fdata <- MassDataFrame(
+  .fcols <- list(
     mz           = ion_lib$new_transition_int,
-    analyte      = ion_lib[[type_header]],
+    feature_type = ion_lib[[type_header]],
     precursor_mz = ion_lib$precursor_mz,
     product_mz   = ion_lib$product_mz,
     name         = ion_lib$transition_id_name
   )
+  # The analyte-to-standard map only matters for panels with several internal
+  # standards, so it is carried when the library defines it and omitted
+  # otherwise rather than being required of every library.
+  .map_col <- .none(is_norm_header)
+  if (!is.null(.map_col) && .map_col %in% names(ion_lib))
+    .fcols[[.map_col]] <- as.character(ion_lib[[.map_col]])
+
+  fdata <- do.call(MassDataFrame, .fcols)
 
   out <- MSImagingExperiment(
     spectraData    = idata,

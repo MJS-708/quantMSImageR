@@ -44,6 +44,41 @@ test_that("every problem is reported, not just the first", {
   expect_true(any(grepl("palette", v$errors)))
 })
 
+test_that("is_norm_header is only demanded when the panel has several standards", {
+  lib_path <- system.file("extdata", "example_ion_library.csv",
+                          package = "quantMSImageR")
+  lib <- read.csv(lib_path, check.names = FALSE)
+
+  with_lib <- function(l, pars) {
+    f <- tempfile(fileext = ".csv"); write.csv(l, f, row.names = FALSE)
+    cfg <- good_cfg()
+    cfg$paths$lib_ion_path <- f
+    cfg$parameters <- utils::modifyList(cfg$parameters, pars)
+    validate_config(cfg)
+  }
+
+  # One standard in the library: None is right, and must not be an error.
+  expect_length(with_lib(lib, list(is_name = "IS",
+                                   is_norm_header = "None"))$errors, 0)
+
+  # Two standards: None can no longer resolve which one each analyte uses.
+  lib2 <- lib
+  lib2$Type[lib2$transition_id == "12-HHTrE"] <- "IS"
+  v <- with_lib(lib2, list(is_name = "IS", is_norm_header = "None"))
+  expect_true(any(grepl("is_norm_header cannot be None", v$errors)))
+
+  # Named but absent from the library.
+  lib3 <- lib2; lib3$IS_norm <- NULL
+  v3 <- with_lib(lib3, list(is_name = "IS", is_norm_header = "IS_norm"))
+  expect_true(any(grepl("no 'IS_norm' column", v3$errors)))
+
+  # Present but pointing at something that is not a standard.
+  lib4 <- lib2
+  lib4$IS_norm[lib4$Type != "IS"] <- "9-HOTE"
+  v4 <- with_lib(lib4, list(is_name = "IS", is_norm_header = "IS_norm"))
+  expect_true(any(grepl("is not a feature typed", v4$errors)))
+})
+
 test_that("cell_border is checked as a colour, not as a palette", {
   cfg <- good_cfg()
 

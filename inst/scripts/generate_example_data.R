@@ -50,7 +50,11 @@ features <- data.frame(
                    "PGE2-d4"),
   precursor_mz = c(279L, 289L, 291L, 291L, 291L, 351L, 353L, 355L),
   product_mz   = c(179L, 135L, 169L, 193L, 221L, 271L, 193L, 275L),
-  analyte      = c(rep("Analyte", 7L), "IS"),
+  feature_type = c(rep("Analyte", 7L), "IS"),
+  # Analyte -> the standard that normalises it. One standard here, so
+  # int2response() never has to consult it; present so the bundled objects
+  # match the shipped ion library column for column.
+  IS_norm      = c(rep("PGE2-d4", 7L), ""),
   stringsAsFactors = FALSE
 )
 n_feat <- nrow(features)
@@ -68,7 +72,7 @@ make_section <- function(section_name, seed_offset = 0L,
   imat <- matrix(NA_real_, nrow = n_feat, ncol = n_pix)
 
   for (f in seq_len(n_feat)) {
-    if (features$analyte[f] == "IS") {
+    if (features$feature_type[f] == "IS") {
       # IS: broadly uniform in tissue, low background
       imat[f, tissue_mask]  <- rnorm(sum(tissue_mask),  mean = 5000, sd = 400)
       imat[f, !tissue_mask] <- rnorm(sum(!tissue_mask), mean = 250,  sd = 80)
@@ -93,10 +97,11 @@ make_section <- function(section_name, seed_offset = 0L,
 
   fdata <- MassDataFrame(
     mz           = seq_len(n_feat),
-    analyte      = features$analyte,
+    feature_type = features$feature_type,
     precursor_mz = as.character(features$precursor_mz),
     product_mz   = as.character(features$product_mz),
-    name         = features$name
+    name         = features$name,
+    IS_norm      = features$IS_norm
   )
 
   # Acquisition metadata: pixelSize (micrometres) is required by int2conc() to

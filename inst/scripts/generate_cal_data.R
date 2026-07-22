@@ -36,7 +36,13 @@ slope     <- c(300, 500, 200)   # intensity per pg/pixel, per lipid
 intercept <- c(50, 80, 30)
 
 # ----- calibration design: 5 levels x 3 reps, 2x2 spots ----------------------
-levels_amt <- c(L1 = 10, L2 = 20, L3 = 40, L4 = 80, L5 = 160)  # pg per spot
+# Amounts are chosen so the standards BRACKET the tissue they will be applied
+# to. At 4 pixels per spot these are 1.25, 5, 20, 50 and 100 pg/pixel, which
+# spans the amounts section01 of example.raw back-calculates to (roughly
+# 2 - 73 pg/pixel across the three analytes). The earlier series topped out at
+# 40 pg/pixel, leaving 9-HOTE 38% extrapolated -- int2conc() rejects that, and
+# rightly: a calibration that does not cover the sample is not quantitative.
+levels_amt <- c(L1 = 5, L2 = 20, L3 = 80, L4 = 200, L5 = 400)  # pg per spot
 reps <- 1:3
 pixels_per_spot <- 4L
 
@@ -86,7 +92,7 @@ pdata <- PositionDataFrame(
 fdata <- MassDataFrame(
   mz           = seq_len(n_feat),
   name         = lipids,
-  analyte      = rep("Analyte", n_feat),
+  feature_type = rep("Analyte", n_feat),
   precursor_mz = as.character(c(703, 760, 496)),
   product_mz   = as.character(c(184, 184, 184))
 )
@@ -114,7 +120,7 @@ meta <- do.call(rbind, lapply(seq_along(levels_amt), function(i)
   do.call(rbind, lapply(reps, function(j)
     data.frame(
       identifier = sprintf("%s_r%d", names(levels_amt)[i], j),
-      lipid      = lipids,
+      analyte    = lipids,
       amount_pg  = unname(levels_amt[i]),
       level      = names(levels_amt)[i],
       stringsAsFactors = FALSE

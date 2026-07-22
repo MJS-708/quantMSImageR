@@ -46,6 +46,13 @@ setGeneric("int2snr", function(MSIobject, ...) standardGeneric("int2snr"))
 #'   (default `"intensity"`; use `"response"` after [int2response()]).
 #' @param snr_thresh Global minimum SNR to accept (below this value SNR = NA).
 #'   Applied to every feature unless overridden by `snr_overrides`.
+#' @param no_background Character. What to do when `pixel_header` contains no
+#'   background pixels, so there is nothing to reference the signal against:
+#'   `"error"` (default), `"all_na"` (create the slot, all `NA`) or `"copy"`
+#'   (copy `val_slot` into the `snr` slot -- note the slot then holds measured
+#'   response, not a ratio). `"error"` and `"all_na"` apply only when
+#'   `snr_thresh > 0`; with `snr_thresh = 0` no filtering was requested, so the
+#'   values are copied through regardless.
 #' @param snr_overrides Optional named numeric vector mapping feature name
 #'   (as in `fData(MSIobject)$name`) to a feature-specific SNR threshold. A
 #'   feature listed here uses its own threshold instead of `snr_thresh`;
@@ -76,6 +83,7 @@ setMethod("int2snr", "quant_MSImagingExperiment",
                    background = "background_pixels", tissue = "tissue_pixels",
                    snr_thresh = 3,
                    average = c("median", "mean"), snr_overrides = NULL,
+                   no_background = c("error", "all_na", "copy"),
                    noise = NULL, sample_type = NULL, ...){
             average <- match.arg(average)
 
@@ -85,15 +93,38 @@ setMethod("int2snr", "quant_MSImagingExperiment",
             if (!is.null(sample_type)) pixel_header <- sample_type
             .bg <- .bg_labels(background)
 
+            no_background <- match.arg(no_background)
+
             if(!any(pData(MSIobject)[[pixel_header]] %in% .bg)){
-              # No background pixels to compute SNR against -- fall back to a
-              # non-filtering snr slot (copy of intensity). Adding the slot
-              # here is required so that downstream applySNR() and combine_MSIs()
-              # (cbind) see a consistent set of spectra arrays across sections.
-              warning("int2snr: no '", background, "' pixels in pixel_header='",
-                      pixel_header, "'. Returning intensity as snr (no SNR filtering).",
-                      call. = FALSE)
-              spectra(MSIobject, "snr") <- spectra(MSIobject, val_slot)
+              # Nothing to reference the signal against. The slot still has to
+              # be created either way, because applySNR() and combine_MSIs()
+              # (cbind) need the same set of spectra arrays on every section.
+              msg <- paste0("int2snr: no '", background, "' pixels in ",
+                            "pixel_header='", pixel_header, "'. ")
+
+              # Only fatal when filtering was actually asked for. snr_thresh = 0
+              # means "run unfiltered", so a missing background is not a failure
+              # to do something the caller wanted.
+              if(no_background == "error" && snr_thresh > 0)
+                stop(msg, "Without background pixels there is nothing to ",
+                     "reference the signal against. Label background pixels ",
+                     "with select_tissue_pixels(), or pass ",
+                     "no_background = \"all_na\" / \"copy\" to say what should ",
+                     "happen instead.", call. = FALSE)
+
+              if(no_background == "all_na" && snr_thresh > 0){
+                warning(msg, "snr set to NA for every pixel.", call. = FALSE)
+                spectra(MSIobject, "snr") <- matrix(NA_real_,
+                                                     nrow = nrow(MSIobject),
+                                                     ncol = ncol(MSIobject))
+              } else {
+                # Kept for pipelines that deliberately run unfiltered, but the
+                # snr layer then holds response, not a ratio.
+                warning(msg, "Returning ", val_slot, " as snr: the snr slot ",
+                        "will hold measured response, not a ratio.",
+                        call. = FALSE)
+                spectra(MSIobject, "snr") <- spectra(MSIobject, val_slot)
+              }
               return(MSIobject)
             }
 

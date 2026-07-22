@@ -185,7 +185,7 @@ run_example <- function(render_report = TRUE,
       saveRDS(cal_study, cal_out)
 
       .r2 <- calibrationR2(cal_obj)
-      message("Per-lipid calibration curve R^2:")
+      message("Per-analyte calibration curve R^2:")
       message(paste(sprintf("  %-14s R2 = %.3f", .r2$feature, .r2$r2),
                     collapse = "\n"))
       message("Calibrated object (pg_pixel, pg_mm2) saved to: ", cal_out)

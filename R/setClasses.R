@@ -11,10 +11,10 @@
 #'
 #' \describe{
 #'   \item{`cal_metadata`}{`data.frame`. The calibration design supplied by the
-#'     user: one row per (spot, analyte), with columns `identifier`, `lipid`,
+#'     user: one row per (spot, analyte), with columns `identifier`, `analyte`,
 #'     `amount_pg` and `level`. Set by [summarise_cal_levels()].}
 #'   \item{`cal_response_data`}{`data.frame`. Summarised response per
-#'     calibration level, with columns `lipid`, `pg_perpixel`,
+#'     calibration level, with columns `analyte`, `pg_perpixel`,
 #'     `response_perpixel` and `level`. Set by [summarise_cal_levels()].}
 #'   \item{`cal_list`}{`list`. One `stats::lm` per analyte, of
 #'     `response_perpixel ~ pg_perpixel`, **named by analyte** so that

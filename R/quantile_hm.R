@@ -40,7 +40,7 @@
 #'   named for the axis each grouping landed on before samples and features
 #'   swapped axes; supplying them still works.
 #' @param cell_size Numeric. Side of a heatmap cell, in millimetres (default
-#'   `6`). Giving the body an absolute size is what makes cells square; leaving
+#'   `8`). Giving the body an absolute size is what makes cells square; leaving
 #'   it to `ComplexHeatmap` stretches them to fill the device, which produces
 #'   very oblong cells when there are far more features than samples. Set to
 #'   `NA` to restore the fill-the-device behaviour.
@@ -52,6 +52,9 @@
 #'   Cells stay square until the counts differ by more than four-fold; beyond
 #'   that the shorter dimension's cells are widened up to this ratio so the
 #'   plotting area is not reduced to a sliver.
+#' @param fontsize Numeric. Point size for the sample and feature labels and the
+#'   annotation names (default `8`). `ComplexHeatmap` defaults to 12, which
+#'   crowds the panel once feature names are long enough to need rotating.
 #'
 #' @return A `ComplexHeatmap::Heatmap` object (rows = samples, columns =
 #'   features), with an absolutely-sized body unless `cell_size` is `NA`.
@@ -70,8 +73,8 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
                         feature_split = NULL,
                         feature_split_name = "Pathway",
                         group_split_name = "Group",
-                        cell_size = 6, max_aspect = 1.5,
-                        cell_border = "white",
+                        cell_size = 8, max_aspect = 1.5,
+                        cell_border = "white", fontsize = 8,
                         palette = c("heatmap2", "heatmap0"),
                         group_palette = "hat",
                         feature_palette = "reading",
@@ -92,6 +95,10 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
   # A hairline in the background colour between cells. Adjacent samples often
   # land in the same clipped z-score, and without a border they merge into one
   # block so the number of sections is no longer readable off the panel.
+  # One font size for every label on the panel, so the sample names, the
+  # rotated feature names and the annotation titles stay in proportion.
+  .lab_gp <- grid::gpar(fontsize = fontsize)
+
   .rect_gp  <- if (is.na(cell_border)) grid::gpar(col = NA)
                else grid::gpar(col = cell_border, lwd = 0.5)
   # Same treatment for the annotation bars, so they read as one tile per
@@ -177,6 +184,7 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
       c(.anno_args, list(col = .col_args, show_legend = FALSE,
                           gp = .anno_gp,
                           show_annotation_name = TRUE,
+                          annotation_name_gp = .lab_gp,
                           annotation_name_side = "bottom")))
   }
 
@@ -190,6 +198,11 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
     top_anno <- do.call(ComplexHeatmap::HeatmapAnnotation,
       c(.anno_args, list(col = .col_args, gp = .anno_gp,
                           show_annotation_name = TRUE,
+                          annotation_name_gp = .lab_gp,
+                          annotation_legend_param = list(
+                            title_gp = grid::gpar(fontsize = fontsize,
+                                                   fontface = "bold"),
+                            labels_gp = .lab_gp),
                           annotation_name_side = "right")))
   }
 
@@ -224,6 +237,10 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
 
   hm <- do.call(ComplexHeatmap::Heatmap, c(list(
     z_matrix, name = "Z-score", col = .col_fn, rect_gp = .rect_gp,
+    row_names_gp = .lab_gp, column_names_gp = .lab_gp,
+    heatmap_legend_param = list(title_gp = grid::gpar(fontsize = fontsize,
+                                                       fontface = "bold"),
+                                labels_gp = .lab_gp),
     cluster_rows = FALSE, cluster_columns = FALSE, show_row_dend = FALSE,
     row_split = gs, row_title = NULL, cluster_row_slices = FALSE,
     column_split = fs, column_title = NULL, cluster_column_slices = FALSE,

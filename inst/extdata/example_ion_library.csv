@@ -1,9 +1,9 @@
-transition_id,precursor_mz,product_mz,collision_eV,cone_V,Type,Lipid,Polarity,Met-1
-12-HHTrE,279.2,179.1,13,20,Analyte,Oxylipin,Negative,COX
-12-HOPE,289.2,135.2,12,25,Analyte,Oxylipin,Negative,LOX
-9-HOTE,291.2,169.1,12,25,Analyte,Oxylipin,Negative,LOX
-13-HOTE,291.2,193.1,12,25,Analyte,Oxylipin,Negative,LOX
-15-HOTE,291.2,221.2,12,25,Analyte,Oxylipin,Negative,LOX
-8-isoPGE2 || PGE2 || PGD2,351.2,271.1,16,17,Analyte,Oxylipin,Negative,COX
-8-iso-PGF-2a || 11b-PGF-2a || PGF-2a,353.2,193.1,27,20,Analyte,Oxylipin,Negative,COX
-PGE2-d4,355.2,275.1,16,17,IS,Oxylipin,Negative,IS
+transition_id,precursor_mz,product_mz,collision_eV,cone_V,Type,Lipid,Polarity,Met-1,IS_norm
+12-HHTrE,279.2,179.1,13,20,Analyte,Oxylipin,Negative,COX,PGE2-d4
+12-HOPE,289.2,135.2,12,25,Analyte,Oxylipin,Negative,LOX,PGE2-d4
+9-HOTE,291.2,169.1,12,25,Analyte,Oxylipin,Negative,LOX,PGE2-d4
+13-HOTE,291.2,193.1,12,25,Analyte,Oxylipin,Negative,LOX,PGE2-d4
+15-HOTE,291.2,221.2,12,25,Analyte,Oxylipin,Negative,LOX,PGE2-d4
+8-isoPGE2 || PGE2 || PGD2,351.2,271.1,16,17,Analyte,Oxylipin,Negative,COX,PGE2-d4
+8-iso-PGF-2a || 11b-PGF-2a || PGF-2a,353.2,193.1,27,20,Analyte,Oxylipin,Negative,COX,PGE2-d4
+PGE2-d4,355.2,275.1,16,17,IS,Oxylipin,Negative,IS,

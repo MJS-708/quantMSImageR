@@ -41,12 +41,15 @@ setGeneric("int2conc", function(MSIobject, ...) standardGeneric("int2conc"))
 #'   a calibration acquisition.
 #' @param val_slot Character. Spectra slot holding the measured response
 #'   (default `"intensity"`).
-#' @param max_out_of_range Numeric in `[0, 1]`. Warn when more than this
-#'   proportion of a feature's pixels fall outside the calibrated range, i.e.
-#'   are extrapolated rather than interpolated (default `0.1`, so at least 90%
-#'   of pixels must be interpolated between real standards). Any extrapolation
-#'   at all is reported by `message()`; this controls only the escalation to a
-#'   warning. Set to `1` to silence it.
+#' @param max_out_of_range Numeric in `[0, 1]`. Largest proportion of a
+#'   feature's pixels allowed to fall outside the calibrated range, i.e. to be
+#'   extrapolated rather than interpolated (default `0.1`, so at least 90% of
+#'   pixels must be interpolated between real standards). Exceeding it is an
+#'   **error**, naming the features and pointing at [plot_cal_coverage()]:
+#'   either the standards need to bracket the tissue, or the extrapolation has
+#'   to be accepted explicitly by raising this value (`1` accepts any). Any
+#'   extrapolation at all is reported by `message()`; this controls only the
+#'   threshold at which that becomes fatal.
 #' @return The object subset to `pixels`, with two spectra slots added:
 #'   `pg_pixel` (estimated amount per pixel) and, when
 #'   `experimentData(MSIobject)$pixelSize` is available, `pg_mm2` (estimated
@@ -167,16 +170,23 @@ setMethod("int2conc", "quant_MSImagingExperiment",
                         paste(sprintf("  %-14s %.1f%%", names(any_oor),
                                       100 * any_oor), collapse = "\n"))
 
+              # A feature that is mostly extrapolated is not being quantified,
+              # and returning those numbers anyway invites them into a figure.
+              # Stopping forces the choice to be made deliberately: widen the
+              # standards, or accept the extrapolation in writing.
               bad = oor_vec[!is.na(oor_vec) & oor_vec > max_out_of_range]
               if(length(bad) > 0 && max_out_of_range < 1)
-                warning("int2conc: more than ", round(100 * max_out_of_range),
-                        "% of pixels fall outside the calibrated range for: ",
-                        paste(sprintf("%s (%.1f%%)", names(bad), 100 * bad),
-                              collapse = ", "),
-                        ". These amounts are extrapolated and should not be ",
-                        "treated as quantitative -- check plot_cal_coverage(). ",
-                        "Set max_out_of_range = 1 to silence this.",
-                        call. = FALSE)
+                stop("int2conc: more than ", round(100 * max_out_of_range),
+                     "% of pixels fall outside the calibrated range for:\n",
+                     paste(sprintf("  %-14s %.1f%%", names(bad), 100 * bad),
+                           collapse = "\n"),
+                     "\nThese amounts would be extrapolated rather than ",
+                     "interpolated, so they are not quantitative. Either build ",
+                     "a calibration curve that brackets the tissue -- ",
+                     "plot_cal_coverage() shows where the pixels sit relative ",
+                     "to the standards -- or raise max_out_of_range to accept ",
+                     "this much extrapolation (max_out_of_range = 1 accepts ",
+                     "any).", call. = FALSE)
             }
 
             MSIobject@calibrationInfo@r2_df$out_of_range =

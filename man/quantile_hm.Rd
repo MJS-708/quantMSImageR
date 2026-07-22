@@ -12,9 +12,10 @@ quantile_hm(
   feature_split = NULL,
   feature_split_name = "Pathway",
   group_split_name = "Group",
-  cell_size = 6,
+  cell_size = 8,
   max_aspect = 1.5,
   cell_border = "white",
+  fontsize = 8,
   palette = c("heatmap2", "heatmap0"),
   group_palette = "hat",
   feature_palette = "reading",
@@ -49,7 +50,7 @@ legend (e.g. \code{"Met-1"}, \code{"Pathway"}). Defaults to \code{"Pathway"}.}
 (e.g. \code{"Treatment"}, \code{"Group"}). Defaults to \code{"Group"}.}
 
 \item{cell_size}{Numeric. Side of a heatmap cell, in millimetres (default
-\code{6}). Giving the body an absolute size is what makes cells square; leaving
+\code{8}). Giving the body an absolute size is what makes cells square; leaving
 it to \code{ComplexHeatmap} stretches them to fill the device, which produces
 very oblong cells when there are far more features than samples. Set to
 \code{NA} to restore the fill-the-device behaviour.}
@@ -63,6 +64,10 @@ plotting area is not reduced to a sliver.}
 \item{cell_border}{Colour for the line drawn around every cell (default
 \code{"white"}), which separates neighbouring cells instead of letting equal
 colours merge into one block. \code{NA} draws no border.}
+
+\item{fontsize}{Numeric. Point size for the sample and feature labels and the
+annotation names (default \code{8}). \code{ComplexHeatmap} defaults to 12, which
+crowds the panel once feature names are long enough to need rotating.}
 
 \item{palette}{Character. Diverging colour ramp for the z-scores:
 \code{"heatmap2"} (default, blue-white-red) or \code{"heatmap0"}. See
