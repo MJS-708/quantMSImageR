@@ -883,7 +883,7 @@ cat("# 6. Quantification\n\n",
 ```
 
 ```{r cal-r2, echo=FALSE, eval=.has_cal}
-.r2 <- quantMSImageR::calibrationR2(.cal_obj)
+.r2 <- quantMSImageR::calibrationDiagnostics(.cal_obj)
 .cl <- quantMSImageR::calibrationModels(.cal_obj)
 
 .eqn <- data.frame(
@@ -892,16 +892,27 @@ cat("# 6. Quantification\n\n",
   intercept = vapply(.cl, function(m) unname(stats::coef(m)[1]), numeric(1)),
   row.names = NULL
 )
-.eqn$r2 <- .r2$r2[match(.eqn$analyte, .r2$feature)]
+.m <- match(.eqn$analyte, .r2$feature)
+.eqn$r2 <- .r2$r2[.m]
+
+# Proportion of pixels extrapolated beyond the calibrated range, added by
+# int2conc(). Shown as a percentage so it reads alongside R-squared.
+.cols <- c("slope", "intercept", "r2")
+if ("out_of_range" %in% names(.r2)) {
+  .eqn$`out of range (%)` <- 100 * .r2$out_of_range[.m]
+  .cols <- c(.cols, "out of range (%)")
+}
 
 DT::datatable(.eqn, rownames = FALSE,
               options = list(dom = "t", pageLength = nrow(.eqn))) |>
-  DT::formatSignif(c("slope", "intercept", "r2"), digits = 4)
+  DT::formatSignif(.cols, digits = 4)
 ```
 
 ```{r cal-cov-heading, results="asis", echo=FALSE, eval=.has_cal}
-cat("A low R-squared flags a standard that misbehaved; concentrations derived ",
-    "from that analyte's curve should not be trusted.\n\n",
+cat("A low R-squared flags a standard that misbehaved, and a high ",
+    "out-of-range percentage means those amounts were extrapolated beyond the ",
+    "calibrated range rather than interpolated within it. Amounts from such an ",
+    "analyte should not be treated as quantitative.\n\n",
     "## 6.2 Calibration coverage\n\n",
     "Converting intensities to concentrations is only valid where the ",
     "standards constrain the fit. The lower panel shows the standard spots and ",

@@ -281,7 +281,14 @@ run_study <- function(config_file) {
     message("Calibration enabled: building curves from '", .cal$cal_acquisition, "'.")
 
     cal_val  <- .cal$val_slot         %||% "intensity"
-    cal_type <- .cal$cal_type         %||% "std_addition"
+
+    # No fallback: "cal" and "std_addition" do materially different things, so
+    # the config must say which.
+    cal_type <- .cal$cal_type
+    if (is.null(cal_type) || !nzchar(cal_type))
+      stop("Calibration is enabled but `calibration: cal_type:` is not set. ",
+           "Use \"cal\" for standards on the slide, or \"std_addition\" for ",
+           "standard addition on tissue.", call. = FALSE)
     bg_level <- .cal$background_level %||% "background"
     q_pixels <- as.character(unlist(.cal$quantify_pixels %||% "tissue_pixels"))
 

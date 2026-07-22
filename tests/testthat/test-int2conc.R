@@ -12,7 +12,7 @@ test_that("int2conc converts intensities to calibrated amount layers", {
                               cal_label = "Cal", id = "identifier")
   cal <- create_cal_curve(cal, cal_type = "cal")
 
-  out <- int2conc(cal, val_slot = "intensity", pixels = "Tissue")
+  out <- int2conc(cal, pixel_header = "sample_type", pixels = "Tissue")
 
   pp <- spectra(out, "pg_pixel")
   mm <- spectra(out, "pg_mm2")

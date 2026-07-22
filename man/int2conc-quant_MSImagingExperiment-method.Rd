@@ -8,9 +8,9 @@
 \S4method{int2conc}{quant_MSImagingExperiment}(
   MSIobject,
   val_slot = "intensity",
-  pixel_header = "sample_type",
-  pixels = "Tissue",
-  max_out_of_range = 0.9
+  pixel_header = "sample_name",
+  pixels = "tissue_pixels",
+  max_out_of_range = 0.1
 )
 }
 \arguments{
@@ -21,16 +21,19 @@ fitted by \code{\link[=create_cal_curve]{create_cal_curve()}}.}
 (default \code{"intensity"}).}
 
 \item{pixel_header}{Character. Column of \code{pData()} holding the pixel-type
-labels (default \code{"sample_type"}).}
+labels (default \code{"sample_name"}). Pass \code{pixel_header = "sample_type"} for
+a calibration acquisition.}
 
 \item{pixels}{Character. Label(s) in \code{pixel_header} marking the pixels to
-quantify (default \code{"Tissue"}).}
+quantify (default \code{"tissue_pixels"}, the imaging convention). Pass
+\code{pixels = "Tissue"} for a calibration acquisition.}
 
 \item{max_out_of_range}{Numeric in \verb{[0, 1]}. Warn when more than this
 proportion of a feature's pixels fall outside the calibrated range, i.e.
-are extrapolated rather than interpolated (default \code{0.9}). Any
-extrapolation at all is reported by \code{message()}; this controls only the
-escalation to a warning. Set to \code{1} to silence it.}
+are extrapolated rather than interpolated (default \code{0.1}, so at least 90\%
+of pixels must be interpolated between real standards). Any extrapolation
+at all is reported by \code{message()}; this controls only the escalation to a
+warning. Set to \code{1} to silence it.}
 }
 \value{
 The object subset to \code{pixels}, with two spectra slots added:
@@ -54,6 +57,21 @@ calibration design, matrix matching, acquisition conditions and the validity
 of the fitted model -- see \code{\link[=plot_cal_coverage]{plot_cal_coverage()}} for the coverage check that
 should accompany them.
 }
+\section{Areal conversion}{
+
+\code{pg_pixel} is inverted directly from the calibration model. \code{pg_mm2} is then
+derived from the pixel size recorded in the acquisition metadata:
+
+\deqn{pg/mm^2 = (pg/pixel) \times (1000 / s)^2}
+
+where \code{s} is \code{experimentData(MSIobject)$pixelSize}, \strong{expected in
+micrometres}, and the factor 1000 converts micrometres to millimetres. A
+single scalar is assumed, i.e. square pixels of side \code{s}; rectangular pixels
+are not currently supported, and supplying \code{s} in millimetres would inflate
+the result by a factor of 10^6. When \code{pixelSize} is missing or not a positive
+number the \code{pg_mm2} slot is omitted and a warning is issued.
+}
+
 \examples{
 cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
 cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
@@ -62,7 +80,10 @@ cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
 cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
                             cal_label = "Cal", id = "identifier")
 cal <- create_cal_curve(cal, cal_type = "cal")
-cal <- int2conc(cal, val_slot = "intensity", pixels = "Tissue")
+
+# A calibration acquisition labels its pixels in `sample_type`, so the
+# imaging defaults are overridden here
+cal <- int2conc(cal, pixel_header = "sample_type", pixels = "Tissue")
 
 }
 \seealso{

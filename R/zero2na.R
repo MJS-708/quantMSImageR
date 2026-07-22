@@ -6,6 +6,10 @@ setGeneric("zero2na", function(MSIobject, ...) standardGeneric("zero2na"))
 #' zero", and left in place they bias means and compress colour scales. This
 #' converts them to `NA` so they are excluded from summaries.
 #'
+#' @section Destructive:
+#' This modifies `val_slot` in place rather than adding a new layer. Keep a copy
+#' of the object if the original values are needed afterwards.
+#'
 #' @import Cardinal
 #' @include setClasses.R
 #'

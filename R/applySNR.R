@@ -7,6 +7,10 @@ setGeneric("applySNR", function(MSIobject, ...) standardGeneric("applySNR"))
 #' (stored as `NA` in the `snr` slot) are suppressed in the intensity slot so
 #' they are excluded from downstream analysis and visualisation.
 #'
+#' @section Destructive:
+#' This modifies `val_slot` in place rather than adding a new layer. Keep a copy
+#' of the object if the pre-masking values are needed afterwards.
+#'
 #' @import Cardinal
 #' @include setClasses.R
 #'
@@ -22,9 +26,7 @@ setGeneric("applySNR", function(MSIobject, ...) standardGeneric("applySNR"))
 #' p <- system.file("extdata", "example.raw", "section01.RDS",
 #'                  package = "quantMSImageR")
 #' obj <- as(readRDS(p), "quant_MSImagingExperiment")
-#' obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
-#'                background = "background_pixels", tissue = "tissue_pixels",
-#'                snr_thresh = 3)
+#' obj <- int2snr(obj, snr_thresh = 3)
 #' obj <- applySNR(obj, val_slot = "intensity")
 #'
 #' @seealso [int2snr()]

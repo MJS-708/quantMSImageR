@@ -25,13 +25,17 @@ Typically called after \code{int2snr()}: pixels that did not pass the SNR thresh
 (stored as \code{NA} in the \code{snr} slot) are suppressed in the intensity slot so
 they are excluded from downstream analysis and visualisation.
 }
+\section{Destructive}{
+
+This modifies \code{val_slot} in place rather than adding a new layer. Keep a copy
+of the object if the pre-masking values are needed afterwards.
+}
+
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",
                  package = "quantMSImageR")
 obj <- as(readRDS(p), "quant_MSImagingExperiment")
-obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
-               background = "background_pixels", tissue = "tissue_pixels",
-               snr_thresh = 3)
+obj <- int2snr(obj, snr_thresh = 3)
 obj <- applySNR(obj, val_slot = "intensity")
 
 }

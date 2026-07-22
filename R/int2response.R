@@ -14,8 +14,12 @@ setGeneric("int2response", function(MSIobject, ...) standardGeneric("int2respons
 #' @param val_slot Character. Spectra slot to normalise (default
 #'   `"intensity"`).
 #' @param IS_name Character. Name of the internal standard in
-#'   `fData(MSIobject)` under the analyte header. `"None"` (the default)
-#'   normalises each feature to itself.
+#'   `fData(MSIobject)` under the analyte header. `"None"` (the default) performs
+#'   **within-feature normalisation** instead: each feature is divided by its own
+#'   summary at the chosen `mode`. That is not internal-standard normalisation,
+#'   and it is not the same as skipping normalisation -- it removes
+#'   between-line or between-sample scale differences within each feature. To
+#'   leave values untouched, simply do not call this function.
 #' @param mode Character. Level at which the standard is summarised:
 #'   `"sample"` (median internal-standard intensity per sample), `"line"`
 #'   (per acquisition line, the default) or `"pixel"` (per pixel).

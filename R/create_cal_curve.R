@@ -7,24 +7,38 @@ setGeneric("create_cal_curve", function(MSIobject, ...) standardGeneric("create_
 #' amount per pixel.
 #'
 #' @details
+#' `cal_type` has no default and must be chosen explicitly, because the two
+#' modes apply materially different processing.
+#'
 #' `cal_type = "cal"` fits the summarised response directly against the amount
 #' deposited, appropriate for standards spotted onto the slide beside the
 #' tissue (on-slide / external calibration).
 #'
-#' `cal_type = "std_addition"` first estimates the background contribution and
-#' subtracts it from the deposited amounts before fitting, appropriate for
-#' standards deposited onto tissue. Note that this is
-#' **background-corrected on-tissue calibration** rather than classical standard
-#' addition, which would estimate the endogenous amount from the x-intercept
-#' across added amounts. The argument value is retained for compatibility.
+#' `cal_type = "std_addition"` is classical **standard addition**, for standards
+#' deposited onto tissue where endogenous analyte is already present. It:
+#' \enumerate{
+#'   \item fits an unweighted `response ~ deposited amount` across all levels;
+#'   \item takes the x-intercept of that line -- the amount at which predicted
+#'     response is zero -- as an estimate of the endogenous amount already in
+#'     the tissue (this value is negative when endogenous signal is present);
+#'   \item subtracts it from every deposited amount, which shifts the x-axis so
+#'     it expresses **total** amount present (endogenous + added);
+#'   \item drops the rows at the `background` level and refits on that shifted
+#'     axis.
+#' }
+#'
+#' In both modes the final fit is weighted by `1/amount`. This reduces the
+#' influence of the highest calibration levels, but whether it is the right
+#' weighting should be assessed from the residual structure of your own
+#' analytical method.
 #'
 #' @import Cardinal
 #' @include setClasses.R
 #'
 #' @param MSIobject A `quant_MSImagingExperiment` whose `cal_response_data` has
 #'   been populated by [summarise_cal_levels()].
-#' @param cal_type Character. `"cal"` for standards deposited onto the slide,
-#'   `"std_addition"` for background-corrected on-tissue calibration.
+#' @param cal_type Character, required. `"cal"` for standards deposited onto the
+#'   slide, `"std_addition"` for standard addition on tissue. See Details.
 #' @param level Character. Column of `cal_response_data` holding the level
 #'   labels (default `"level"`).
 #' @param background Character. Value of `level` marking the background level
@@ -46,7 +60,17 @@ setGeneric("create_cal_curve", function(MSIobject, ...) standardGeneric("create_
 #' @aliases create_cal_curve
 #' @export
 setMethod("create_cal_curve", "quant_MSImagingExperiment",
-          function(MSIobject, cal_type = "std_addition", level = "level", background = "background"){
+          function(MSIobject, cal_type, level = "level", background = "background"){
+
+            # No default: "cal" and "std_addition" apply materially different
+            # processing, and silently assuming one of them is a quantitative
+            # risk rather than a convenience.
+            if (missing(cal_type))
+              stop("create_cal_curve: `cal_type` must be given explicitly -- ",
+                   "\"cal\" for standards deposited on the slide, or ",
+                   "\"std_addition\" for standard addition on tissue.",
+                   call. = FALSE)
+            cal_type <- match.arg(cal_type, c("cal", "std_addition"))
 
             cal_data = MSIobject@calibrationInfo@cal_response_data
 

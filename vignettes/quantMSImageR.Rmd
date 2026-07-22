@@ -32,14 +32,15 @@ images look more uniform than they are. Which pixels are tissue has to be
 decided per acquisition, and the decision has to survive being re-applied to a
 different MRM panel of the same sample.
 
-**Not every transition is real.** A transition can be listed in the method and
-still carry no usable signal in a given section, or sit so close to background
-that it is indistinguishable from it. Reporting those alongside genuine
-measurements is how spurious hits reach a figure.
+**Not every monitored transition yields usable analyte signal.** A transition
+can be listed in the method and still carry no usable signal in a given section,
+or sit so close to background that it is indistinguishable from it. Reporting
+those alongside genuine measurements is how spurious hits reach a figure.
 
-**Intensity is not concentration.** Response depends on ionisation efficiency
-and local matrix suppression, so intensities cannot be compared between
-analytes, sections or instruments without calibration standards.
+**Response is not amount.** Response depends on ionisation efficiency and local
+matrix suppression, so raw responses should not be interpreted as analyte
+amount, and their comparability between analytes, sections or instruments should
+not be assumed without appropriate normalisation and calibration.
 
 ## What this package does
 
@@ -50,10 +51,12 @@ the third.
 
 ## Scope
 
-The package is built for **targeted** imaging data, and is designed to handle:
+The package is currently validated for **Waters DESI-MRM** data. Other targeted
+imaging data may be analysed after conversion to a compatible
+`MSImagingExperiment`, but those workflows have not yet been formally validated.
 
-- targeted DESI-MRM acquisitions (and, in principle, other targeted imaging
-  data with a transition list);
+Within that scope it is designed to handle:
+
 - background-referenced filtering against non-tissue pixels;
 - targeted ion-image visualisation and `.txt` export;
 - cross-sample summaries such as quantile heatmaps;
@@ -66,7 +69,7 @@ It does **not** do the following, by design -- other tools do them better:
 | Untargeted peak detection | a general MSI processing package |
 | Feature annotation / molecular identification | dedicated annotation tools |
 | Vendor-neutral raw-data conversion | vendor or community converters |
-| Histological registration | [tmaps](https://github.com/MJS-708) |
+| Histological registration | [TissUUmaps](https://tissuumaps.github.io/); our own helper tools are still in development ([PMID 42438167](https://pubmed.ncbi.nlm.nih.gov/42438167/)) |
 | General-purpose image segmentation | image-analysis packages |
 | Complex spatial / colocalisation analysis | [corrMSI](https://github.com/MJS-708/corrMSI/tree/dev) |
 
@@ -158,15 +161,18 @@ Every acquisition is a `Cardinal::MSImagingExperiment`. `quantMSImageR` adds the
 calibration and tissue metadata, so most functions coerce with `as()` first.
 
 The object is **features x pixels**: one row per MRM transition, one column per
-pixel. Derived layers are added as further *spectra slots* alongside
-`intensity`, so the original values are never overwritten:
+pixel. Calculated quantities -- `response`, `snr`, calibrated amount -- are
+stored as *additional* spectra layers. Masking functions are the exception:
+`applySNR()`, `back2NA()` and `zero2na()` modify the selected `val_slot` in
+place, so keep a copy of the object when the unmodified values are needed
+afterwards.
 
 | Component | Contains | Accessor |
 |---|---|---|
 | spectra slots | `intensity` (raw), `response` (IS-normalised), `snr`, `pg_pixel` / `pg_mm2` (calibrated) | `spectra(x, "name")`, `spectraData(x)` |
 | feature metadata | `mz`, `name`, transition m/z, analyte type, ion-library columns | `fData(x)` |
 | pixel metadata | `x`, `y`, `run`, tissue/background label | `pData(x)` |
-| calibration | fitted models, calibration levels, R² | `calibrationModels(x)`, `calibrationLevels(x)`, `calibrationR2(x)` |
+| calibration | fitted models, calibration levels, fit diagnostics | `calibrationModels(x)`, `calibrationLevels(x)`, `calibrationDiagnostics(x)` |
 | tissue summaries | pixel and ROI matrices | `tissueMatrix(x)`, `tissueData(x)` |
 
 Multiple acquisitions are held in **one object**, distinguished by the `run`
@@ -395,9 +401,7 @@ the background pixels, and `applySNR()` then sets every sub-threshold pixel to
 `NA` in the intensity slot.
 
 ```{r snr-apply}
-combined <- int2snr(combined, val_slot = "intensity",
-                    sample_type = "sample_name", background = "background_pixels",
-                    tissue = "tissue_pixels", snr_thresh = 3)
+combined <- int2snr(combined, val_slot = "intensity", snr_thresh = 3)
 combined <- applySNR(combined, val_slot = "intensity")
 ```
 

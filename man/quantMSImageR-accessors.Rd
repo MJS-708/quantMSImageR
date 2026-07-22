@@ -5,6 +5,7 @@
 \alias{calibrationData}
 \alias{calibrationModels}
 \alias{calibrationR2}
+\alias{calibrationDiagnostics}
 \alias{calibrationLevels}
 \alias{calibrationMetadata}
 \alias{tissueData}
@@ -15,6 +16,7 @@
 \alias{calibrationModels,quant_MSImagingExperiment-method}
 \alias{calibrationModels<-}
 \alias{calibrationModels<-,quant_MSImagingExperiment-method}
+\alias{calibrationDiagnostics,quant_MSImagingExperiment-method}
 \alias{calibrationR2,quant_MSImagingExperiment-method}
 \alias{calibrationLevels,quant_MSImagingExperiment-method}
 \alias{calibrationMetadata,quant_MSImagingExperiment-method}
@@ -37,6 +39,10 @@ calibrationModels(x)
 calibrationModels(x) <- value
 
 \S4method{calibrationModels}{quant_MSImagingExperiment}(x) <- value
+
+calibrationDiagnostics(x)
+
+\S4method{calibrationDiagnostics}{quant_MSImagingExperiment}(x)
 
 calibrationR2(x)
 
@@ -68,8 +74,9 @@ matrix (\code{"roi"}, the default) or the per-pixel matrix (\code{"pixel"}).}
 }
 \value{
 \code{calibrationModels()} a named list of \code{lm} objects, one per calibrated
-analyte. \code{calibrationR2()} a data frame of fit quality, one row per analyte,
-with an \code{out_of_range} column once \code{\link[=int2conc]{int2conc()}} has run.
+analyte. \code{calibrationDiagnostics()} a data frame of fit quality, one row per
+analyte: \code{feature}, \code{r2}, and an \code{out_of_range} column once \code{\link[=int2conc]{int2conc()}} has
+run. \code{calibrationR2()} the \code{feature}/\code{r2} columns of that table only.
 \code{calibrationLevels()} the summarised response per calibration level.
 \code{calibrationMetadata()} the calibration design supplied by the user.
 \code{calibrationData()} the whole \code{calibrationInfo} object.
@@ -105,7 +112,7 @@ cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
 cal <- create_cal_curve(cal, cal_type = "cal")
 
 names(calibrationModels(cal))
-calibrationR2(cal)
+calibrationDiagnostics(cal)
 head(calibrationLevels(cal))
 
 # Carry the fitted models onto a study acquisition

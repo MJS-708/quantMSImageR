@@ -28,14 +28,20 @@ setGeneric("int2snr", function(MSIobject, ...) standardGeneric("int2snr"))
 #' @import Cardinal
 #' @include setClasses.R
 #'
-#' @param MSIobject quant_MSImagingExperiment - including a background label in `pData(MSIobject)[[sample_type]]`
-#' @param background character in `pData(MSIobject)[[sample_type]]` marking the
-#'   background (non-tissue) pixels used to estimate the noise level. Defaults to
-#'   `"background_pixels"`; the historical `"noise_pixels"` / `"Noise"` labels are
-#'   matched too, so masks made with earlier versions keep working.
+#' @param MSIobject A `quant_MSImagingExperiment` whose `pData()` carries a
+#'   background label in the `pixel_header` column.
+#' @param pixel_header Character. Column of `pData()` holding the pixel-type
+#'   labels (default `"sample_name"`, the imaging convention).
+#' @param background Character. Value in `pixel_header` marking the background
+#'   (non-tissue) pixels used to estimate the noise level (default
+#'   `"background_pixels"`). The historical `"noise_pixels"` / `"Noise"` labels
+#'   are matched too, so masks made with earlier versions keep working.
+#' @param tissue Character. Value in `pixel_header` marking the tissue pixels
+#'   SNR is calculated for (default `"tissue_pixels"`).
 #' @param noise Deprecated alias for `background`, kept for backward
 #'   compatibility. When supplied it overrides `background`.
-#' @param tissue character in pData(MSIobject)$sample_type which indicates tissue pixels to calculate SNR for
+#' @param sample_type Deprecated alias for `pixel_header`, kept for backward
+#'   compatibility. When supplied it overrides `pixel_header`.
 #' @param val_slot Character. Spectra slot holding the measured response
 #'   (default `"intensity"`; use `"response"` after [int2response()]).
 #' @param snr_thresh Global minimum SNR to accept (below this value SNR = NA).
@@ -45,51 +51,55 @@ setGeneric("int2snr", function(MSIobject, ...) standardGeneric("int2snr"))
 #'   feature listed here uses its own threshold instead of `snr_thresh`;
 #'   features not listed fall back to `snr_thresh`. Default `NULL` (all
 #'   features use the global threshold).
-#' @param sample_type character column in pData(MSIobject) holding the pixel-type
-#'   labels (default "sample_type").
-#' @param average character, "mean" or "median": statistic used to summarise the
-#'   background-pixel vector per feature.
+#' @param average Character, `"median"` (default) or `"mean"`: statistic used to
+#'   summarise the background-pixel vector per feature.
 #' @param ... Additional arguments (currently unused).
-#' @return MSIobject with intensity values replaced with SNR values
+#' @return The input object with an additional `snr` spectra slot. Values below
+#'   the selected threshold, and values outside the pixels labelled `tissue`,
+#'   are stored as `NA` in that slot. No existing slot is modified.
 #'
 #' @examples
 #' p <- system.file("extdata", "example.raw", "section01.RDS",
 #'                  package = "quantMSImageR")
 #' obj <- as(readRDS(p), "quant_MSImagingExperiment")
-#' obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
-#'                background = "background_pixels", tissue = "tissue_pixels",
-#'                snr_thresh = 3)
+#'
+#' # The defaults match the imaging convention used throughout the package
+#' obj <- int2snr(obj, snr_thresh = 3)
+#' names(spectraData(obj))
 #'
 #' @family filtering
 #' @aliases int2snr
 #' @export
 setMethod("int2snr", "quant_MSImagingExperiment",
           function(MSIobject, val_slot = "intensity",
-                   background = "background_pixels", tissue = "Tissue",
-                   snr_thresh = 3, sample_type = "sample_type",
-                   average = c("mean", "median"), snr_overrides = NULL,
-                   noise = NULL, ...){
+                   pixel_header = "sample_name",
+                   background = "background_pixels", tissue = "tissue_pixels",
+                   snr_thresh = 3,
+                   average = c("median", "mean"), snr_overrides = NULL,
+                   noise = NULL, sample_type = NULL, ...){
             average <- match.arg(average)
 
-            # Backward compatibility: `noise` was the previous argument name.
+            # Backward compatibility: `noise` and `sample_type` were the
+            # previous argument names.
             if (!is.null(noise)) background <- noise
+            if (!is.null(sample_type)) pixel_header <- sample_type
             .bg <- .bg_labels(background)
 
-            if(!any(pData(MSIobject)[[sample_type]] %in% .bg)){
+            if(!any(pData(MSIobject)[[pixel_header]] %in% .bg)){
               # No background pixels to compute SNR against -- fall back to a
               # non-filtering snr slot (copy of intensity). Adding the slot
               # here is required so that downstream applySNR() and combine_MSIs()
               # (cbind) see a consistent set of spectra arrays across sections.
-              warning("int2snr: no '", background, "' pixels in sample_type='",
-                      sample_type, "'. Returning intensity as snr (no SNR filtering).",
+              warning("int2snr: no '", background, "' pixels in pixel_header='",
+                      pixel_header, "'. Returning intensity as snr (no SNR filtering).",
                       call. = FALSE)
               spectra(MSIobject, "snr") <- spectra(MSIobject, val_slot)
               return(MSIobject)
             }
 
             #Set background and tissue pixels
-            bg_pixels = which(pData(MSIobject)[[sample_type]] %in% .bg)
-            tissue_pixels = which(pData(MSIobject)[[sample_type]] == tissue)
+            bg_pixels = which(pData(MSIobject)[[pixel_header]] %in% .bg)
+            tissue_pixels = which(pData(MSIobject)[[pixel_header]] %in% tissue)
 
             spectra(MSIobject, "snr") = matrix(nrow = nrow(MSIobject), ncol = ncol(MSIobject))
 

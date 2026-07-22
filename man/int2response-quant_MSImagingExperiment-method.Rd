@@ -21,8 +21,12 @@
 \code{"intensity"}).}
 
 \item{IS_name}{Character. Name of the internal standard in
-\code{fData(MSIobject)} under the analyte header. \code{"None"} (the default)
-normalises each feature to itself.}
+\code{fData(MSIobject)} under the analyte header. \code{"None"} (the default) performs
+\strong{within-feature normalisation} instead: each feature is divided by its own
+summary at the chosen \code{mode}. That is not internal-standard normalisation,
+and it is not the same as skipping normalisation -- it removes
+between-line or between-sample scale differences within each feature. To
+leave values untouched, simply do not call this function.}
 
 \item{mode}{Character. Level at which the standard is summarised:
 \code{"sample"} (median internal-standard intensity per sample), \code{"line"}

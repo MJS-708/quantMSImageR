@@ -20,6 +20,12 @@ Zeros in an MRM acquisition mean "nothing recorded" rather than "measured as
 zero", and left in place they bias means and compress colour scales. This
 converts them to \code{NA} so they are excluded from summaries.
 }
+\section{Destructive}{
+
+This modifies \code{val_slot} in place rather than adding a new layer. Keep a copy
+of the object if the original values are needed afterwards.
+}
+
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",
                  package = "quantMSImageR")

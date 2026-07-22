@@ -10,7 +10,7 @@ calibrated_obj <- function() {
   cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
                               cal_label = "Cal", id = "identifier")
   cal <- create_cal_curve(cal, cal_type = "cal")
-  int2conc(cal, val_slot = "intensity", pixels = "Tissue")
+  int2conc(cal, pixel_header = "sample_type", pixels = "Tissue")
 }
 
 test_that("plot_cal_coverage returns a two-panel plot for all calibrated features", {

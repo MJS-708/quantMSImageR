@@ -4,9 +4,10 @@ setGeneric("plot_cal_coverage", function(MSIobject, ...) standardGeneric("plot_c
 #'
 #' Converting a response into a calibrated amount is only trustworthy where the
 #' standards actually constrain the fit. A calibration whose levels sit above or
-#' below the signal measured in tissue is extrapolation, not quantification --
-#' and because [int2conc()] will happily invert the model anywhere, that failure
-#' is silent.
+#' below the signal measured in tissue is extrapolation, not quantification.
+#' [int2conc()] reports the proportion of extrapolated pixels per feature, but
+#' without an explicit coverage check that is still easy to overlook -- and the
+#' plot shows *where* the mismatch is, not just how much of it there is.
 #'
 #' This function plots the two together on log axes so the overlap can be
 #' judged directly. The lower panel is the calibration itself: the standard
@@ -18,11 +19,11 @@ setGeneric("plot_cal_coverage", function(MSIobject, ...) standardGeneric("plot_c
 #' @details
 #' The standards are read back from each model's own model frame
 #' (`stats::model.frame`) rather than from `cal_response_data`. This matters for
-#' `cal_type = "std_addition"`, where [create_cal_curve()] subtracts the
-#' background level before fitting: the stored response data is on the
-#' un-subtracted axis, so plotting it against the fitted line would put the
-#' points and the model on different scales. The model frame always holds the
-#' points the line was actually fitted to.
+#' `cal_type = "std_addition"`, where [create_cal_curve()] shifts the amount
+#' axis by the estimated endogenous amount before fitting: the stored response
+#' data is on the unshifted axis, so plotting it against the fitted line would
+#' put the points and the model on different scales. The model frame always
+#' holds the points the line was actually fitted to.
 #'
 #' The fitted model is linear in amount, so on log axes it is drawn as a curve
 #' evaluated across the plotted range rather than as a straight line. Any part
@@ -34,7 +35,7 @@ setGeneric("plot_cal_coverage", function(MSIobject, ...) standardGeneric("plot_c
 #'
 #' @param MSIobject A `quant_MSImagingExperiment` that has been through
 #'   [create_cal_curve()] and [int2conc()], so it carries both the fitted models
-#'   in `@calibrationInfo@cal_list` and a calibrated-amount slot.
+#'   (see [calibrationModels()]) and a calibrated-amount slot.
 #' @param features Features to plot: a character vector of names as in
 #'   `fData(MSIobject)$name`, or numeric row indices. Defaults to every feature
 #'   that has a calibration model.
@@ -68,7 +69,7 @@ setGeneric("plot_cal_coverage", function(MSIobject, ...) standardGeneric("plot_c
 #' cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
 #'                             cal_label = "Cal", id = "identifier")
 #' cal <- create_cal_curve(cal, cal_type = "cal")
-#' cal <- int2conc(cal, val_slot = "intensity", pixels = "Tissue")
+#' cal <- int2conc(cal, pixel_header = "sample_type", pixels = "Tissue")
 #'
 #' plot_cal_coverage(cal, val_slot = "intensity")
 #'
@@ -81,7 +82,7 @@ setMethod("plot_cal_coverage", "quant_MSImagingExperiment",
                    cal_colour = "red", cal_alpha = 0.4,
                    cal_linetype = "dotted", ...){
 
-            cal_list = MSIobject@calibrationInfo@cal_list
+            cal_list = calibrationModels(MSIobject)
             if(length(cal_list) == 0)
               stop("plot_cal_coverage: no calibration models found. Run ",
                    "create_cal_curve() first.", call. = FALSE)

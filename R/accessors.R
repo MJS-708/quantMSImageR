@@ -24,8 +24,9 @@
 #'
 #' @return
 #' `calibrationModels()` a named list of `lm` objects, one per calibrated
-#' analyte. `calibrationR2()` a data frame of fit quality, one row per analyte,
-#' with an `out_of_range` column once [int2conc()] has run.
+#' analyte. `calibrationDiagnostics()` a data frame of fit quality, one row per
+#' analyte: `feature`, `r2`, and an `out_of_range` column once [int2conc()] has
+#' run. `calibrationR2()` the `feature`/`r2` columns of that table only.
 #' `calibrationLevels()` the summarised response per calibration level.
 #' `calibrationMetadata()` the calibration design supplied by the user.
 #' `calibrationData()` the whole `calibrationInfo` object.
@@ -43,7 +44,7 @@
 #' cal <- create_cal_curve(cal, cal_type = "cal")
 #'
 #' names(calibrationModels(cal))
-#' calibrationR2(cal)
+#' calibrationDiagnostics(cal)
 #' head(calibrationLevels(cal))
 #'
 #' # Carry the fitted models onto a study acquisition
@@ -55,7 +56,7 @@
 #' @import Cardinal
 #' @include setClasses.R
 #' @name quantMSImageR-accessors
-#' @aliases calibrationData calibrationModels calibrationR2 calibrationLevels calibrationMetadata tissueData tissueMatrix
+#' @aliases calibrationData calibrationModels calibrationR2 calibrationDiagnostics calibrationLevels calibrationMetadata tissueData tissueMatrix
 #' @family accessors
 NULL
 
@@ -111,7 +112,16 @@ setReplaceMethod("calibrationModels", "quant_MSImagingExperiment",
                    x
                  })
 
-# ---- calibrationR2 ----------------------------------------------------------
+# ---- calibration diagnostics ------------------------------------------------
+
+#' @rdname quantMSImageR-accessors
+#' @export
+setGeneric("calibrationDiagnostics", function(x) standardGeneric("calibrationDiagnostics"))
+
+#' @rdname quantMSImageR-accessors
+#' @export
+setMethod("calibrationDiagnostics", "quant_MSImagingExperiment",
+          function(x) x@calibrationInfo@r2_df)
 
 #' @rdname quantMSImageR-accessors
 #' @export
@@ -120,7 +130,13 @@ setGeneric("calibrationR2", function(x) standardGeneric("calibrationR2"))
 #' @rdname quantMSImageR-accessors
 #' @export
 setMethod("calibrationR2", "quant_MSImagingExperiment",
-          function(x) x@calibrationInfo@r2_df)
+          function(x) {
+            # Kept for compatibility, and now narrowed to what its name claims:
+            # the full table (R2 plus the out_of_range column int2conc() adds)
+            # is calibrationDiagnostics().
+            d <- x@calibrationInfo@r2_df
+            d[, intersect(c("feature", "r2"), names(d)), drop = FALSE]
+          })
 
 # ---- calibrationLevels ------------------------------------------------------
 

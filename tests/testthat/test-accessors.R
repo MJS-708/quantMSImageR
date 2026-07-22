@@ -16,7 +16,9 @@ test_that("calibration accessors return the underlying slots", {
   cal <- fitted_cal()
 
   expect_identical(calibrationModels(cal),   cal@calibrationInfo@cal_list)
-  expect_identical(calibrationR2(cal),       cal@calibrationInfo@r2_df)
+  expect_identical(calibrationDiagnostics(cal), cal@calibrationInfo@r2_df)
+  # calibrationR2() is narrowed to what its name promises
+  expect_setequal(names(calibrationR2(cal)), c("feature", "r2"))
   expect_identical(calibrationLevels(cal),   cal@calibrationInfo@cal_response_data)
   expect_identical(calibrationMetadata(cal), cal@calibrationInfo@cal_metadata)
   expect_identical(calibrationData(cal),     cal@calibrationInfo)

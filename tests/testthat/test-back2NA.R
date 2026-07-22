@@ -19,8 +19,8 @@ test_that("background pixels become NA, tissue pixels are unchanged", {
   obj <- make_obj(ids)
 
   result    <- back2NA(obj, val_slot = "intensity",
-                       background = "noise_pixels", tissue = "tissue_pixels",
-                       sample_type = "sample_ID")
+                       background = "noise_pixels",
+                       pixel_header = "sample_ID")
   int_orig  <- spectraData(obj)[["intensity"]]
   int_new   <- spectraData(result)[["intensity"]]
   noise_px  <- which(ids == "noise_pixels")
@@ -33,8 +33,21 @@ test_that("background pixels become NA, tissue pixels are unchanged", {
 test_that("returns object unchanged when no background pixels exist", {
   obj    <- make_obj(rep("tissue_pixels", 4))
   result <- back2NA(obj, val_slot = "intensity",
-                    background = "noise_pixels", tissue = "tissue_pixels",
-                    sample_type = "sample_ID")
+                    background = "noise_pixels",
+                    pixel_header = "sample_ID")
   expect_equal(spectraData(result)[["intensity"]],
                spectraData(obj)[["intensity"]])
+})
+
+test_that("the deprecated sample_type alias still selects the column", {
+  ids <- c("tissue_pixels", "tissue_pixels", "noise_pixels", "noise_pixels")
+  obj <- make_obj(ids)
+
+  new_arg <- back2NA(obj, val_slot = "intensity",
+                     background = "noise_pixels", pixel_header = "sample_ID")
+  old_arg <- back2NA(obj, val_slot = "intensity",
+                     background = "noise_pixels", sample_type = "sample_ID")
+
+  expect_equal(spectraData(old_arg)[["intensity"]],
+               spectraData(new_arg)[["intensity"]])
 })

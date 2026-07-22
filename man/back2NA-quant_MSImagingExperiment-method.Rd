@@ -8,9 +8,9 @@
 \S4method{back2NA}{quant_MSImagingExperiment}(
   MSIobject,
   val_slot = "intensity",
+  pixel_header = "sample_name",
   background = "background_pixels",
-  tissue = "Tissue",
-  sample_type = "sample_type",
+  sample_type = NULL,
   ...
 )
 }
@@ -20,16 +20,16 @@ a column identifying pixel type.}
 
 \item{val_slot}{Character. Name of the spectra slot to modify (default \code{"intensity"}).}
 
-\item{background}{Character. Value in \code{pData(MSIobject)[[sample_type]]} that
-labels background pixels (default \code{"background_pixels"}). The historical
-\code{"noise_pixels"} / \code{"Noise"} labels are matched too, so masks made with
-earlier versions keep working.}
+\item{pixel_header}{Character. Column of \code{pData()} holding the pixel-type
+labels (default \code{"sample_name"}, the imaging convention).}
 
-\item{tissue}{Character. Value that labels tissue pixels (default \code{"Tissue"}).
-Currently unused but kept for API symmetry with \code{int2snr}.}
+\item{background}{Character. Value in \code{pixel_header} that labels background
+pixels (default \code{"background_pixels"}). The historical \code{"noise_pixels"} /
+\code{"Noise"} labels are matched too, so masks made with earlier versions keep
+working.}
 
-\item{sample_type}{Character. Column name in \code{pData()} holding pixel-type
-labels (default \code{"sample_type"}).}
+\item{sample_type}{Deprecated alias for \code{pixel_header}, kept for backward
+compatibility. When supplied it overrides \code{pixel_header}.}
 
 \item{...}{Additional arguments (currently unused).}
 }
@@ -39,15 +39,20 @@ The input \code{quant_MSImagingExperiment} with background pixels set to
 found.
 }
 \description{
-Replaces the spectral values of background/noise pixels with \code{NA} in a
-chosen intensity slot. Tissue pixels are left unchanged.
+Replaces the spectral values of background pixels with \code{NA} in a chosen
+spectra slot. Tissue pixels are left unchanged.
 }
+\section{Destructive}{
+
+This modifies \code{val_slot} in place rather than adding a new layer. Keep a copy
+of the object if the original values are needed afterwards.
+}
+
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",
                  package = "quantMSImageR")
 obj <- as(readRDS(p), "quant_MSImagingExperiment")
-obj <- back2NA(obj, val_slot = "intensity", background = "background_pixels",
-               tissue = "tissue_pixels", sample_type = "sample_name")
+obj <- back2NA(obj)
 
 }
 \seealso{

@@ -54,14 +54,17 @@ does not reproduce tissue-specific matrix effects. Use `cal_type = "cal"`.
 **On-tissue calibration** deposits standards onto tissue, or onto a
 representative tissue homogenate. Matrix matching is better, but endogenous
 analyte signal and spatial heterogeneity still need careful treatment. Use
-`cal_type = "std_addition"`, which estimates the background contribution and
-subtracts it before fitting.
+`cal_type = "std_addition"`.
 
-Note on terminology: classical **standard addition** estimates the endogenous
-amount from the x-intercept of response against added amount. `create_cal_curve()`
-instead subtracts a background level and fits the remaining response against the
-deposited amount, so it is more precisely **background-corrected on-tissue
-calibration**. The argument value `"std_addition"` is kept for compatibility.
+That mode is **classical standard addition**: `create_cal_curve()` fits response
+against deposited amount, takes the x-intercept of that line as the endogenous
+amount already present in the tissue, shifts every deposited amount by it so the
+axis expresses *total* amount (endogenous + added), drops the background level
+and refits. The estimate therefore accounts for analyte the tissue already
+contained.
+
+`cal_type` has no default — the two modes do materially different things, so it
+must be chosen explicitly.
 
 ## Scope and assumptions
 
@@ -174,8 +177,8 @@ standard spot.
 
 `summarise_cal_levels()` averages the signal at each calibration spot, and
 `create_cal_curve()` fits a linear response-vs-amount model per analyte (here
-`cal_type = "cal"` for on-slide standards; use `"std_addition"` for
-background-corrected on-tissue calibration).
+`cal_type = "cal"` for on-slide standards; use `"std_addition"` for standard
+addition on tissue).
 
 ```{r fit}
 cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
@@ -189,7 +192,7 @@ analyte's sensitivity.
 
 ```{r eqn}
 cal_list <- calibrationModels(cal)
-r2_df    <- calibrationR2(cal)
+r2_df    <- calibrationDiagnostics(cal)
 
 eqn <- data.frame(
   analyte   = names(cal_list),
@@ -225,19 +228,35 @@ Before relying on the estimates, examine at minimum:
 - back-calculated accuracy of the standards themselves;
 - precision across calibration replicates;
 - the lower and upper quantifiable limits implied by the design;
-- whether the fit needs weighting -- `create_cal_curve()` weights by
-  `1/amount`, which is appropriate for the constant-relative-error case but
-  should be checked against your own residuals.
+- whether the fit needs weighting. `create_cal_curve()` currently applies
+  inverse-amount (`1/amount`) weighting. This reduces the influence of the
+  highest calibration levels, but its suitability should be assessed from the
+  residual structure of your own analytical method. (Note that a constant
+  relative standard deviation implies variance roughly proportional to
+  amount², for which inverse-variance weights would be closer to `1/amount²`.)
 
-Plotting those fits gives the calibration curves. Each point is one calibration
-level's summarised response; the line is the fitted model:
+Plotting those fits gives the calibration curves. The line must come from the
+**stored** model rather than a fresh `geom_smooth()` fit, otherwise it would be
+an unweighted line that is not the model `int2conc()` actually inverts:
 
-```{r curve-plot, fig.wide = TRUE, fig.cap = "Calibration curves. Each point is one standard spot's summarised response; the line is the fitted linear model that int2conc() inverts."}
+```{r curve-plot, fig.wide = TRUE, fig.cap = "Calibration curves. Each point is one standard spot's summarised response; the line is predicted from the stored, weighted model that int2conc() inverts."}
 cal_data <- calibrationLevels(cal)
+models   <- calibrationModels(cal)
+
+# Predict from each stored model across the amounts it was fitted to.
+cal_lines <- lapply(names(models), function(analyte) {
+  m  <- models[[analyte]]
+  xx <- seq(min(m$model$pg_perpixel), max(m$model$pg_perpixel),
+            length.out = 100)
+  data.frame(lipid             = analyte,
+             pg_perpixel       = xx,
+             response_perpixel = predict(m, newdata = data.frame(pg_perpixel = xx)))
+})
+cal_lines <- do.call(rbind, cal_lines)
 
 ggplot(cal_data, aes(pg_perpixel, response_perpixel)) +
   geom_point() +
-  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  geom_line(data = cal_lines, colour = "steelblue", linewidth = 0.8) +
   facet_wrap(~ lipid, scales = "free") +
   labs(x = "amount (pg / pixel)", y = "response per pixel")
 ```
@@ -295,7 +314,7 @@ recorded per feature in `r2_df$out_of_range`, so it can be carried into a
 report:
 
 ```{r oor}
-calibrationR2(study)[, c("feature", "r2", "out_of_range")]
+calibrationDiagnostics(study)
 ```
 
 Set `max_out_of_range = 1` to suppress the warning when extrapolation is

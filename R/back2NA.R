@@ -2,8 +2,12 @@ setGeneric("back2NA", function(MSIobject, ...) standardGeneric("back2NA"))
 
 #' Set background pixel intensities to NA
 #'
-#' Replaces the spectral values of background/noise pixels with `NA` in a
-#' chosen intensity slot. Tissue pixels are left unchanged.
+#' Replaces the spectral values of background pixels with `NA` in a chosen
+#' spectra slot. Tissue pixels are left unchanged.
+#'
+#' @section Destructive:
+#' This modifies `val_slot` in place rather than adding a new layer. Keep a copy
+#' of the object if the original values are needed afterwards.
 #'
 #' @import Cardinal
 #' @include setClasses.R
@@ -11,14 +15,14 @@ setGeneric("back2NA", function(MSIobject, ...) standardGeneric("back2NA"))
 #' @param MSIobject A `quant_MSImagingExperiment` object whose `pData()` contains
 #'   a column identifying pixel type.
 #' @param val_slot Character. Name of the spectra slot to modify (default `"intensity"`).
-#' @param background Character. Value in `pData(MSIobject)[[sample_type]]` that
-#'   labels background pixels (default `"background_pixels"`). The historical
-#'   `"noise_pixels"` / `"Noise"` labels are matched too, so masks made with
-#'   earlier versions keep working.
-#' @param tissue Character. Value that labels tissue pixels (default `"Tissue"`).
-#'   Currently unused but kept for API symmetry with `int2snr`.
-#' @param sample_type Character. Column name in `pData()` holding pixel-type
-#'   labels (default `"sample_type"`).
+#' @param pixel_header Character. Column of `pData()` holding the pixel-type
+#'   labels (default `"sample_name"`, the imaging convention).
+#' @param background Character. Value in `pixel_header` that labels background
+#'   pixels (default `"background_pixels"`). The historical `"noise_pixels"` /
+#'   `"Noise"` labels are matched too, so masks made with earlier versions keep
+#'   working.
+#' @param sample_type Deprecated alias for `pixel_header`, kept for backward
+#'   compatibility. When supplied it overrides `pixel_header`.
 #' @param ... Additional arguments (currently unused).
 #'
 #' @return The input `quant_MSImagingExperiment` with background pixels set to
@@ -29,24 +33,28 @@ setGeneric("back2NA", function(MSIobject, ...) standardGeneric("back2NA"))
 #' p <- system.file("extdata", "example.raw", "section01.RDS",
 #'                  package = "quantMSImageR")
 #' obj <- as(readRDS(p), "quant_MSImagingExperiment")
-#' obj <- back2NA(obj, val_slot = "intensity", background = "background_pixels",
-#'                tissue = "tissue_pixels", sample_type = "sample_name")
+#' obj <- back2NA(obj)
 #'
 #' @family filtering
 #' @aliases back2NA
 #' @export
 setMethod("back2NA", "quant_MSImagingExperiment",
-          function(MSIobject, val_slot = "intensity", background = "background_pixels", tissue = "Tissue",sample_type = "sample_type", ...){
+          function(MSIobject, val_slot = "intensity",
+                   pixel_header = "sample_name",
+                   background = "background_pixels",
+                   sample_type = NULL, ...){
 
+            # Backward compatibility: `sample_type` was the previous name.
+            if (!is.null(sample_type)) pixel_header <- sample_type
             .bg <- .bg_labels(background)
 
-            if(!any(pData(MSIobject)[[sample_type]] %in% .bg)){
+            if(!any(pData(MSIobject)[[pixel_header]] %in% .bg)){
               message("No background pixels. Return same values")
               return(MSIobject)
             }
 
-            #Set background and tissue pixels
-            background_pixels = which(pData(MSIobject)[[sample_type]] %in% .bg)
+            #Set background pixels
+            background_pixels = which(pData(MSIobject)[[pixel_header]] %in% .bg)
 
             # Iterate over features in study
             for(mz_ind in seq_len(nrow(fData(MSIobject)))){

@@ -24,7 +24,7 @@ test_that("SNR is NA for background pixels and correct for tissue (average = 'me
   obj      <- make_snr_obj()
   new_data <- int2snr(MSIobject = obj, val_slot = "intensity",
                       background = "Background", tissue = "Tissue",
-                      snr_thresh = 3, sample_type = "sample_ID",
+                      snr_thresh = 3, pixel_header = "sample_ID",
                       average = "mean")
 
   expect_true(all(is.na(spectra(new_data, "snr")[, 5:6])))
@@ -40,14 +40,14 @@ test_that("legacy 'Noise' labels and the deprecated `noise` argument still work"
   legacy <- make_snr_obj(bg_label = "Noise")
   current <- int2snr(MSIobject = make_snr_obj(), val_slot = "intensity",
                      background = "Background", tissue = "Tissue",
-                     snr_thresh = 3, sample_type = "sample_ID")
+                     snr_thresh = 3, pixel_header = "sample_ID")
 
   by_new_arg <- int2snr(MSIobject = legacy, val_slot = "intensity",
                         background = "Background", tissue = "Tissue",
-                        snr_thresh = 3, sample_type = "sample_ID")
+                        snr_thresh = 3, pixel_header = "sample_ID")
   by_old_arg <- int2snr(MSIobject = legacy, val_slot = "intensity",
                         noise = "Noise", tissue = "Tissue",
-                        snr_thresh = 3, sample_type = "sample_ID")
+                        snr_thresh = 3, pixel_header = "sample_ID")
 
   expect_equal(spectra(by_new_arg, "snr"), spectra(current, "snr"))
   expect_equal(spectra(by_old_arg, "snr"), spectra(current, "snr"))
@@ -57,11 +57,11 @@ test_that("average = 'median' gives different results from 'mean' for skewed bac
   obj       <- make_snr_obj()
   res_mean  <- int2snr(obj, val_slot = "intensity",
                        background = "Background", tissue = "Tissue",
-                       snr_thresh = 1, sample_type = "sample_ID",
+                       snr_thresh = 1, pixel_header = "sample_ID",
                        average = "mean")
   res_med   <- int2snr(obj, val_slot = "intensity",
                        background = "Background", tissue = "Tissue",
-                       snr_thresh = 1, sample_type = "sample_ID",
+                       snr_thresh = 1, pixel_header = "sample_ID",
                        average = "median")
   # Results need not be identical; just verify both run without error
   expect_s4_class(res_mean, "quant_MSImagingExperiment")
@@ -73,7 +73,7 @@ test_that("invalid average_method is rejected", {
   expect_error(
     int2snr(obj, val_slot = "intensity",
             background = "Background", tissue = "Tissue",
-            snr_thresh = 3, sample_type = "sample_ID",
+            snr_thresh = 3, pixel_header = "sample_ID",
             average = "geometric"),
     regexp = "'arg' should be one of"
   )
@@ -94,7 +94,7 @@ test_that("returns object unchanged when no background pixels exist", {
   expect_warning(
     result <- int2snr(obj, val_slot = "intensity",
                       background = "Background", tissue = "Tissue",
-                      snr_thresh = 3, sample_type = "sample_ID"),
+                      snr_thresh = 3, pixel_header = "sample_ID"),
     regexp = "no 'Background' pixels"
   )
   expect_equal(ncol(result), ncol(obj))

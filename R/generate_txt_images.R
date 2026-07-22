@@ -414,7 +414,7 @@ generate_txt_images <- function(
         tissue
       } else {
         tmp <- int2snr(
-          MSIobject = tissue, val_slot = "intensity", sample_type = "sample_name",
+          MSIobject = tissue, val_slot = "intensity", pixel_header = "sample_name",
           background = "background_pixels", tissue = "tissue_pixels",
           snr_thresh = thr, average = average_method,
           snr_overrides = .ov
@@ -440,8 +440,7 @@ generate_txt_images <- function(
 
   combined_NAbackground <- if (.needs_mask) back2NA(
     combined, val_slot = "intensity",
-    background = "background_pixels", tissue = "tissue_pixels",
-    sample_type = "sample_name"
+    background = "background_pixels", pixel_header = "sample_name"
   ) else combined
 
   # Apply display-name overrides to all objects

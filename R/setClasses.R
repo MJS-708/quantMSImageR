@@ -32,7 +32,7 @@
 #' models to features positionally would silently apply one analyte's curve to
 #' another.
 #'
-#' Use the accessors ([calibrationModels()], [calibrationR2()],
+#' Use the accessors ([calibrationModels()], [calibrationDiagnostics()],
 #' [calibrationLevels()], [calibrationMetadata()]) rather than `@`.
 #'
 #' @slot cal_metadata `data.frame` of the calibration design.
@@ -55,7 +55,7 @@
 #' cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
 #'                             cal_label = "Cal", id = "identifier")
 #' cal <- create_cal_curve(cal, cal_type = "cal")
-#' calibrationR2(cal)
+#' calibrationDiagnostics(cal)
 #'
 #' @seealso [quant_MSImagingExperiment], [create_cal_curve()],
 #'   [quantMSImageR-accessors]
@@ -193,9 +193,7 @@ tissueInfo = setClass("tissueInfo",
 #' head(as.data.frame(pData(obj)), 3)
 #'
 #' # Derived layers accumulate alongside intensity
-#' obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
-#'                background = "background_pixels", tissue = "tissue_pixels",
-#'                snr_thresh = 3)
+#' obj <- int2snr(obj, snr_thresh = 3)
 #' names(spectraData(obj))
 #'
 #' @seealso [calibrationInfo-class], [tissueInfo-class],

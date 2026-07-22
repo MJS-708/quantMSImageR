@@ -59,9 +59,7 @@ names(spectraData(obj))       # available layers
 head(as.data.frame(pData(obj)), 3)
 
 # Derived layers accumulate alongside intensity
-obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
-               background = "background_pixels", tissue = "tissue_pixels",
-               snr_thresh = 3)
+obj <- int2snr(obj, snr_thresh = 3)
 names(spectraData(obj))
 
 }

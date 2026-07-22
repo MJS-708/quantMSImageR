@@ -21,7 +21,7 @@
 \arguments{
 \item{MSIobject}{A \code{quant_MSImagingExperiment} that has been through
 \code{\link[=create_cal_curve]{create_cal_curve()}} and \code{\link[=int2conc]{int2conc()}}, so it carries both the fitted models
-in \verb{@calibrationInfo@cal_list} and a calibrated-amount slot.}
+(see \code{\link[=calibrationModels]{calibrationModels()}}) and a calibrated-amount slot.}
 
 \item{features}{Features to plot: a character vector of names as in
 \code{fData(MSIobject)$name}, or numeric row indices. Defaults to every feature
@@ -60,9 +60,10 @@ also be further modified with \code{ggplot2} layers.
 \description{
 Converting a response into a calibrated amount is only trustworthy where the
 standards actually constrain the fit. A calibration whose levels sit above or
-below the signal measured in tissue is extrapolation, not quantification --
-and because \code{\link[=int2conc]{int2conc()}} will happily invert the model anywhere, that failure
-is silent.
+below the signal measured in tissue is extrapolation, not quantification.
+\code{\link[=int2conc]{int2conc()}} reports the proportion of extrapolated pixels per feature, but
+without an explicit coverage check that is still easy to overlook -- and the
+plot shows \emph{where} the mismatch is, not just how much of it there is.
 }
 \details{
 This function plots the two together on log axes so the overlap can be
@@ -74,11 +75,11 @@ marks, every converted pixel is interpolated between real standards.
 
 The standards are read back from each model's own model frame
 (\code{stats::model.frame}) rather than from \code{cal_response_data}. This matters for
-\code{cal_type = "std_addition"}, where \code{\link[=create_cal_curve]{create_cal_curve()}} subtracts the
-background level before fitting: the stored response data is on the
-un-subtracted axis, so plotting it against the fitted line would put the
-points and the model on different scales. The model frame always holds the
-points the line was actually fitted to.
+\code{cal_type = "std_addition"}, where \code{\link[=create_cal_curve]{create_cal_curve()}} shifts the amount
+axis by the estimated endogenous amount before fitting: the stored response
+data is on the unshifted axis, so plotting it against the fitted line would
+put the points and the model on different scales. The model frame always
+holds the points the line was actually fitted to.
 
 The fitted model is linear in amount, so on log axes it is drawn as a curve
 evaluated across the plotted range rather than as a straight line. Any part
@@ -93,7 +94,7 @@ cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
 cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
                             cal_label = "Cal", id = "identifier")
 cal <- create_cal_curve(cal, cal_type = "cal")
-cal <- int2conc(cal, val_slot = "intensity", pixels = "Tissue")
+cal <- int2conc(cal, pixel_header = "sample_type", pixels = "Tissue")
 
 plot_cal_coverage(cal, val_slot = "intensity")
 

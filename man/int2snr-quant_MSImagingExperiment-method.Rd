@@ -8,37 +8,40 @@
 \S4method{int2snr}{quant_MSImagingExperiment}(
   MSIobject,
   val_slot = "intensity",
+  pixel_header = "sample_name",
   background = "background_pixels",
-  tissue = "Tissue",
+  tissue = "tissue_pixels",
   snr_thresh = 3,
-  sample_type = "sample_type",
-  average = c("mean", "median"),
+  average = c("median", "mean"),
   snr_overrides = NULL,
   noise = NULL,
+  sample_type = NULL,
   ...
 )
 }
 \arguments{
-\item{MSIobject}{quant_MSImagingExperiment - including a background label in \code{pData(MSIobject)[[sample_type]]}}
+\item{MSIobject}{A \code{quant_MSImagingExperiment} whose \code{pData()} carries a
+background label in the \code{pixel_header} column.}
 
 \item{val_slot}{Character. Spectra slot holding the measured response
 (default \code{"intensity"}; use \code{"response"} after \code{\link[=int2response]{int2response()}}).}
 
-\item{background}{character in \code{pData(MSIobject)[[sample_type]]} marking the
-background (non-tissue) pixels used to estimate the noise level. Defaults to
-\code{"background_pixels"}; the historical \code{"noise_pixels"} / \code{"Noise"} labels are
-matched too, so masks made with earlier versions keep working.}
+\item{pixel_header}{Character. Column of \code{pData()} holding the pixel-type
+labels (default \code{"sample_name"}, the imaging convention).}
 
-\item{tissue}{character in pData(MSIobject)$sample_type which indicates tissue pixels to calculate SNR for}
+\item{background}{Character. Value in \code{pixel_header} marking the background
+(non-tissue) pixels used to estimate the noise level (default
+\code{"background_pixels"}). The historical \code{"noise_pixels"} / \code{"Noise"} labels
+are matched too, so masks made with earlier versions keep working.}
+
+\item{tissue}{Character. Value in \code{pixel_header} marking the tissue pixels
+SNR is calculated for (default \code{"tissue_pixels"}).}
 
 \item{snr_thresh}{Global minimum SNR to accept (below this value SNR = NA).
 Applied to every feature unless overridden by \code{snr_overrides}.}
 
-\item{sample_type}{character column in pData(MSIobject) holding the pixel-type
-labels (default "sample_type").}
-
-\item{average}{character, "mean" or "median": statistic used to summarise the
-background-pixel vector per feature.}
+\item{average}{Character, \code{"median"} (default) or \code{"mean"}: statistic used to
+summarise the background-pixel vector per feature.}
 
 \item{snr_overrides}{Optional named numeric vector mapping feature name
 (as in \code{fData(MSIobject)$name}) to a feature-specific SNR threshold. A
@@ -49,10 +52,15 @@ features use the global threshold).}
 \item{noise}{Deprecated alias for \code{background}, kept for backward
 compatibility. When supplied it overrides \code{background}.}
 
+\item{sample_type}{Deprecated alias for \code{pixel_header}, kept for backward
+compatibility. When supplied it overrides \code{pixel_header}.}
+
 \item{...}{Additional arguments (currently unused).}
 }
 \value{
-MSIobject with intensity values replaced with SNR values
+The input object with an additional \code{snr} spectra slot. Values below
+the selected threshold, and values outside the pixels labelled \code{tissue},
+are stored as \code{NA} in that slot. No existing slot is modified.
 }
 \description{
 Expresses each tissue pixel's response as a ratio to the same feature's
@@ -82,9 +90,10 @@ threshold is advisable before converting a feature to calibrated amounts.
 p <- system.file("extdata", "example.raw", "section01.RDS",
                  package = "quantMSImageR")
 obj <- as(readRDS(p), "quant_MSImagingExperiment")
-obj <- int2snr(obj, val_slot = "intensity", sample_type = "sample_name",
-               background = "background_pixels", tissue = "tissue_pixels",
-               snr_thresh = 3)
+
+# The defaults match the imaging convention used throughout the package
+obj <- int2snr(obj, snr_thresh = 3)
+names(spectraData(obj))
 
 }
 \seealso{

@@ -7,7 +7,7 @@
 \usage{
 \S4method{create_cal_curve}{quant_MSImagingExperiment}(
   MSIobject,
-  cal_type = "std_addition",
+  cal_type,
   level = "level",
   background = "background"
 )
@@ -16,8 +16,8 @@
 \item{MSIobject}{A \code{quant_MSImagingExperiment} whose \code{cal_response_data} has
 been populated by \code{\link[=summarise_cal_levels]{summarise_cal_levels()}}.}
 
-\item{cal_type}{Character. \code{"cal"} for standards deposited onto the slide,
-\code{"std_addition"} for background-corrected on-tissue calibration.}
+\item{cal_type}{Character, required. \code{"cal"} for standards deposited onto the
+slide, \code{"std_addition"} for standard addition on tissue. See Details.}
 
 \item{level}{Character. Column of \code{cal_response_data} holding the level
 labels (default \code{"level"}).}
@@ -36,16 +36,30 @@ Fits a linear response-versus-amount model for each standard, which
 amount per pixel.
 }
 \details{
+\code{cal_type} has no default and must be chosen explicitly, because the two
+modes apply materially different processing.
+
 \code{cal_type = "cal"} fits the summarised response directly against the amount
 deposited, appropriate for standards spotted onto the slide beside the
 tissue (on-slide / external calibration).
 
-\code{cal_type = "std_addition"} first estimates the background contribution and
-subtracts it from the deposited amounts before fitting, appropriate for
-standards deposited onto tissue. Note that this is
-\strong{background-corrected on-tissue calibration} rather than classical standard
-addition, which would estimate the endogenous amount from the x-intercept
-across added amounts. The argument value is retained for compatibility.
+\code{cal_type = "std_addition"} is classical \strong{standard addition}, for standards
+deposited onto tissue where endogenous analyte is already present. It:
+\enumerate{
+\item fits an unweighted \verb{response ~ deposited amount} across all levels;
+\item takes the x-intercept of that line -- the amount at which predicted
+response is zero -- as an estimate of the endogenous amount already in
+the tissue (this value is negative when endogenous signal is present);
+\item subtracts it from every deposited amount, which shifts the x-axis so
+it expresses \strong{total} amount present (endogenous + added);
+\item drops the rows at the \code{background} level and refits on that shifted
+axis.
+}
+
+In both modes the final fit is weighted by \code{1/amount}. This reduces the
+influence of the highest calibration levels, but whether it is the right
+weighting should be assessed from the residual structure of your own
+analytical method.
 }
 \examples{
 cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")

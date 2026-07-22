@@ -41,7 +41,7 @@ populated. An unnamed \code{cal_list} is accepted only when empty -- matching
 models to features positionally would silently apply one analyte's curve to
 another.
 
-Use the accessors (\code{\link[=calibrationModels]{calibrationModels()}}, \code{\link[=calibrationR2]{calibrationR2()}},
+Use the accessors (\code{\link[=calibrationModels]{calibrationModels()}}, \code{\link[=calibrationDiagnostics]{calibrationDiagnostics()}},
 \code{\link[=calibrationLevels]{calibrationLevels()}}, \code{\link[=calibrationMetadata]{calibrationMetadata()}}) rather than \code{@}.
 }
 \section{Slots}{
@@ -69,7 +69,7 @@ cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
 cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
                             cal_label = "Cal", id = "identifier")
 cal <- create_cal_curve(cal, cal_type = "cal")
-calibrationR2(cal)
+calibrationDiagnostics(cal)
 
 }
 \seealso{

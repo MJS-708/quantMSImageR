@@ -15,22 +15,38 @@ setGeneric("int2conc", function(MSIobject, ...) standardGeneric("int2conc"))
 #' of the fitted model -- see [plot_cal_coverage()] for the coverage check that
 #' should accompany them.
 #'
+#' @section Areal conversion:
+#' `pg_pixel` is inverted directly from the calibration model. `pg_mm2` is then
+#' derived from the pixel size recorded in the acquisition metadata:
+#'
+#' \deqn{pg/mm^2 = (pg/pixel) \times (1000 / s)^2}
+#'
+#' where `s` is `experimentData(MSIobject)$pixelSize`, **expected in
+#' micrometres**, and the factor 1000 converts micrometres to millimetres. A
+#' single scalar is assumed, i.e. square pixels of side `s`; rectangular pixels
+#' are not currently supported, and supplying `s` in millimetres would inflate
+#' the result by a factor of 10^6. When `pixelSize` is missing or not a positive
+#' number the `pg_mm2` slot is omitted and a warning is issued.
+#'
 #' @import Cardinal
 #' @include setClasses.R
 #'
 #' @param MSIobject A `quant_MSImagingExperiment` carrying calibration models
 #'   fitted by [create_cal_curve()].
 #' @param pixels Character. Label(s) in `pixel_header` marking the pixels to
-#'   quantify (default `"Tissue"`).
+#'   quantify (default `"tissue_pixels"`, the imaging convention). Pass
+#'   `pixels = "Tissue"` for a calibration acquisition.
 #' @param pixel_header Character. Column of `pData()` holding the pixel-type
-#'   labels (default `"sample_type"`).
+#'   labels (default `"sample_name"`). Pass `pixel_header = "sample_type"` for
+#'   a calibration acquisition.
 #' @param val_slot Character. Spectra slot holding the measured response
 #'   (default `"intensity"`).
 #' @param max_out_of_range Numeric in `[0, 1]`. Warn when more than this
 #'   proportion of a feature's pixels fall outside the calibrated range, i.e.
-#'   are extrapolated rather than interpolated (default `0.9`). Any
-#'   extrapolation at all is reported by `message()`; this controls only the
-#'   escalation to a warning. Set to `1` to silence it.
+#'   are extrapolated rather than interpolated (default `0.1`, so at least 90%
+#'   of pixels must be interpolated between real standards). Any extrapolation
+#'   at all is reported by `message()`; this controls only the escalation to a
+#'   warning. Set to `1` to silence it.
 #' @return The object subset to `pixels`, with two spectra slots added:
 #'   `pg_pixel` (estimated amount per pixel) and, when
 #'   `experimentData(MSIobject)$pixelSize` is available, `pg_mm2` (estimated
@@ -46,14 +62,17 @@ setGeneric("int2conc", function(MSIobject, ...) standardGeneric("int2conc"))
 #' cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
 #'                             cal_label = "Cal", id = "identifier")
 #' cal <- create_cal_curve(cal, cal_type = "cal")
-#' cal <- int2conc(cal, val_slot = "intensity", pixels = "Tissue")
+#'
+#' # A calibration acquisition labels its pixels in `sample_type`, so the
+#' # imaging defaults are overridden here
+#' cal <- int2conc(cal, pixel_header = "sample_type", pixels = "Tissue")
 #'
 #' @family calibration
 #' @aliases int2conc
 #' @export
 setMethod("int2conc", "quant_MSImagingExperiment",
-          function(MSIobject, val_slot = "intensity", pixel_header = "sample_type",
-                   pixels = "Tissue", max_out_of_range = 0.9){
+          function(MSIobject, val_slot = "intensity", pixel_header = "sample_name",
+                   pixels = "tissue_pixels", max_out_of_range = 0.1){
 
             cal_list = MSIobject@calibrationInfo@cal_list
             pixel_inds = which(pData(MSIobject)[[pixel_header]] %in% pixels)
