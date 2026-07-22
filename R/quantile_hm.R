@@ -1,9 +1,13 @@
 #' Quantile heatmap of MSI features across samples
 #'
 #' For each feature, computes the nth quantile of pixel intensities within each
-#' acquisition run, then z-scores the resulting per-feature profile across samples
-#' (clipped to \[-1, 1\]) and renders a `ComplexHeatmap::Heatmap`. Rows are
-#' features; columns are samples in the order given by `heatmap_order`.
+#' acquisition run, then z-scores the resulting per-feature profile across
+#' samples (clipped to \[-1, 1\]) and renders a `ComplexHeatmap::Heatmap`.
+#'
+#' **Rows are samples and columns are features**, in the order given by
+#' `heatmap_order`. Studies normally have more samples than features, so this
+#' puts the long dimension vertically where there is room for it and keeps
+#' sample names horizontally readable.
 #'
 #' @import Cardinal
 #' @include setClasses.R
@@ -17,16 +21,37 @@
 #' @param heatmap_labs Character vector of display labels, one per entry in
 #'   `heatmap_order`. Used to create column-split groups. Defaults to `NA`
 #'   (no splitting).
-#' @param row_split Optional character/factor vector of length equal to the
-#'   number of features, used to split heatmap rows into labelled groups.
+#' @param feature_split Optional character/factor vector of length equal to the
+#'   number of features, used to split the heatmap columns into labelled groups.
 #'   Typically derived from an ion library metadata column (e.g. `Met-1`).
-#'   Defaults to `NULL` (no row splitting).
-#' @param row_split_name Display name for the row-split annotation legend
-#'   (e.g. `"Met-1"`, `"Pathway"`). Defaults to `"Pathway"`.
-#' @param column_split_name Display name for the column-split annotation
-#'   legend (e.g. `"Treatment"`, `"Group"`). Defaults to `"Group"`.
+#'   Defaults to `NULL` (no splitting).
+#' @param feature_split_name Display name for the feature-group annotation
+#'   legend (e.g. `"Met-1"`, `"Pathway"`). Defaults to `"Pathway"`.
+#' @param group_split_name Display name for the sample-group annotation legend
+#'   (e.g. `"Treatment"`, `"Group"`). Defaults to `"Group"`.
+#' @param palette Character. Diverging colour ramp for the z-scores:
+#'   `"heatmap2"` (default, blue-white-red) or `"heatmap0"`. See
+#'   [quant_palettes()].
+#' @param group_palette,feature_palette Character. Qualitative palettes for the
+#'   sample-group and feature-group colour bars (defaults `"hat"` and
+#'   `"reading"`). Any [grDevices::hcl.colors()] palette name also works.
+#' @param row_split,row_split_name,column_split_name Deprecated aliases for
+#'   `feature_split`, `feature_split_name` and `group_split_name`. They were
+#'   named for the axis each grouping landed on before samples and features
+#'   swapped axes; supplying them still works.
+#' @param cell_size Numeric. Side of a heatmap cell, in millimetres (default
+#'   `6`). Giving the body an absolute size is what makes cells square; leaving
+#'   it to `ComplexHeatmap` stretches them to fill the device, which produces
+#'   very oblong cells when there are far more features than samples. Set to
+#'   `NA` to restore the fill-the-device behaviour.
+#' @param max_aspect Numeric >= 1. Largest cell width-to-height ratio allowed
+#'   when one dimension has many more entries than the other (default `1.5`).
+#'   Cells stay square until the counts differ by more than four-fold; beyond
+#'   that the shorter dimension's cells are widened up to this ratio so the
+#'   plotting area is not reduced to a sliver.
 #'
-#' @return A `ComplexHeatmap::Heatmap` object (rows = features, columns = samples).
+#' @return A `ComplexHeatmap::Heatmap` object (rows = samples, columns =
+#'   features), with an absolutely-sized body unless `cell_size` is `NA`.
 #'
 #' @examples
 #' p <- system.file("extdata", "example.raw", "section01.RDS",
@@ -39,9 +64,26 @@
 #' @export
 
 quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = NA,
+                        feature_split = NULL,
+                        feature_split_name = "Pathway",
+                        group_split_name = "Group",
+                        cell_size = 6, max_aspect = 1.5,
+                        palette = c("heatmap2", "heatmap0"),
+                        group_palette = "hat",
+                        feature_palette = "reading",
                         row_split = NULL,
-                        row_split_name = "Pathway",
-                        column_split_name = "Group") {
+                        row_split_name = NULL,
+                        column_split_name = NULL) {
+
+  # Backward compatibility: these were named for where they appeared before
+  # samples and features swapped axes. Feature grouping used to split rows and
+  # sample grouping used to split columns; both now do the opposite, so the
+  # arguments are named for what they group rather than where it lands.
+  if (!is.null(row_split))         feature_split      <- row_split
+  if (!is.null(row_split_name))    feature_split_name <- row_split_name
+  if (!is.null(column_split_name)) group_split_name   <- column_split_name
+
+  palette <- match.arg(palette)
   # Prepare the output matrix
   sample_names = unique(pData(MSIobject)$run)
 
@@ -93,58 +135,84 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
     z_matrix[is.infinite(z_matrix)] <- 1
   }
 
-  # Row split: preserve declared order, no re-clustering across slices
-  rs <- if (!is.null(row_split)) factor(row_split, levels = unique(row_split)) else NULL
+  # Orientation: samples are ROWS and features are COLUMNS. Studies normally
+  # have more samples than features, so this keeps the long dimension vertical
+  # where there is room for it, and keeps sample names horizontally readable.
+  z_matrix <- t(z_matrix)
 
-  # Coloured top annotation for column groups (Treatment / sample group)
-  top_anno <- NULL
-  cs <- NULL
-  if (!all(is.na(heatmap_labs))) {
-    cs <- factor(heatmap_labs, levels = unique(heatmap_labs))
-    grp_levels <- levels(cs)
-    grp_cols <- setNames(
-      grDevices::hcl.colors(max(length(grp_levels), 2), palette = "Dark 3")[seq_along(grp_levels)],
-      grp_levels
-    )
-    .col_args <- list(); .col_args[[column_split_name]] <- grp_cols
-    .anno_args <- list(); .anno_args[[column_split_name]] <- cs
-    # show_legend = FALSE: the group colour bar is already labelled by the
-    # column titles, so its legend is redundant -- and drawing it alongside the
-    # row-group + Z-score legends triggers a ComplexHeatmap legend/viewport bug
-    # ("depth applied to NULL") with multiple column groups.
-    top_anno <- do.call(ComplexHeatmap::HeatmapAnnotation,
+  # Feature grouping (Met-1 / Pathway) now splits COLUMNS.
+  fs <- if (!is.null(feature_split))
+          factor(feature_split, levels = unique(feature_split)) else NULL
+
+  # Sample grouping (Treatment / Group) now splits ROWS.
+  gs <- if (!all(is.na(heatmap_labs)))
+          factor(heatmap_labs, levels = unique(heatmap_labs)) else NULL
+
+  # Coloured left annotation for the sample groups.
+  left_anno <- NULL
+  if (!is.null(gs)) {
+    grp_levels <- levels(gs)
+    grp_cols <- .anno_cols(grp_levels, group_palette)
+    .col_args <- list(); .col_args[[group_split_name]] <- grp_cols
+    .anno_args <- list(); .anno_args[[group_split_name]] <- gs
+    # show_legend = FALSE: the group colour bar is already labelled by the row
+    # titles, so its legend is redundant -- and drawing it alongside the
+    # feature-group + Z-score legends triggers a ComplexHeatmap legend/viewport
+    # bug ("depth applied to NULL") with multiple groups.
+    left_anno <- do.call(ComplexHeatmap::rowAnnotation,
       c(.anno_args, list(col = .col_args, show_legend = FALSE,
                           show_annotation_name = TRUE,
-                          annotation_name_side = "right")))
-  }
-
-  # Coloured right annotation for row groups (Met-1 / Pathway)
-  right_anno <- NULL
-  if (!is.null(rs)) {
-    rs_levels <- levels(rs)
-    rs_cols <- setNames(
-      grDevices::hcl.colors(max(length(rs_levels), 2), palette = "Set 2")[seq_along(rs_levels)],
-      rs_levels
-    )
-    .col_args <- list(); .col_args[[row_split_name]] <- rs_cols
-    .anno_args <- list(); .anno_args[[row_split_name]] <- rs
-    right_anno <- do.call(ComplexHeatmap::rowAnnotation,
-      c(.anno_args, list(col = .col_args, show_annotation_name = TRUE,
                           annotation_name_side = "bottom")))
   }
 
-  # Build the heatmap with optional split / colour-bar annotations.
-  # - Column titles default to levels(cs) so each Group block is labelled in
-  #   black text above its colour bar (e.g. "Ctrl_M", "HDM_F").
-  # - row_title is suppressed: rows are grouped via the right colour bar only,
-  #   so verbose Met-1 names don't crowd the LHS.
-  hm <- ComplexHeatmap::Heatmap(z_matrix, name = "Z-score",
-    cluster_rows = FALSE, cluster_columns = FALSE, show_column_dend = FALSE,
-    column_split = cs,
-    column_title_gp = grid::gpar(col = "black", fontsize = 11),
-    row_split = rs, row_title = NULL, cluster_row_slices = FALSE,
-    top_annotation = top_anno,
-    right_annotation = right_anno)
+  # Coloured top annotation for the feature groups.
+  top_anno <- NULL
+  if (!is.null(fs)) {
+    fs_levels <- levels(fs)
+    fs_cols <- .anno_cols(fs_levels, feature_palette)
+    .col_args <- list(); .col_args[[feature_split_name]] <- fs_cols
+    .anno_args <- list(); .anno_args[[feature_split_name]] <- fs
+    top_anno <- do.call(ComplexHeatmap::HeatmapAnnotation,
+      c(.anno_args, list(col = .col_args, show_annotation_name = TRUE,
+                          annotation_name_side = "right")))
+  }
+
+  # Absolute cell sizing. Without width/height ComplexHeatmap stretches the body
+  # to fill the device, which makes cells oblong whenever the two dimensions
+  # differ. Sizing the body in millimetres makes cells square; when one
+  # dimension has more than four times the entries of the other, cells on the
+  # short dimension may stretch up to `max_aspect` so the body is not a sliver.
+  .size <- NULL
+  if (!is.null(cell_size) && !all(is.na(cell_size))) {
+    n_row <- nrow(z_matrix)   # samples
+    n_col <- ncol(z_matrix)   # features
+
+    cell_w <- cell_size
+    cell_h <- cell_size
+    if (n_col > 0 && n_row > 0) {
+      if (n_row / n_col > 4)      cell_w <- cell_size * max_aspect
+      else if (n_col / n_row > 4) cell_h <- cell_size * max_aspect
+    }
+
+    .size <- list(width  = grid::unit(n_col * cell_w, "mm"),
+                  height = grid::unit(n_row * cell_h, "mm"))
+  }
+
+  # row_title is suppressed: sample groups are labelled by the left colour bar,
+  # so the group name is not repeated down the side.
+  # Diverging ramp anchored at 0, since the matrix is a z-score clipped to
+  # [-1, 1] and the midpoint is meaningful.
+  .cols   <- quant_palettes(palette)
+  .col_fn <- circlize::colorRamp2(
+    seq(-1, 1, length.out = length(.cols)), .cols)
+
+  hm <- do.call(ComplexHeatmap::Heatmap, c(list(
+    z_matrix, name = "Z-score", col = .col_fn,
+    cluster_rows = FALSE, cluster_columns = FALSE, show_row_dend = FALSE,
+    row_split = gs, row_title = NULL, cluster_row_slices = FALSE,
+    column_split = fs, column_title = NULL, cluster_column_slices = FALSE,
+    left_annotation = left_anno,
+    top_annotation = top_anno), .size))
 
   return(hm)
 }

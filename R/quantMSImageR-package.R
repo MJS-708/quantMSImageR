@@ -19,6 +19,9 @@
 #' @importFrom ggplot2 coord_equal geom_histogram geom_line geom_vline
 #' @importFrom ggplot2 coord_cartesian facet_wrap scale_fill_manual
 #' @importFrom ggplot2 rel theme theme_minimal
+#' @importFrom circlize colorRamp2
+#' @importFrom ggplot2 scale_fill_gradientn
+#' @importFrom grDevices colorRampPalette
 #' @importFrom patchwork wrap_plots
 #' @importFrom yaml read_yaml
 #' @importFrom viridis scale_fill_viridis

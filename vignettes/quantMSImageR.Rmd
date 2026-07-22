@@ -327,7 +327,7 @@ ggplot(mask_tbl, aes(x, -y, fill = sample_name)) +
 | Function | Takes | Produces |
 |---|---|---|
 | `imageR()` | object, `feat_ind`, `val_slot`, `sample_lab`, `scale` | a **`ggplot`** ion image |
-| `quantile_hm()` | object, `quant_val`, sample order/labels, `row_split` | a `ComplexHeatmap::Heatmap` (rows = features, columns = samples) |
+| `quantile_hm()` | object, `quant_val`, sample order/labels, `feature_split` | a `ComplexHeatmap::Heatmap` (rows = samples, columns = features) |
 
 `imageR()` returns a `ggplot` ion image for a chosen feature. Because it is a
 plain `ggplot`, the layout can be adjusted -- here into a 3 x 2 grid:
@@ -365,23 +365,28 @@ DT::datatable(fm[, c("name", "precursor_mz", "product_mz", "Type", "Met-1")],
 # Quantile heatmaps across samples
 
 `quantile_hm()` summarises each feature to a per-sample quantile and returns a
-`ComplexHeatmap::Heatmap`, with columns grouped by study group and rows split by
-the `Met-1` class joined above. The `quant_val` argument chooses which quantile
-summarises each feature -- a median (`0.5`) reflects the bulk of the tissue,
-while a high quantile (`0.95`) emphasises hot-spots:
+`ComplexHeatmap::Heatmap`. **Rows are samples, grouped by study group; columns
+are features, split by the `Met-1` class joined above** -- studies usually have
+more samples than features, so the long dimension runs vertically. Cells are
+drawn square (stretching to at most 1.5:1 when one dimension is much longer),
+so the heatmap grows with the data rather than distorting to fill the device.
 
-```{r heatmap-median, fig.wide = TRUE, fig.cap = "Median (50th percentile) feature intensity per section, columns grouped by study group and rows split by Met-1 class."}
-row_split <- fm[["Met-1"]]
+The `quant_val` argument chooses which quantile summarises each feature -- a
+median (`0.5`) reflects the bulk of the tissue, while a high quantile (`0.95`)
+emphasises hot-spots:
+
+```{r heatmap-median, fig.wide = TRUE, fig.cap = "Median (50th percentile) feature intensity per section. Rows are sections grouped by study group; columns are features split by Met-1 class."}
+feature_split <- fm[["Met-1"]]
 
 quantile_hm(combined, quant_val = 0.5,
             heatmap_order = sections, heatmap_labs = groups,
-            row_split = row_split, row_split_name = "Met-1")
+            feature_split = feature_split, feature_split_name = "Met-1")
 ```
 
 ```{r heatmap-95, fig.wide = TRUE, fig.cap = "The same summary at the 95th percentile, which emphasises hot-spots rather than the bulk of the tissue."}
 quantile_hm(combined, quant_val = 0.95,
             heatmap_order = sections, heatmap_labs = groups,
-            row_split = row_split, row_split_name = "Met-1")
+            feature_split = feature_split, feature_split_name = "Met-1")
 ```
 
 # Signal-to-noise filtering

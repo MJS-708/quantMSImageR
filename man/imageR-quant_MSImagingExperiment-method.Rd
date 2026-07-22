@@ -18,7 +18,8 @@
   perc_scale = FALSE,
   blank_back = TRUE,
   aspect_ratio = 1,
-  text_image = FALSE
+  text_image = FALSE,
+  palette = c("viridis", "heatmap0")
 )
 }
 \arguments{
@@ -56,6 +57,10 @@ maximum (\code{TRUE}) rather than raw values (\code{FALSE}, the default).}
 
 \item{text_image}{Logical; when TRUE return the image as a numeric matrix
 (for text export) rather than a ggplot.}
+
+\item{palette}{Character. Colour scale for the image: \code{"viridis"} (default,
+perceptually uniform and colour-blind safe) or \code{"heatmap0"}. See
+\code{\link[=quant_palettes]{quant_palettes()}}.}
 }
 \value{
 A \code{ggplot} object, or a numeric matrix when \code{text_image = TRUE}.
@@ -75,6 +80,7 @@ gg <- imageR(obj, feat_ind = 1, sample_lab = "run", scale = "suppress")
 }
 \seealso{
 Other visualisation:
+\code{\link[=quant_palettes]{quant_palettes()}},
 \code{\link[=quantile_hm]{quantile_hm()}}
 }
 \concept{visualisation}

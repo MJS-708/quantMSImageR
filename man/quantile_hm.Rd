@@ -9,9 +9,17 @@ quantile_hm(
   quant_val,
   heatmap_order = NA,
   heatmap_labs = NA,
+  feature_split = NULL,
+  feature_split_name = "Pathway",
+  group_split_name = "Group",
+  cell_size = 6,
+  max_aspect = 1.5,
+  palette = c("heatmap2", "heatmap0"),
+  group_palette = "hat",
+  feature_palette = "reading",
   row_split = NULL,
-  row_split_name = "Pathway",
-  column_split_name = "Group"
+  row_split_name = NULL,
+  column_split_name = NULL
 )
 }
 \arguments{
@@ -28,25 +36,56 @@ discovery order).}
 \code{heatmap_order}. Used to create column-split groups. Defaults to \code{NA}
 (no splitting).}
 
-\item{row_split}{Optional character/factor vector of length equal to the
-number of features, used to split heatmap rows into labelled groups.
+\item{feature_split}{Optional character/factor vector of length equal to the
+number of features, used to split the heatmap columns into labelled groups.
 Typically derived from an ion library metadata column (e.g. \code{Met-1}).
-Defaults to \code{NULL} (no row splitting).}
+Defaults to \code{NULL} (no splitting).}
 
-\item{row_split_name}{Display name for the row-split annotation legend
-(e.g. \code{"Met-1"}, \code{"Pathway"}). Defaults to \code{"Pathway"}.}
+\item{feature_split_name}{Display name for the feature-group annotation
+legend (e.g. \code{"Met-1"}, \code{"Pathway"}). Defaults to \code{"Pathway"}.}
 
-\item{column_split_name}{Display name for the column-split annotation
-legend (e.g. \code{"Treatment"}, \code{"Group"}). Defaults to \code{"Group"}.}
+\item{group_split_name}{Display name for the sample-group annotation legend
+(e.g. \code{"Treatment"}, \code{"Group"}). Defaults to \code{"Group"}.}
+
+\item{cell_size}{Numeric. Side of a heatmap cell, in millimetres (default
+\code{6}). Giving the body an absolute size is what makes cells square; leaving
+it to \code{ComplexHeatmap} stretches them to fill the device, which produces
+very oblong cells when there are far more features than samples. Set to
+\code{NA} to restore the fill-the-device behaviour.}
+
+\item{max_aspect}{Numeric >= 1. Largest cell width-to-height ratio allowed
+when one dimension has many more entries than the other (default \code{1.5}).
+Cells stay square until the counts differ by more than four-fold; beyond
+that the shorter dimension's cells are widened up to this ratio so the
+plotting area is not reduced to a sliver.}
+
+\item{palette}{Character. Diverging colour ramp for the z-scores:
+\code{"heatmap2"} (default, blue-white-red) or \code{"heatmap0"}. See
+\code{\link[=quant_palettes]{quant_palettes()}}.}
+
+\item{group_palette, feature_palette}{Character. Qualitative palettes for the
+sample-group and feature-group colour bars (defaults \code{"hat"} and
+\code{"reading"}). Any \code{\link[grDevices:hcl.colors]{grDevices::hcl.colors()}} palette name also works.}
+
+\item{row_split, row_split_name, column_split_name}{Deprecated aliases for
+\code{feature_split}, \code{feature_split_name} and \code{group_split_name}. They were
+named for the axis each grouping landed on before samples and features
+swapped axes; supplying them still works.}
 }
 \value{
-A \code{ComplexHeatmap::Heatmap} object (rows = features, columns = samples).
+A \code{ComplexHeatmap::Heatmap} object (rows = samples, columns =
+features), with an absolutely-sized body unless \code{cell_size} is \code{NA}.
 }
 \description{
 For each feature, computes the nth quantile of pixel intensities within each
-acquisition run, then z-scores the resulting per-feature profile across samples
-(clipped to [-1, 1]) and renders a \code{ComplexHeatmap::Heatmap}. Rows are
-features; columns are samples in the order given by \code{heatmap_order}.
+acquisition run, then z-scores the resulting per-feature profile across
+samples (clipped to [-1, 1]) and renders a \code{ComplexHeatmap::Heatmap}.
+}
+\details{
+\strong{Rows are samples and columns are features}, in the order given by
+\code{heatmap_order}. Studies normally have more samples than features, so this
+puts the long dimension vertically where there is room for it and keeps
+sample names horizontally readable.
 }
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",
@@ -58,6 +97,7 @@ hm <- quantile_hm(obj, quant_val = 0.5,
 }
 \seealso{
 Other visualisation:
-\code{\link{imageR,quant_MSImagingExperiment-method}}
+\code{\link{imageR,quant_MSImagingExperiment-method}},
+\code{\link[=quant_palettes]{quant_palettes()}}
 }
 \concept{visualisation}

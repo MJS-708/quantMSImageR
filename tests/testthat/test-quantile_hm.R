@@ -28,15 +28,47 @@ test_that("quantile_hm returns a Heatmap object", {
   expect_s4_class(hm, "Heatmap")
 })
 
-test_that("heatmap matrix is n_features x n_samples (not transposed)", {
+test_that("heatmap matrix is n_samples x n_features", {
+  # Samples are rows and features are columns: studies usually have more
+  # samples than features, so the long dimension runs vertically.
   n_feat <- 4; runs <- c("s1", "s2", "s3")
   obj <- make_obj(n_features = n_feat, runs = runs)
   hm  <- quantile_hm(obj, quant_val = 0.75,
                      heatmap_order = runs,
                      heatmap_labs  = c("A", "B", "C"))
   mat <- hm@matrix
-  expect_equal(nrow(mat), n_feat)
-  expect_equal(ncol(mat), length(runs))
+  expect_equal(nrow(mat), length(runs))
+  expect_equal(ncol(mat), n_feat)
+  expect_equal(rownames(mat), runs)
+})
+
+test_that("cells are square, stretching to at most max_aspect", {
+  # Balanced panel -> square cells.
+  obj <- make_obj(n_features = 3, runs = c("s1", "s2", "s3"))
+  hm  <- quantile_hm(obj, quant_val = 0.5, cell_size = 6)
+  expect_equal(as.numeric(hm@matrix_param$width) / ncol(hm@matrix),
+               as.numeric(hm@matrix_param$height) / nrow(hm@matrix))
+
+  # Many features, few samples -> rows stretch, but no further than max_aspect.
+  wide <- make_obj(n_features = 20, runs = c("s1", "s2"))
+  hw   <- quantile_hm(wide, quant_val = 0.5, cell_size = 6, max_aspect = 1.5)
+  cw   <- as.numeric(hw@matrix_param$width)  / ncol(hw@matrix)
+  ch   <- as.numeric(hw@matrix_param$height) / nrow(hw@matrix)
+  expect_equal(ch / cw, 1.5)
+})
+
+test_that("deprecated row_split arguments still work", {
+  obj <- make_obj(n_features = 4, runs = c("s1", "s2"))
+  fs  <- c("A", "A", "B", "B")
+
+  new_arg <- quantile_hm(obj, quant_val = 0.5, feature_split = fs,
+                         feature_split_name = "Met-1")
+  old_arg <- quantile_hm(obj, quant_val = 0.5, row_split = fs,
+                         row_split_name = "Met-1")
+
+  expect_equal(old_arg@matrix, new_arg@matrix)
+  expect_equal(levels(old_arg@column_order_list |> names()),
+               levels(new_arg@column_order_list |> names()))
 })
 
 test_that("z-score values are clipped to [-1, 1]", {

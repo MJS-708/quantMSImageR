@@ -16,3 +16,6 @@
 ^doc$
 ^Rplots\.pdf$
 ^vignettes/figure$
+^docs$
+^pkgdown$
+^_pkgdown\.yml$

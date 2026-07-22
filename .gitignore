@@ -13,3 +13,5 @@ man/figures/
 
 Rplots.pdf
 vignettes/figure/
+docs/
+pkgdown/

@@ -235,11 +235,23 @@ DT::datatable(.fd, rownames = FALSE)
 # 2. Heatmap {.tabset .tabset-fade}
 
 Z-scored nth-percentile intensity per feature across samples (clipped to [−1, 1]).
-Rows are features; columns are individual sections ordered by group.
+Rows are individual sections ordered by group; columns are features. Cells are
+drawn square, so the panel grows with the study rather than distorting to fill
+a fixed area.
 
-```{r hm, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=12, fig.height=7}
+```{r hm-size, echo=FALSE, include=FALSE}
+# Cells are now an absolute size, so the figure must grow with the study or a
+# large sample set would be clipped. 6 mm per sample row plus headroom for the
+# rotated feature labels and legends.
+.n_samp <- length(unique(as.character(pData(combined)$run)))
+.n_feat <- nrow(fData(combined))
+.hm_h   <- max(7, min(30, 3 + .n_samp * 6 / 25.4))
+.hm_w   <- max(10, min(30, 4 + .n_feat * 6 / 25.4))
+```
 
-# Build row split vector from per-feature metadata (joined by m/z in run_study.R)
+```{r hm, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=.hm_w, fig.height=.hm_h}
+
+# Build feature split vector from per-feature metadata (joined by m/z in run_study.R)
 .row_split <- NULL
 if (exists("feature_meta") && !is.null(feature_meta) &&
     exists("heatmap_row_split") && !is.null(heatmap_row_split) &&
@@ -257,12 +269,12 @@ for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
                   quant_val = quant_value,
                   heatmap_order = heatmap_order,
                   heatmap_labs = heatmap_labs,
-                  row_split = .row_split,
-                  row_split_name = if (exists("heatmap_row_split") &&
-                                       !is.null(heatmap_row_split) &&
-                                       nzchar(heatmap_row_split))
-                                     heatmap_row_split else "Pathway",
-                  column_split_name = "Group")
+                  feature_split = .row_split,
+                  feature_split_name = if (exists("heatmap_row_split") &&
+                                           !is.null(heatmap_row_split) &&
+                                           nzchar(heatmap_row_split))
+                                         heatmap_row_split else "Pathway",
+                  group_split_name = "Group")
 
   # ComplexHeatmap's draw() targets the active grid device. Inside a
   # results="asis" chunk that device is the screen, not the chunk's PNG
