@@ -251,6 +251,21 @@ validate_config = function(config, check_paths = TRUE){
     known = names(quant_palettes())
     for(k in names(config$colours)){
       v = as.character(config$colours[[k]])
+
+      # cell_border is a single colour, not a palette: anything grDevices can
+      # turn into a colour, or "none" for no border at all.
+      if(identical(k, "cell_border")){
+        ok = length(v) == 1L &&
+             (tolower(v) %in% c("none", "") ||
+              !inherits(try(grDevices::col2rgb(v), silent = TRUE), "try-error"))
+        if(!ok)
+          .chk_add(chk, "colours$cell_border", "error", sprintf(
+            "colours$cell_border = '%s' is not a colour. Use a name or hex (e.g. 'white', '#FFFFFF'), or 'none'.",
+            paste(v, collapse = ", ")))
+        else .chk_add(chk, "colours$cell_border", "ok")
+        next
+      }
+
       ok = if(identical(k, "ion_image")) v %in% c(known, "viridis") else v %in% known
       if(!ok)
         .chk_add(chk, sprintf("colours$%s", k), "error", sprintf(

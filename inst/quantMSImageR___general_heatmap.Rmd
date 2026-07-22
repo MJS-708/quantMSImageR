@@ -248,6 +248,14 @@ a fixed area.
 .pal_group   <- if (exists("pal_group"))   pal_group   else "hat"
 .pal_feature <- if (exists("pal_feature")) pal_feature else "reading"
 
+# Hairline drawn between heatmap cells. "none" (or blank) means no border, in
+# which case neighbouring cells of the same colour merge into one block.
+.cell_border <- if (exists("hm_cell_border")) as.character(hm_cell_border) else "white"
+if (length(.cell_border) != 1L || is.na(.cell_border) ||
+    tolower(.cell_border) %in% c("none", "")) {
+  .cell_border <- NA
+}
+
 # Cardinal's image() takes a colour vector rather than a palette name.
 # Braces matter here: a bare `else` starting a new line at top level is a
 # parse error.
@@ -256,19 +264,55 @@ a fixed area.
 } else {
   grDevices::colorRampPalette(quantMSImageR::quant_palettes(.pal_ion))(256)
 }
+
+# Named colour vector for a categorical variable. Mirrors the package-internal
+# .anno_cols() that quantile_hm() uses, so the group colours in the box/violin
+# plots are the same ones as the heatmap's group bar.
+.cat_cols <- function(levels, palette) {
+  n <- max(length(levels), 2)
+  cols <- if (palette %in% names(quantMSImageR::quant_palettes()))
+            quantMSImageR::quant_palettes(palette, n = n)
+          else
+            grDevices::hcl.colors(n, palette = palette)
+  stats::setNames(cols[seq_along(levels)], levels)
+}
+
+# Group levels in the order the heatmap uses them, so colours line up between
+# section 2 and section 3.
+.grp_levels <- if (exists("heatmap_labs")) {
+  unique(as.character(heatmap_labs))
+} else {
+  character(0)
+}
+.grp_cols   <- .cat_cols(.grp_levels, .pal_group)
 ```
 
 ```{r hm-size, echo=FALSE, include=FALSE}
-# Cells are now an absolute size, so the figure must grow with the study or a
-# large sample set would be clipped. 6 mm per sample row plus headroom for the
-# rotated feature labels and legends.
-.n_samp <- length(unique(as.character(pData(combined)$run)))
-.n_feat <- nrow(fData(combined))
-.hm_h   <- max(7, min(30, 3 + .n_samp * 6 / 25.4))
-.hm_w   <- max(10, min(30, 4 + .n_feat * 6 / 25.4))
+# quantile_hm() gives the heatmap body an absolute size in millimetres, so the
+# device must be sized to the heatmap rather than the other way round. Drawing
+# once on a null device lets ComplexHeatmap report the total size it needs
+# (body + annotations + labels + legends); anything left over would otherwise
+# be emitted as white space around a small panel.
+.hm_dev_size <- function(p, fallback = c(12, 7)) {
+  tryCatch({
+    # ComplexHeatmap documents measuring a drawn heatmap this way but does not
+    # export the two accessors, so they are fetched by name; the whole thing
+    # falls back to a fixed size if that ever stops working.
+    .w_fun <- utils::getFromNamespace("width",  "ComplexHeatmap")
+    .h_fun <- utils::getFromNamespace("height", "ComplexHeatmap")
+    grDevices::pdf(NULL)
+    on.exit(grDevices::dev.off(), add = TRUE)
+    ht <- ComplexHeatmap::draw(p)
+    w  <- grid::convertWidth(.w_fun(ht),  "in", valueOnly = TRUE)
+    h  <- grid::convertHeight(.h_fun(ht), "in", valueOnly = TRUE)
+    if (!is.finite(w) || !is.finite(h) || w <= 0 || h <= 0) return(fallback)
+    # A small margin, then clamp so a huge study cannot produce an unusable file.
+    c(min(max(w + 0.4, 4), 25), min(max(h + 0.4, 2.5), 40))
+  }, error = function(e) fallback)
+}
 ```
 
-```{r hm, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=.hm_w, fig.height=.hm_h}
+```{r hm, results="asis", echo = FALSE, include=T, warning=FALSE}
 
 # Build feature split vector from per-feature metadata (joined by m/z in run_study.R)
 .row_split <- NULL
@@ -296,14 +340,16 @@ for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
                   group_split_name = "Group",
                   palette          = .pal_heatmap,
                   group_palette    = .pal_group,
-                  feature_palette  = .pal_feature)
+                  feature_palette  = .pal_feature,
+                  cell_border      = .cell_border)
 
   # ComplexHeatmap's draw() targets the active grid device. Inside a
   # results="asis" chunk that device is the screen, not the chunk's PNG
   # capture, so print(p) would spill the plot to the R session window
   # instead of into the HTML. Render to a temp PNG and embed via base64.
   .tmp <- tempfile(fileext = ".png")
-  grDevices::png(.tmp, width = 12, height = 7, units = "in", res = 150)
+  .sz  <- .hm_dev_size(p)
+  grDevices::png(.tmp, width = .sz[1], height = .sz[2], units = "in", res = 150)
   # Some ComplexHeatmap versions throw "depth applied to NULL" while drawing
   # several annotation legends; merging the legends avoids that code path.
   .ok <- tryCatch({ ComplexHeatmap::draw(p); TRUE }, error = function(e)
@@ -311,9 +357,12 @@ for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
                     error = function(e2) FALSE))
   grDevices::dev.off()
   if (.ok) {
+    # Display at the physical size it was drawn at (96 CSS px per inch), so a
+    # 150 dpi render stays crisp without the browser blowing it up or
+    # shrinking it; max-width keeps a wide study inside the page.
     cat(sprintf(
-      '<p><img src="%s" alt="quantile %g heatmap" style="max-width:100%%;height:auto;"/></p>\n',
-      knitr::image_uri(.tmp), quant_value
+      '<p><img src="%s" alt="quantile %g heatmap" style="width:%.0fpx;max-width:100%%;height:auto;"/></p>\n',
+      knitr::image_uri(.tmp), quant_value, .sz[1] * 96
     ))
   } else {
     cat("*(heatmap could not be drawn on this ComplexHeatmap version)*\n\n")
@@ -504,9 +553,15 @@ if (length(detected_mets) > 0) {
     p90_vis  <- quantile(df$intensity, 0.90, na.rm = TRUE)
     pmin_vis <- min(df$intensity, na.rm = TRUE)
     
+    # Same group colours as the heatmap's group bar (from the YAML `colours:`
+    # block), so a group keeps one colour across the whole report.
+    .grp_scale <- scale_fill_manual(values = .grp_cols, name = "Group",
+                                    drop = FALSE)
+
     p_box <- ggplot(df, aes(x = run, y = intensity, fill = group_label)) +
       theme_classic() +
       geom_boxplot(outlier.shape = NA, width = 0.6, alpha = 0.7) +
+      .grp_scale +
       coord_cartesian(ylim = c(pmin_vis, p90_vis)) +
       labs(x = NULL, y = "Intensity (≤ p90)", fill = "Group") +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
@@ -516,6 +571,7 @@ if (length(detected_mets) > 0) {
       theme_classic() +
       geom_violin(trim = TRUE, alpha = 0.6) +
       geom_boxplot(width = 0.15, outlier.shape = NA, alpha = 0.8) +
+      .grp_scale +
       coord_cartesian(ylim = c(pmin_vis, p90_vis)) +
       labs(x = NULL, y = "Intensity (≤ p90)", fill = "Group") +
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
@@ -667,10 +723,9 @@ if (exists("feature_meta") && !is.null(feature_meta) &&
   .fg[is.na(.fg) | !nzchar(trimws(.fg))] <- "Other"
   .feat_groups <- setNames(.fg, rownames(feature_meta))
   .lvls <- unique(.fg)
-  .met_palette <- setNames(
-    grDevices::hcl.colors(max(length(.lvls), 2), palette = "Set 2")[seq_along(.lvls)],
-    .lvls
-  )
+  # Feature-class colours from the YAML `colours:` block, matching the
+  # heatmap's feature bar.
+  .met_palette <- .cat_cols(.lvls, .pal_feature)
 }
 
 for (grp_name in names(cor_datasets)) {

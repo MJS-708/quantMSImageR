@@ -57,6 +57,16 @@ test_that("cells are square, stretching to at most max_aspect", {
   expect_equal(ch / cw, 1.5)
 })
 
+test_that("cells carry a border so neighbours stay separable", {
+  obj <- make_obj(n_features = 4, runs = c("s1", "s2"))
+
+  hm <- quantile_hm(obj, quant_val = 0.5)
+  expect_equal(hm@matrix_param$gp$col, "white")
+
+  none <- quantile_hm(obj, quant_val = 0.5, cell_border = NA)
+  expect_true(is.na(none@matrix_param$gp$col))
+})
+
 test_that("deprecated row_split arguments still work", {
   obj <- make_obj(n_features = 4, runs = c("s1", "s2"))
   fs  <- c("A", "A", "B", "B")

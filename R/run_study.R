@@ -234,6 +234,7 @@ run_study <- function(config_file) {
   pal_heatmap <- cfg$colours$heatmap   %||% "heatmap2"
   pal_group   <- cfg$colours$group     %||% "hat"
   pal_feature <- cfg$colours$feature   %||% "reading"
+  hm_cell_border <- cfg$colours$cell_border %||% "white"
 
   render_report  <- cfg$output$render_report  %||% TRUE
   output_txt     <- cfg$output$output_txt     %||% TRUE

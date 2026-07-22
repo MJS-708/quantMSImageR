@@ -220,6 +220,7 @@ run_example <- function(render_report = TRUE,
     pal_heatmap       <- "heatmap2"
     pal_group         <- "hat"
     pal_feature       <- "reading"
+    hm_cell_border    <- "white"
     out_path          <- tmp_dir
     report_fn         <- "Example"
     ratios_cfg        <- NULL

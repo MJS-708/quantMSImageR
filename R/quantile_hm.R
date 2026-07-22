@@ -44,6 +44,9 @@
 #'   it to `ComplexHeatmap` stretches them to fill the device, which produces
 #'   very oblong cells when there are far more features than samples. Set to
 #'   `NA` to restore the fill-the-device behaviour.
+#' @param cell_border Colour for the line drawn around every cell (default
+#'   `"white"`), which separates neighbouring cells instead of letting equal
+#'   colours merge into one block. `NA` draws no border.
 #' @param max_aspect Numeric >= 1. Largest cell width-to-height ratio allowed
 #'   when one dimension has many more entries than the other (default `1.5`).
 #'   Cells stay square until the counts differ by more than four-fold; beyond
@@ -68,6 +71,7 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
                         feature_split_name = "Pathway",
                         group_split_name = "Group",
                         cell_size = 6, max_aspect = 1.5,
+                        cell_border = "white",
                         palette = c("heatmap2", "heatmap0"),
                         group_palette = "hat",
                         feature_palette = "reading",
@@ -84,6 +88,16 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
   if (!is.null(column_split_name)) group_split_name   <- column_split_name
 
   palette <- match.arg(palette)
+
+  # A hairline in the background colour between cells. Adjacent samples often
+  # land in the same clipped z-score, and without a border they merge into one
+  # block so the number of sections is no longer readable off the panel.
+  .rect_gp  <- if (is.na(cell_border)) grid::gpar(col = NA)
+               else grid::gpar(col = cell_border, lwd = 0.5)
+  # Same treatment for the annotation bars, so they read as one tile per
+  # sample / feature rather than a continuous stripe.
+  .anno_gp  <- .rect_gp
+
   # Prepare the output matrix
   sample_names = unique(pData(MSIobject)$run)
 
@@ -161,6 +175,7 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
     # bug ("depth applied to NULL") with multiple groups.
     left_anno <- do.call(ComplexHeatmap::rowAnnotation,
       c(.anno_args, list(col = .col_args, show_legend = FALSE,
+                          gp = .anno_gp,
                           show_annotation_name = TRUE,
                           annotation_name_side = "bottom")))
   }
@@ -173,7 +188,8 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
     .col_args <- list(); .col_args[[feature_split_name]] <- fs_cols
     .anno_args <- list(); .anno_args[[feature_split_name]] <- fs
     top_anno <- do.call(ComplexHeatmap::HeatmapAnnotation,
-      c(.anno_args, list(col = .col_args, show_annotation_name = TRUE,
+      c(.anno_args, list(col = .col_args, gp = .anno_gp,
+                          show_annotation_name = TRUE,
                           annotation_name_side = "right")))
   }
 
@@ -207,7 +223,7 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
     seq(-1, 1, length.out = length(.cols)), .cols)
 
   hm <- do.call(ComplexHeatmap::Heatmap, c(list(
-    z_matrix, name = "Z-score", col = .col_fn,
+    z_matrix, name = "Z-score", col = .col_fn, rect_gp = .rect_gp,
     cluster_rows = FALSE, cluster_columns = FALSE, show_row_dend = FALSE,
     row_split = gs, row_title = NULL, cluster_row_slices = FALSE,
     column_split = fs, column_title = NULL, cluster_column_slices = FALSE,

@@ -63,6 +63,7 @@ colours:
   heatmap:   "heatmap2"                # z-score heatmap:   heatmap2 | heatmap0
   group:     "hat"                     # sample-group bar:  hat | reading | heatmap0
   feature:   "reading"                 # feature-class bar: reading | hat | heatmap0
+  cell_border: "white"                 # line between heatmap cells: colour | "none"
 
 # ====================== FEATURE CONTROL ======================
 features:

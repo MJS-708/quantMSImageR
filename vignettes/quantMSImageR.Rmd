@@ -347,15 +347,18 @@ ggplot(mask_tbl, aes(x, -y, fill = sample_name)) +
 
 Colours are consistent across the package and selectable per plot. `imageR()`
 takes `palette = "viridis"` or `"heatmap0"`; `quantile_hm()` takes a diverging
-`palette` plus `group_palette` / `feature_palette` for the metadata bars. In a
-YAML-driven study all four are set once in the `colours:` block:
+`palette` plus `group_palette` / `feature_palette` for the metadata bars, and
+`cell_border` for the hairline that keeps neighbouring cells of the same colour
+from merging into one block. In a YAML-driven study these are set once in the
+`colours:` block:
 
 ```yaml
 colours:
-  ion_image: "heatmap0"   # heatmap0 | viridis
-  heatmap:   "heatmap2"   # heatmap2 | heatmap0
-  group:     "hat"        # hat | reading | heatmap0
-  feature:   "reading"    # reading | hat | heatmap0
+  ion_image:   "heatmap0"  # heatmap0 | viridis
+  heatmap:     "heatmap2"  # heatmap2 | heatmap0
+  group:       "hat"       # hat | reading | heatmap0
+  feature:     "reading"   # reading | hat | heatmap0
+  cell_border: "white"     # any colour, or "none"
 ```
 
 ```{r palettes}

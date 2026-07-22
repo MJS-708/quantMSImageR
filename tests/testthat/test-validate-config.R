@@ -44,6 +44,21 @@ test_that("every problem is reported, not just the first", {
   expect_true(any(grepl("palette", v$errors)))
 })
 
+test_that("cell_border is checked as a colour, not as a palette", {
+  cfg <- good_cfg()
+
+  # A palette name is exactly what cell_border must NOT be checked against.
+  cfg$colours <- list(cell_border = "white")
+  expect_length(validate_config(cfg)$errors, 0)
+  cfg$colours <- list(cell_border = "#1A2B3C")
+  expect_length(validate_config(cfg)$errors, 0)
+  cfg$colours <- list(cell_border = "none")
+  expect_length(validate_config(cfg)$errors, 0)
+
+  cfg$colours <- list(cell_border = "chartroose")
+  expect_true(any(grepl("cell_border", validate_config(cfg)$errors)))
+})
+
 test_that("is_name is checked against the ion library's type column", {
   cfg <- good_cfg()
   cfg$parameters$is_name <- "PGE2-d4"          # a transition name, not a type

@@ -14,6 +14,7 @@ quantile_hm(
   group_split_name = "Group",
   cell_size = 6,
   max_aspect = 1.5,
+  cell_border = "white",
   palette = c("heatmap2", "heatmap0"),
   group_palette = "hat",
   feature_palette = "reading",
@@ -58,6 +59,10 @@ when one dimension has many more entries than the other (default \code{1.5}).
 Cells stay square until the counts differ by more than four-fold; beyond
 that the shorter dimension's cells are widened up to this ratio so the
 plotting area is not reduced to a sliver.}
+
+\item{cell_border}{Colour for the line drawn around every cell (default
+\code{"white"}), which separates neighbouring cells instead of letting equal
+colours merge into one block. \code{NA} draws no border.}
 
 \item{palette}{Character. Diverging colour ramp for the z-scores:
 \code{"heatmap2"} (default, blue-white-red) or \code{"heatmap0"}. See
