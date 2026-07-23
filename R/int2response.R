@@ -19,7 +19,7 @@ setGeneric("int2response", function(MSIobject, ...) standardGeneric("int2respons
 #' }
 #' To leave values untouched, do not call this function. There is deliberately
 #' no "none" value here: skipping a step is the caller's decision, not a mode of
-#' the step. The YAML pipeline exposes `normalisation: none` for that, and
+#' the step. The YAML workflow exposes `normalisation: none` for that, and
 #' simply does not call this function.
 #'
 #' @section Multiple internal standards:

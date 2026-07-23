@@ -1,6 +1,6 @@
 #' Run the quantMSImageR example study
 #'
-#' Executes the full DESI-MRM pipeline on a small synthetic dataset bundled
+#' Executes the full DESI-MRM workflow on a small synthetic dataset bundled
 #' with the package.  The dataset contains two samples -- `SampleA` (circular
 #' tissue, sections 01-03) and `SampleB` (square tissue, sections 04-06) --
 #' acquired on a panel of eight oxylipin features (seven analytes + one
@@ -36,7 +36,7 @@
 #'   rendered HTML.
 #'
 #' @examples
-#' # The pipeline itself, without rendering or opening the HTML report
+#' # The workflow itself, without rendering or opening the HTML report
 #' \donttest{
 #' res <- run_example(render_report = FALSE, shapes = "circle")
 #' names(res)
@@ -110,7 +110,7 @@ run_example <- function(render_report = TRUE,
   # ---- Demo: tissue selection ---------------------------------------------
   message("\n--- Tissue pixel selection demo ---")
   message("In a real study you would run select_tissue_pixels() before the")
-  message("YAML pipeline to interactively draw a tissue ROI and save")
+  message("YAML workflow to interactively draw a tissue ROI and save")
   message("tissue_pixels.csv.  Here the mask is already embedded in the RDS.")
   message("Showing the tissue vs background mask for the first section...")
 

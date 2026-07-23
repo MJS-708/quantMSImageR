@@ -10,7 +10,7 @@
 #' `tissueData()`.
 #'
 #' @details
-#' The calibration accessors follow the pipeline. [summarise_cal_levels()]
+#' The calibration accessors follow the workflow. [summarise_cal_levels()]
 #' populates `calibrationLevels()`, [create_cal_curve()] fills
 #' `calibrationModels()` and `calibrationR2()`, and [int2conc()] reads the
 #' models back out. `calibrationData()` moves the whole block at once, which is

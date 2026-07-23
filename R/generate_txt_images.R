@@ -187,7 +187,7 @@ generate_txt_images <- function(
     if (length(out) == 0) NULL else out
   }
 
-  # If every requested threshold is 0, the pipeline can skip the tissue mask
+  # If every requested threshold is 0, the workflow can skip the tissue mask
   # entirely (no SNR filtering, no tissue/background separation). A single
   # tissue_pixels.csv-free smoke-test pass is then possible, useful for
   # checking that acquisitions load cleanly before any ROI is drawn.

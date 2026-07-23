@@ -6,7 +6,7 @@
 #' `calibrationInfo` slot of a [quant_MSImagingExperiment].
 #'
 #' @details
-#' The slots are filled in pipeline order and are empty (zero-row data frames,
+#' The slots are filled in workflow order and are empty (zero-row data frames,
 #' empty list) until the corresponding step has run:
 #'
 #' \describe{
@@ -47,7 +47,7 @@
 #' ci <- calibrationInfo()
 #' ci
 #'
-#' # Populated by the calibration pipeline
+#' # Populated by the calibration workflow
 #' cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
 #' cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
 #'           "quant_MSImagingExperiment")
@@ -154,7 +154,7 @@ tissueInfo = setClass("tissueInfo",
 #' @details
 #' The object is **features x pixels**: one row per MRM transition, one column
 #' per pixel. Derived layers are added as additional spectra slots rather than
-#' overwriting `intensity`, so the raw values survive the whole pipeline:
+#' overwriting `intensity`, so the raw values survive the whole workflow:
 #'
 #' \describe{
 #'   \item{`intensity`}{Raw measured response, as read from the acquisition.}

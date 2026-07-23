@@ -1,5 +1,5 @@
 # The YAML `is_name:` option must actually reach int2response() and switch the
-# whole pipeline onto the `response` layer -- previously int2response() was
+# whole workflow onto the `response` layer -- previously int2response() was
 # documented as part of the workflow but unreachable from a config.
 
 is_fns <- list(list(neg = "example", section = "section01", label = "A"))
@@ -17,12 +17,12 @@ run_with <- function(...) {
   )
 }
 
-test_that("without is_name the pipeline stays on intensity", {
+test_that("without is_name the workflow stays on intensity", {
   res <- suppressMessages(run_with())
   expect_false("response" %in% names(spectraData(res$combined)))
 })
 
-test_that("is_name normalises and switches the pipeline to the response layer", {
+test_that("is_name normalises and switches the workflow to the response layer", {
   # is_name is the ion library's Type value (fData()$analyte), not a
   # transition name -- passing a name silently normalises each feature to
   # itself instead, which is why this is asserted explicitly.

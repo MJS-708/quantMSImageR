@@ -7,7 +7,7 @@
 #' acquisition's `.raw` folder, where [generate_txt_images()] will find it
 #' automatically.
 #'
-#' This function must be run **before** the YAML pipeline for each acquisition
+#' This function must be run **before** the YAML workflow for each acquisition
 #' that does not yet have a `tissue_pixels.csv`.  It requires an interactive R
 #' session with a graphics device (i.e. not inside `Rscript --no-save`).
 #'
@@ -27,7 +27,7 @@
 #'   be overwritten.  Default `FALSE`.
 #' @param preview Logical. Draw the saved mask (tissue versus background over
 #'   the pixel coordinates) once selection finishes, so it can be checked before
-#'   the pipeline uses it. Default `TRUE`.
+#'   the workflow uses it. Default `TRUE`.
 #'
 #' @return Invisibly returns a data frame with columns `x`, `y`,
 #'   `tissue_pixels` and `background_pixels` (logical), one row per pixel, in
@@ -43,7 +43,7 @@
 #'     lib_ion_path = "path/to/ion_library.csv"
 #'   )
 #'
-#'   # Step 2: run the full pipeline from the study config
+#'   # Step 2: run the full workflow from the study config
 #'   run_study("path/to/study.yaml")
 #' }
 #'

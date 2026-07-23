@@ -1,6 +1,6 @@
 #' Run a full DESI-MRM study from a YAML configuration
 #'
-#' Executes the whole pipeline for a study described by a single YAML file:
+#' Executes the whole workflow for a study described by a single YAML file:
 #' loads every acquisition, applies the tissue masks, runs SNR filtering at each
 #' requested threshold, optionally builds calibration models and converts tissue
 #' pixels to estimated amounts, writes per-feature `.txt` images, and renders one
@@ -314,9 +314,9 @@ run_study <- function(config_file) {
     message("Calibration enabled: building curves from '", .cal$cal_acquisition, "'.")
 
     .use_is  <- !is.null(is_name) && nzchar(is_name) && !identical(is_name, "None")
-  # The study is quantified from whichever layer the pipeline produced. Using
+  # The study is quantified from whichever layer the workflow produced. Using
   # un-normalised standards against an IS-normalised tissue would mix units and
-  # silently produce wrong amounts, so the default follows the pipeline.
+  # silently produce wrong amounts, so the default follows the workflow.
   cal_val  <- .cal$val_slot         %||% (if (.use_is) "response" else "intensity")
 
     # No fallback: "cal" and "std_addition" do materially different things, so
@@ -365,7 +365,7 @@ run_study <- function(config_file) {
     cal_obj <- create_cal_curve(cal_obj, cal_type = cal_type,
                                 background = bg_level, weighting = cal_weighting)
 
-    # 3. Apply curves to the study's tissue pixels. The imaging pipeline labels
+    # 3. Apply curves to the study's tissue pixels. The imaging workflow labels
     #    pixels in `sample_name` (tissue_pixels/background_pixels), so bridge via
     #    pixel_header = "sample_name".
     combined_cal <- result$combined

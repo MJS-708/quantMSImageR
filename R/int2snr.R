@@ -118,7 +118,7 @@ setMethod("int2snr", "quant_MSImagingExperiment",
                                                      nrow = nrow(MSIobject),
                                                      ncol = ncol(MSIobject))
               } else {
-                # Kept for pipelines that deliberately run unfiltered, but the
+                # Kept for workflows that deliberately run unfiltered, but the
                 # snr layer then holds response, not a ratio.
                 warning(msg, "Returning ", val_slot, " as snr: the snr slot ",
                         "will hold measured response, not a ratio.",

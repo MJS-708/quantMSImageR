@@ -73,10 +73,10 @@ It does **not** do the following, by design -- other tools do them better:
 | General-purpose image segmentation | image-analysis packages |
 | Complex spatial / colocalisation analysis | [corrMSI](https://github.com/MJS-708/corrMSI/tree/dev) |
 
-## The pipeline
+## The workflow
 
 Functions are grouped into families, and each section below opens with the
-family it belongs to. The whole pipeline is:
+family it belongs to. The whole workflow is:
 
 ```
   .raw acquisition            ion library CSV
@@ -108,7 +108,7 @@ family it belongs to. The whole pipeline is:
                                         v
                                  plot_cal_coverage   (does calibration cover the data?)
 
-  WORKFLOW:  run_study() (YAML)  .  generate_txt_images()  .  run_example()
+  WHOLE STUDY:  run_study() (YAML)  .  generate_txt_images()  .  run_example()
 ```
 
 Quantification is covered in the companion vignette; everything else is below.
@@ -140,7 +140,7 @@ BiocManager::install("quantMSImageR")
 
 # Quick start
 
-The fastest way to see the whole pipeline is `run_example()`, which runs the
+The fastest way to see the whole workflow is `run_example()`, which runs the
 imaging workflow on two synthetic groups (**A**, circular tissue, n = 3;
 **B**, square tissue, n = 3), renders the HTML report, and also demonstrates
 quantification on the bundled calibration standards:
@@ -317,7 +317,7 @@ DT::datatable(head(mask_tbl, 500), rownames = FALSE,
 pixels).
 
 Plotting that column over the pixel coordinates shows the mask itself, which is
-the quickest way to confirm a selection before running the pipeline -- the
+the quickest way to confirm a selection before running the workflow -- the
 circular group A and square group B tissue should stand out cleanly from the
 surrounding background:
 
