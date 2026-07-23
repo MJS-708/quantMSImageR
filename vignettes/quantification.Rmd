@@ -221,7 +221,8 @@ names(pix) <- c("sample_type", "n_pixels")
 ```
 
 ```{r pix-table}
-DT::datatable(pix, rownames = FALSE, options = list(dom = "t"))
+DT::datatable(pix, rownames = FALSE,
+              options = list(dom = "t", scrollX = TRUE))
 ```
 
 **Table 1.** How the calibration acquisition's pixels are labelled. `Cal` are the
@@ -233,7 +234,8 @@ what was deposited on it: each `identifier` maps to an `analyte`, the
 amount spotted (`amount_pg`) and which dilution `level` it belongs to.
 
 ```{r cal-meta}
-DT::datatable(cal_metadata, rownames = FALSE, options = list(pageLength = 10))
+DT::datatable(cal_metadata, rownames = FALSE,
+              options = list(pageLength = 10, scrollX = TRUE))
 ```
 
 **Table 2.** Calibration metadata: amount of each analyte deposited at every
@@ -270,7 +272,8 @@ eqn$r2 <- r2_df$r2[match(eqn$analyte, r2_df$feature)]
 ```
 
 ```{r eqn-table}
-DT::datatable(eqn, rownames = FALSE, options = list(dom = "t")) |>
+DT::datatable(eqn, rownames = FALSE,
+              options = list(dom = "t", scrollX = TRUE)) |>
   DT::formatSignif(c("slope", "intercept", "r2"), digits = 4)
 ```
 
