@@ -22,21 +22,82 @@ library(ggplot2)
 
 # Introduction
 
-## Why calibrate MSI data?
-
 Mass spectrometry imaging measures analyte **response** at each pixel rather
 than analyte amount directly. Using calibration standards, `quantMSImageR` can
 convert this response into an **estimated amount per pixel** (pg/pixel) and,
-when pixel dimensions are known, an **estimated amount** per unit area (pg/mm²). These
+when pixel dimensions are known, an **estimated real amount** (pg/mm²). These
 estimates are conditional on the calibration design, internal standard choice
 and strategy, matrix matching, acquisition conditions, and validity of the
 fitted model.
 
 ## On-slide versus on-tissue calibration
 
+```{r cal-schematic-helper, echo = FALSE}
+# Two small schematics per calibration design: where the standards sit, and how
+# amount is recovered from the fit. Illustrative numbers throughout -- these are
+# diagrams, not measurements.
+.slide_plot <- function(on_tissue) {
+  tis <- data.frame(xmin = 0.4, xmax = 3.6, ymin = 0.6, ymax = 3.4)
+  sp <- if (on_tissue)
+    expand.grid(x = c(0.9, 1.7, 2.5, 3.3), y = c(1.2, 2.0, 2.8))
+  else
+    expand.grid(x = c(4.3, 4.9, 5.5), y = c(1.2, 2.0, 2.8))
+
+  ggplot() +
+    geom_rect(data = tis, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+              fill = "#7db954", colour = "grey40", alpha = 0.55) +
+    geom_point(data = sp, aes(x, y), shape = 21, size = 4,
+               fill = "#e8351e", colour = "grey20", stroke = 0.4) +
+    annotate("text", x = 2.0, y = 0.25, label = "tissue section",
+             size = 3, colour = "grey25") +
+    annotate("text", x = if (on_tissue) 2.1 else 4.9,
+             y = if (on_tissue) 3.75 else 0.25,
+             label = "standards", size = 3, colour = "#cd023d") +
+    coord_fixed(xlim = c(0, 6), ylim = c(0, 4)) +
+    theme_void(base_size = 11) +
+    theme(panel.border = element_rect(colour = "grey70", fill = NA))
+}
+
+.fit_plot <- function(on_tissue) {
+  add <- c(0, 10, 20, 30, 40)
+  b0  <- if (on_tissue) 45 else 5          # response at zero added amount
+  pts <- data.frame(amount = add, response = b0 + 2 * add)
+
+  g <- ggplot() +
+    geom_hline(yintercept = 0, colour = "grey30", linewidth = 0.4) +
+    geom_vline(xintercept = 0, colour = "grey30", linewidth = 0.4) +
+    geom_line(data = data.frame(x = c(0, 45), y = b0 + 2 * c(0, 45)),
+              aes(x, y), colour = "#0f8096", linewidth = 0.7) +
+    geom_point(data = pts, aes(amount, response), shape = 21, size = 2.6,
+               fill = "#e8351e", colour = "grey20")
+
+  if (on_tissue) {
+    # The extrapolation back to the x-intercept is what standard addition adds.
+    g <- g +
+      geom_line(data = data.frame(x = c(-25, 0), y = b0 + 2 * c(-25, 0)),
+                aes(x, y), colour = "#0f8096", linewidth = 0.7,
+                linetype = "dashed") +
+      geom_point(aes(x = -22.5, y = 0), shape = 4, size = 3.4, stroke = 1.1,
+                 colour = "#cd023d") +
+      annotate("text", x = -21, y = 0, label = "endogenous amount",
+               hjust = 0, vjust = 2, size = 3, colour = "#cd023d")
+  }
+
+  g + scale_x_continuous(limits = if (on_tissue) c(-30, 48) else c(-5, 48)) +
+    labs(x = "amount deposited (pg / pixel)", y = "response") +
+    theme_minimal(base_size = 11) +
+    theme(panel.grid.minor = element_blank(),
+          axis.line = element_line(colour = "black"))
+}
+```
+
 **On-slide (external) calibration** deposits standards on the slide adjacent to
-the tissue. This captures instrumental response during the same acquisition, but
+the tissue. This captures instrumental response during the same acquisition but
 does not reproduce tissue-specific matrix effects. Use `cal_type = "cal"`.
+
+```{r cal-onslide, echo = FALSE, fig.wide = TRUE, fig.height = 2.4, fig.cap = "On-slide calibration. Standards are deposited on the slide beside the section, so they share the acquisition but not the tissue matrix. Amount is read straight off the fitted line, whose intercept is instrument background. Schematic."}
+patchwork::wrap_plots(.slide_plot(FALSE), .fit_plot(FALSE), widths = c(1, 1.1))
+```
 
 **On-tissue calibration** deposits standards onto tissue, or onto a
 representative tissue homogenate. Matrix matching is better, but endogenous
@@ -48,87 +109,13 @@ axis expresses *total* amount (endogenous + added), drops the background level
 and refits. The estimate therefore accounts for analyte the tissue already
 contained.
 
+```{r cal-ontissue, echo = FALSE, fig.wide = TRUE, fig.height = 2.4, fig.cap = "On-tissue calibration by standard addition. Standards are deposited onto the section, so they experience the same matrix as the analyte. The response at zero added amount already contains endogenous analyte, so the line is extrapolated back (dashed) to the x-intercept, and that amount is added to every deposited amount. Schematic."}
+patchwork::wrap_plots(.slide_plot(TRUE), .fit_plot(TRUE), widths = c(1, 1.1))
+```
+
 `cal_type` has no default: the two modes do materially different things, so it
 must be chosen explicitly.
 
-The two designs differ in where the standards are put:
-
-```{r cal-geometry, echo = FALSE, fig.wide = TRUE, fig.height = 2.6, fig.cap = "Where the standards sit in each calibration design. On-slide standards are deposited beside the section; on-tissue standards are deposited onto it, so they experience the same matrix as the analyte."}
-.mode <- c("On-slide  (cal_type = \"cal\")",
-           "On-tissue  (cal_type = \"std_addition\")")
-
-.tissue <- data.frame(mode = factor(.mode, levels = .mode),
-                      xmin = 0.4, xmax = 3.6, ymin = 0.6, ymax = 3.4)
-.spots <- rbind(
-  data.frame(mode = .mode[1],
-             x = rep(c(4.3, 4.9, 5.5), each = 3), y = rep(c(1.2, 2.0, 2.8), 3)),
-  data.frame(mode = .mode[2],
-             x = rep(c(0.9, 1.7, 2.5, 3.3), each = 3), y = rep(c(1.2, 2.0, 2.8), 4)))
-.spots$mode <- factor(.spots$mode, levels = .mode)
-
-ggplot() +
-  geom_rect(data = .tissue,
-            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
-            fill = "#7db954", colour = "grey40", alpha = 0.55) +
-  geom_point(data = .spots, aes(x, y), shape = 21, size = 4,
-             fill = "#e8351e", colour = "grey20", stroke = 0.4) +
-  geom_text(data = data.frame(mode = factor(.mode, levels = .mode),
-                              x = 2.0, y = 0.25, lab = "tissue section"),
-            aes(x, y, label = lab), size = 3, colour = "grey25") +
-  geom_text(data = data.frame(mode = factor(.mode, levels = .mode),
-                              x = c(4.9, 2.1), y = c(0.25, 3.75),
-                              lab = "standards"),
-            aes(x, y, label = lab), size = 3, colour = "#cd023d") +
-  facet_wrap(~ mode) +
-  coord_fixed(xlim = c(0, 6), ylim = c(0, 4)) +
-  theme_void(base_size = 11) +
-  theme(strip.text = element_text(face = "bold", margin = margin(b = 6)),
-        panel.border = element_rect(colour = "grey70", fill = NA),
-        panel.spacing = unit(1.2, "lines"))
-```
-
-...and in what the fit then has to do. On-slide, the response at zero added
-amount is instrument background, so amount is read straight off the line.
-On-tissue, the response at zero added amount already contains the endogenous
-analyte, so the line is extrapolated back to the x-intercept to estimate how
-much was there before anything was deposited:
-
-```{r cal-fit-schematic, echo = FALSE, fig.wide = TRUE, fig.height = 3.2, fig.cap = "How amount is recovered in each design. The dashed segment is the extrapolation back to the x-intercept, which standard addition takes as the endogenous amount and adds to every deposited amount."}
-.add <- c(0, 10, 20, 30, 40)
-.pts <- rbind(data.frame(mode = .mode[1], amount = .add, response = 5 + 2 * .add),
-              data.frame(mode = .mode[2], amount = .add, response = 45 + 2 * .add))
-.pts$mode <- factor(.pts$mode, levels = .mode)
-
-.lines <- rbind(
-  data.frame(mode = .mode[1], x = c(0, 45),  y = 5 + 2 * c(0, 45),  seg = "fit"),
-  data.frame(mode = .mode[2], x = c(0, 45),  y = 45 + 2 * c(0, 45), seg = "fit"),
-  data.frame(mode = .mode[2], x = c(-25, 0), y = 45 + 2 * c(-25, 0), seg = "extrap"))
-.lines$mode <- factor(.lines$mode, levels = .mode)
-.xint <- data.frame(mode = factor(.mode[2], levels = .mode), x = -22.5, y = 0)
-
-ggplot() +
-  geom_hline(yintercept = 0, colour = "grey30", linewidth = 0.4) +
-  geom_vline(xintercept = 0, colour = "grey30", linewidth = 0.4) +
-  geom_line(data = .lines, aes(x, y, group = seg, linetype = seg),
-            colour = "#0f8096", linewidth = 0.7) +
-  geom_point(data = .pts, aes(amount, response), shape = 21, size = 2.6,
-             fill = "#e8351e", colour = "grey20") +
-  geom_point(data = .xint, aes(x, y), shape = 4, size = 3.4, stroke = 1.1,
-             colour = "#cd023d") +
-  geom_text(data = .xint, aes(x, y, label = "endogenous amount"),
-            hjust = 0, nudge_x = 1.5, vjust = 2, size = 3, colour = "#cd023d") +
-  scale_linetype_manual(values = c(fit = "solid", extrap = "dashed"),
-                        guide = "none") +
-  scale_x_continuous(limits = c(-30, 48)) +
-  facet_wrap(~ mode) +
-  labs(x = "amount deposited (pg / pixel)", y = "response") +
-  theme_minimal(base_size = 11) +
-  theme(strip.text = element_text(face = "bold"),
-        panel.grid.minor = element_blank(),
-        axis.line = element_line(colour = "black"))
-```
-
-Both figures are schematics: the numbers are illustrative, not measured.
 
 ## Scope and assumptions
 
@@ -144,7 +131,7 @@ user's responsibility:
 - any internal standard behaves consistently across the acquisition;
 - pixel dimensions are known, for conversion to pg/mm².
 
-It is worth keeping the analytical steps distinct from the interpretive one:
+Keeping the analytical steps distinct from the interpretive one:
 
 1. raw intensity;
 2. internal-standard-normalised response (`int2response()`);
@@ -344,12 +331,8 @@ analyte
 ## Checking calibration coverage
 
 Converting a response into an amount estimate is only trustworthy where the
-standards constrain the fit. A calibration whose levels sit far above (or below)
-the signal actually measured in tissue is extrapolation, not quantification, so
-it is worth plotting the two together before believing the numbers.
-
-`plot_cal_coverage()` draws that check. The lower panel is the calibration
-itself -- the standard spots (red) and the fitted model (dashed) that
+standards constrain the fit. `plot_cal_coverage()` enables this to be
+evaluated. The lower panel is the calibration itself -- the standard spots (red) and the fitted model (dashed) that
 `int2conc()` inverts. The upper panel is the distribution of the section's own
 pixels on exactly the same x-axis, with the calibration levels marked in red.
 When the histogram sits **inside** the span of the red lines, every converted
@@ -365,20 +348,10 @@ the data.
 
 ## Handling out-of-range pixels
 
-An amount read off the curve beyond the highest or lowest standard is an
-extrapolation: the model was never fitted there, and the assumption that the
-response stays linear is exactly the assumption the standards were supposed to
-test. `int2conc()` therefore reports every feature with any extrapolated pixels
-by `message()`, and **stops** when a feature exceeds `max_out_of_range`
-(`0.1` by default, so at least 90% of pixels must be interpolated between real
-standards). The error names each offending feature with its percentage.
-
-Two things resolve it, and the choice is deliberately yours. Either the
-calibration needs to bracket the tissue -- `plot_cal_coverage()` above shows
-which end it misses, and the fix is a wider dilution series -- or the
-extrapolation is acceptable for your purpose and you say so by raising
-`max_out_of_range` (`1` accepts any). What is not offered is quietly returning
-numbers the curve cannot support.
+Either the calibration needs re-acquiring such that tissue pixels are
+interpolated (recheck with `plot_cal_coverage()` as above). Or a small % of
+extrapolation of extreme pixels is acceptable for your purpose and is set by
+`max_out_of_range` (`1` accepts any).
 
 The proportion is recorded per feature, so it can be carried into a report
 alongside R-squared:
@@ -398,8 +371,8 @@ imageR(study, feat_ind = 1, sample_lab = "run", val_slot = "intensity",
        scale = "suppress")
 ```
 
-...and then in calibrated units, where the colour scale is an estimated amount per
-unit area:
+Then the same data in calibrated units, where the colour scale is an estimated
+amount per unit area:
 
 ```{r img-conc, fig.small = TRUE, fig.cap = "The same section after int2conc(). The colour scale is now an estimated amount per unit area rather than instrument response, which is interpretable on its own terms and comparable across acquisitions where standards, matrix and acquisition conditions are matched."}
 imageR(study, feat_ind = 1, sample_lab = "run",

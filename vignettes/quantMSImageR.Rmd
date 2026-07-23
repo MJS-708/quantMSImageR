@@ -19,8 +19,6 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", warning = FALSE,
 
 # Introduction
 
-## The problem
-
 A targeted DESI-MRM imaging run produces one intensity per transition per pixel,
 across tens of thousands of pixels and several acquisitions. Turning that into a
 biological result runs into three problems at once.
@@ -53,9 +51,9 @@ the third.
 ## Scope
 
 The package is currently validated for **Waters DESI-MRM** data. The software
-is extendable to other targeted imaging data, which may be analysed after
-conversion to a compatible `MSImagingExperiment`, though those workflows have
-not yet been formally validated.
+is extendable to targeted imaging data may be analysed after conversion to a
+compatible `MSImagingExperiment`, but those workflows have not yet been formally
+validated.
 
 Within that scope it is designed to handle:
 
@@ -113,8 +111,6 @@ family it belongs to. The whole workflow is:
   WHOLE STUDY:  run_study() (YAML)  .  generate_txt_images()  .  run_example()
 ```
 
-Quantification is covered in the companion vignette; everything else is below.
-
 Per-feature images can also be exported as plain `.txt` intensity matrices,
 which load directly into ImageJ and similar tools. Useful for downstream
 multimodal analysis such as co-registration with histology or other imaging
@@ -126,11 +122,6 @@ Quantification against calibration standards is covered separately in the
 
 The workflow implemented here is described and applied in
 [Smith *et al.*, *Analytical Chemistry* (2024)](https://pubs.acs.org/doi/10.1021/acs.analchem.4c02350).
-
-The package builds on
-[Cardinal](https://bioconductor.org/packages/Cardinal/): every acquisition is a
-`Cardinal::MSImagingExperiment`, and most `quantMSImageR` functions operate on
-the `quant_MSImagingExperiment` subclass, so we coerce first.
 
 # Installation
 
@@ -180,7 +171,7 @@ Multiple acquisitions are held in **one object**, distinguished by the `run`
 column of `pData()` -- that is what `combine_MSIs()` produces and what every
 per-sample summary groups on.
 
-Pixel metadata uses a consistent vocabulary: `run` identifies the acquisition,
+Pixel metadata uses consistent vocabulary: `run` identifies the acquisition,
 `x`/`y` are grid coordinates, and the tissue mask lives in `sample_name` as
 `tissue_pixels` / `background_pixels`. The calibration path uses
 `sample_type` with `Cal` / `Tissue` / `Background`.
@@ -531,7 +522,7 @@ Compare the filtered image below with the unfiltered ion images in
 *Ion images* above: the low-signal background has been removed, leaving the
 tissue.
 
-```{r snr-after, fig.wide = TRUE, fig.cap = "The same feature after applySNR(). Sub-threshold pixels are now NA, so the low-signal background has been removed and only tissue signal remains."}
+```{r snr-after, fig.wide = TRUE, fig.cap = "The same feature after applySNR(). Sub-threshold pixels are now NA, so the low-signal background has been removed and only tissue signal remains (compare to previous ion images)."}
 imageR(combined, feat_ind = 1, sample_lab = "run", val_slot = "intensity",
        scale = "suppress") +
   facet_wrap(~ sample, ncol = 3) +
@@ -598,26 +589,20 @@ Rscript -e 'quantMSImageR::run_study("study_config.yaml")'
 
 ## The configuration as a record of the analysis
 
-Driving a study from a file rather than from a session has a consequence worth
-stating plainly: **the configuration is a complete, human-readable record of
-how the data were processed.** Every choice that affects a reported number --
-which acquisitions belong to which group, the SNR thresholds and any
-per-analyte overrides, whether internal-standard normalisation ran and against
-which standard, the calibration design and its weighting, how much
-extrapolation was tolerated -- is written down in one file rather than left in
-a script's history or a chain of interactive calls.
+Driving a study from a file rather than from a session means a complete
+**human-readable configuration file to document how the data were processed.**
+Every choice that affects the results (which acquisitions belong to which group,
+the SNR thresholds and any per-analyte overrides, whether internal-standard
+normalisation ran and against which standard, the calibration design and its
+weighting, how much extrapolation was tolerated) is stored for future reference.
 
-That file is small enough to deposit alongside the data, cite in a methods
-section, or track in version control, where a `diff` shows exactly what changed
-between two versions of an analysis. Re-running it reproduces the reports,
-including the `.txt` exports other tools consume. In the language of the FAIR
-principles (Wilkinson *et al.*, 2016) it is the *reusable* part that is hardest to
-retrofit: the data may be deposited and the code may be public, but without the
-parameters neither can be re-run to the same numbers.
+The file is small enough to deposit alongside the data, cite in a methods
+section, or track in version control in line with FAIR principles
+(Wilkinson *et al.*, 2016).
 
-A record is only as good as its correctness, which is what `validate_config()`
-is for. It runs every check rather than stopping at the first failure, so one
-call reports every problem in the file:
+To ensure accuracy of this documentation `validate_config()` runs every check
+rather than stopping at the first failure, so one call reports every problem in
+the file:
 
 ```{r validate, eval = FALSE}
 validate_config("path/to/study_config.yaml")
@@ -633,19 +618,11 @@ Errors:
     transition name.
 ```
 
-`run_study()` calls it first and refuses to start if there are errors, so a
-configuration that cannot be trusted never produces output that looks
-trustworthy. The checks are deliberately cross-file -- the ion library, the
-calibration metadata and the config have to agree with each other, not merely
-be individually well-formed -- because the failures that matter are the ones
-that would otherwise produce a plausible-looking result computed from the wrong
-column, rather than an obvious crash.
-
-Two checks exist because those mistakes were made while building this package:
-`is_name` is verified against the ion library's type column, since a transition
-name there silently normalises nothing; and calibration analytes that match no
-transition are flagged, since calibration selects by name and an unmatched
-analyte simply produces no curve.
+`run_study()` calls it first and stops if there are errors, so a configuration
+that cannot be trusted never produces an output. The checks are deliberately
+cross-file for every enabled functionality (the ion library, the calibration
+metadata and the config have to agree with each other, not merely be
+individually well-formed).
 
 # References
 
