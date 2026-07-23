@@ -53,7 +53,7 @@ setGeneric("int2conc", function(MSIobject, ...) standardGeneric("int2conc"))
 #' @return The object subset to `pixels`, with two spectra slots added:
 #'   `pg_pixel` (estimated amount per pixel) and, when
 #'   `experimentData(MSIobject)$pixelSize` is available, `pg_mm2` (estimated
-#'   areal amount). Features with no calibration model are removed, and
+#'   amount per unit area). Features with no calibration model are removed, and
 #'   `r2_df` gains an `out_of_range` column giving the proportion of each
 #'   feature's pixels that were extrapolated beyond the calibrated range.
 #'

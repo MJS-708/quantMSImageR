@@ -24,26 +24,10 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", warning = FALSE,
 Mass spectrometry imaging measures analyte **response** at each pixel rather
 than analyte amount directly. Using calibration standards, `quantMSImageR` can
 convert this response into an **estimated amount per pixel** (pg/pixel) and,
-when pixel dimensions are known, an **estimated areal amount** (pg/mm²). These
-estimates are conditional on the calibration design, matrix matching,
-acquisition conditions, and validity of the fitted model.
-
-The need arises because response depends on how well each analyte ionises, how
-much the local tissue matrix suppresses or enhances that ionisation, and on the
-state of the source and detector at the moment the pixel was scanned. Two pixels
-containing the same underlying amount can therefore give very different
-responses if they sit in different tissue regions, and the same section re-run a
-week later can give a different scale entirely. The practical consequences are
-familiar: responses cannot be compared between analytes, between sections or
-against a published value, and apparent fold-changes can be driven by matrix
-effects rather than biology.
-
-Calibration places measurements on an interpretable amount scale and can improve
-comparability across samples and acquisitions **when standards, matrix, sample
-preparation and acquisition conditions are appropriately matched and the
-analytical method has been validated**. That is a substantial gain in
-interpretability and transferability over raw response, but it is not automatic
-traceable quantification -- see *Interpretation and limitations* below.
+when pixel dimensions are known, an **estimated amount** per unit area (pg/mm²). These
+estimates are conditional on the calibration design, internal standard choice
+and strategy, matrix matching, acquisition conditions, and validity of the
+fitted model.
 
 ## On-slide versus on-tissue calibration
 
@@ -54,22 +38,20 @@ does not reproduce tissue-specific matrix effects. Use `cal_type = "cal"`.
 **On-tissue calibration** deposits standards onto tissue, or onto a
 representative tissue homogenate. Matrix matching is better, but endogenous
 analyte signal and spatial heterogeneity still need careful treatment. Use
-`cal_type = "std_addition"`.
-
-That mode is **classical standard addition**: `create_cal_curve()` fits response
-against deposited amount, takes the x-intercept of that line as the endogenous
+`cal_type = "std_addition"`. **Standard addition**: `create_cal_curve()` fits
+response against deposited amount, takes the x-intercept of that line as the endogenous
 amount already present in the tissue, shifts every deposited amount by it so the
 axis expresses *total* amount (endogenous + added), drops the background level
 and refits. The estimate therefore accounts for analyte the tissue already
 contained.
 
-`cal_type` has no default — the two modes do materially different things, so it
+`cal_type` has no default: the two modes do materially different things, so it
 must be chosen explicitly.
 
 ## Scope and assumptions
 
 Amount estimates are only meaningful where the following hold. Each is the
-user's responsibility -- the package cannot check them:
+user's responsibility:
 
 - the standard is the same chemical species as the endogenous analyte;
 - transitions and acquisition settings match between standards and sample;
@@ -122,8 +104,8 @@ measured in tissue.
 | `int2conc()` | object carrying `cal_list`; `pixel_header` / `pixels`; `experimentData$pixelSize` for the mm² layer | adds `pg_pixel` and `pg_mm2`; features without a curve are dropped |
 | `plot_cal_coverage()` | a calibrated object (after `int2conc()`) | a `patchwork` figure: pixel histogram above the calibration curve |
 
-This vignette demonstrates the manual API on the small synthetic calibration
-dataset bundled with the package, applies the resulting models to a study
+This vignette demonstrates the workflow on a small synthetic calibration
+dataset bundled with the package. It applies the resulting models to a study
 section, and then shows how the same steps are driven from a study YAML
 configuration. `run_example(calibrate = TRUE)` runs the chain end-to-end. The
 core imaging workflow that produces the object these operate on -- SNR
@@ -214,30 +196,23 @@ R-squared of the line that `int2conc()` inverts.
 ## R² is not enough
 
 R² reports only how much of the variance in the standards the straight line
-accounts for. A calibration can have a very high R² and still be unsuitable,
-because of systematic curvature, heteroscedastic residuals, poor accuracy at the
-lower levels, a single influential high-amount point, extrapolation beyond the
-validated range, or poor replicate precision. Treat a low R² as a definite
-warning and a high R² as necessary but not sufficient.
+accounts for. Treat a low R² as a definite warning and a high R² as necessary
+but not sufficient.
 
 Before relying on the estimates, examine at minimum:
 
 - the calibration range, and whether the tissue signal falls inside it
   (`plot_cal_coverage()`, below);
 - residual patterns against fitted amount;
-- back-calculated accuracy of the standards themselves;
 - precision across calibration replicates;
 - the lower and upper quantifiable limits implied by the design;
 - whether the fit needs weighting. `create_cal_curve()` currently applies
   inverse-amount (`1/amount`) weighting. This reduces the influence of the
   highest calibration levels, but its suitability should be assessed from the
-  residual structure of your own analytical method. (Note that a constant
-  relative standard deviation implies variance roughly proportional to
-  amount², for which inverse-variance weights would be closer to `1/amount²`.)
+  residual structure of your analytical method.
 
 Plotting those fits gives the calibration curves. The line must come from the
-**stored** model rather than a fresh `geom_smooth()` fit, otherwise it would be
-an unweighted line that is not the model `int2conc()` actually inverts:
+**stored** model:
 
 ```{r curve-plot, fig.wide = TRUE, fig.cap = "Calibration curves. Each point is one standard spot's summarised response; the line is predicted from the stored, weighted model that int2conc() inverts."}
 cal_data <- calibrationLevels(cal)
