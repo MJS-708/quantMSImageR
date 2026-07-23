@@ -35,7 +35,7 @@ be overwritten.  Default \code{FALSE}.}
 
 \item{preview}{Logical. Draw the saved mask (tissue versus background over
 the pixel coordinates) once selection finishes, so it can be checked before
-the pipeline uses it. Default \code{TRUE}.}
+the workflow uses it. Default \code{TRUE}.}
 }
 \value{
 Invisibly returns a data frame with columns \code{x}, \code{y},
@@ -51,7 +51,7 @@ acquisition's \code{.raw} folder, where \code{\link[=generate_txt_images]{genera
 automatically.
 }
 \details{
-This function must be run \strong{before} the YAML pipeline for each acquisition
+This function must be run \strong{before} the YAML workflow for each acquisition
 that does not yet have a \code{tissue_pixels.csv}.  It requires an interactive R
 session with a graphics device (i.e. not inside \code{Rscript --no-save}).
 }
@@ -65,7 +65,7 @@ if (interactive()) {
     lib_ion_path = "path/to/ion_library.csv"
   )
 
-  # Step 2: run the full pipeline from the study config
+  # Step 2: run the full workflow from the study config
   run_study("path/to/study.yaml")
 }
 

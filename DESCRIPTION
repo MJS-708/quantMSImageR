@@ -1,5 +1,6 @@
 Package: quantMSImageR
-Title: Quantification of Mass Spectrometry Imaging Data
+Title: Processing and Quantification of Targeted DESI-MRM Mass Spectrometry
+    Imaging Data
 Version: 0.99.0
 Authors@R:
     person("Matthew J.", "Smith", , "mattyjsmith123@gmail.com", role = c("aut", "cre"),

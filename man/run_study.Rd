@@ -17,7 +17,7 @@ images, the calibrated \code{.RDS} and the HTML reports written under the
 configured output paths.
 }
 \description{
-Executes the whole pipeline for a study described by a single YAML file:
+Executes the whole workflow for a study described by a single YAML file:
 loads every acquisition, applies the tissue masks, runs SNR filtering at each
 requested threshold, optionally builds calibration models and converts tissue
 pixels to estimated amounts, writes per-feature \code{.txt} images, and renders one

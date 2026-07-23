@@ -42,7 +42,7 @@ threshold at which that becomes fatal.}
 The object subset to \code{pixels}, with two spectra slots added:
 \code{pg_pixel} (estimated amount per pixel) and, when
 \code{experimentData(MSIobject)$pixelSize} is available, \code{pg_mm2} (estimated
-areal amount). Features with no calibration model are removed, and
+amount per unit area). Features with no calibration model are removed, and
 \code{r2_df} gains an \code{out_of_range} column giving the proportion of each
 feature's pixels that were extrapolated beyond the calibrated range.
 }

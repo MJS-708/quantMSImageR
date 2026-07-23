@@ -94,7 +94,7 @@ Note the naming: \code{calibrationInfo()} and \code{tissueInfo()} are the \emph{
 constructors}, so the slot accessors are \code{calibrationData()} and
 \code{tissueData()}.
 
-The calibration accessors follow the pipeline. \code{\link[=summarise_cal_levels]{summarise_cal_levels()}}
+The calibration accessors follow the workflow. \code{\link[=summarise_cal_levels]{summarise_cal_levels()}}
 populates \code{calibrationLevels()}, \code{\link[=create_cal_curve]{create_cal_curve()}} fills
 \code{calibrationModels()} and \code{calibrationR2()}, and \code{\link[=int2conc]{int2conc()}} reads the
 models back out. \code{calibrationData()} moves the whole block at once, which is

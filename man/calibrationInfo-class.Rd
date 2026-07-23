@@ -15,7 +15,7 @@ per-analyte models, and their fit quality. It is carried in the
 \code{calibrationInfo} slot of a \link{quant_MSImagingExperiment}.
 }
 \details{
-The slots are filled in pipeline order and are empty (zero-row data frames,
+The slots are filled in workflow order and are empty (zero-row data frames,
 empty list) until the corresponding step has run:
 
 \describe{
@@ -61,7 +61,7 @@ Use the accessors (\code{\link[=calibrationModels]{calibrationModels()}}, \code{
 ci <- calibrationInfo()
 ci
 
-# Populated by the calibration pipeline
+# Populated by the calibration workflow
 cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
 cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
           "quant_MSImagingExperiment")

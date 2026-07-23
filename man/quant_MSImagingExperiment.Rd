@@ -19,7 +19,7 @@ these, so a Cardinal object is normally coerced on the way in.
 \details{
 The object is \strong{features x pixels}: one row per MRM transition, one column
 per pixel. Derived layers are added as additional spectra slots rather than
-overwriting \code{intensity}, so the raw values survive the whole pipeline:
+overwriting \code{intensity}, so the raw values survive the whole workflow:
 
 \describe{
 \item{\code{intensity}}{Raw measured response, as read from the acquisition.}

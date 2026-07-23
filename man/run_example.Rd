@@ -40,7 +40,7 @@ When \code{render_report = TRUE} a \code{report} element gives the path to the
 rendered HTML.
 }
 \description{
-Executes the full DESI-MRM pipeline on a small synthetic dataset bundled
+Executes the full DESI-MRM workflow on a small synthetic dataset bundled
 with the package.  The dataset contains two samples -- \code{SampleA} (circular
 tissue, sections 01-03) and \code{SampleB} (square tissue, sections 04-06) --
 acquired on a panel of eight oxylipin features (seven analytes + one
@@ -56,7 +56,7 @@ All file paths are resolved automatically via \code{\link[=system.file]{system.f
 example works on any machine without editing a YAML.
 }
 \examples{
-# The pipeline itself, without rendering or opening the HTML report
+# The workflow itself, without rendering or opening the HTML report
 \donttest{
 res <- run_example(render_report = FALSE, shapes = "circle")
 names(res)
