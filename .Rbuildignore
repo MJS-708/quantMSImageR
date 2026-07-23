@@ -19,3 +19,4 @@
 ^pkgdown$
 ^_pkgdown\.yml$
 ^logo_source\.png$
+^\.github$

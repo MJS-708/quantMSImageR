@@ -1,0 +1,19 @@
+# Runs the same build and check that Bioconductor's Single Package Builder runs,
+# on every push and pull request, without deploying anything to r-universe.dev.
+#
+# `organization: bioconductor` is what adds the BiocCheck step, so this catches
+# BiocCheck ERRORs and WARNINGs before a reviewer does -- and on Linux and macOS
+# as well as Windows, which is where platform-specific problems tend to appear.
+name: Test R-universe
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: R-universe testing
+    uses: r-universe-org/workflows/.github/workflows/build.yml@v3
+    with:
+      universe: bioc
+      organization: bioconductor # for BiocCheck checks
