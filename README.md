@@ -2,7 +2,7 @@
 
 # quantMSImageR <img src="man/figures/logo.png" align="right" height="139" alt="quantMSImageR logo" />
 
-Software tools for processing and quantifying targeted multiple reaction monitoring (MRM) mass spectrometry imaging (MSI) data. Largely an extension to [Cardinal](https://bioconductor.org/packages/Cardinal/) for targeted data acquired by DESI-MRM, with additional functionality for quantification and outputs that facilitate multimodal imaging.
+Software tools for processing and quantifying targeted multiple reaction monitoring (MRM) mass spectrometry imaging (MSI) data. Largely an extension to [Cardinal](https://bioconductor.org/packages/Cardinal/) for targeted data acquired by DESI-MRM, with additional functionalities for quantification and outputs to facilitate multimodal imaging for example.
 
 ## Publication
 
