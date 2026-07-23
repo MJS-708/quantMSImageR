@@ -18,4 +18,4 @@
 ^docs$
 ^pkgdown$
 ^_pkgdown\.yml$
-^man/figures/logo_source\.png$
+^logo_source\.png$

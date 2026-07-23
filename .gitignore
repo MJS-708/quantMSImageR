@@ -7,7 +7,7 @@
 .quarto
 # man/figures is tracked: the README logo and pkgdown both read
 # from it, so an untracked one is a broken image on GitHub.
-man/figures/logo_source.png
+logo_source.png
 *.BiocCheck/
 /doc/
 
