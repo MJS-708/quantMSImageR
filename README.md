@@ -1,6 +1,6 @@
 [![](https://badgen.net/static/Publication/10.1021.acs.analchem.4c02350/green?.svg)](https://doi.org/10.1021/acs.analchem.4c02350) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10807654.svg)](https://doi.org/10.5281/zenodo.10807654)
 
-# quantMSImageR <img src="man/figures/logo_512px.png" align="right" height="139" alt="quantMSImageR logo" />
+# quantMSImageR <img src="man/figures/logo.png" align="right" height="139" alt="quantMSImageR logo" />
 
 Software tools for processing and quantifying targeted multiple reaction monitoring (MRM) mass spectrometry imaging (MSI) data acquired by DESI-MRM.
 
