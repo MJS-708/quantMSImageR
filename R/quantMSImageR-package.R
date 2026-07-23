@@ -1,4 +1,5 @@
-#' quantMSImageR: quantification of DESI-MRM mass spectrometry imaging data
+#' quantMSImageR: processing and quantification of targeted mass spectrometry
+#' imaging data
 #'
 #' Tools (extending Cardinal) for processing and quantifying targeted DESI-MRM
 #' mass spectrometry imaging data: signal-to-noise filtering, tissue/background

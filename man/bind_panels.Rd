@@ -4,7 +4,13 @@
 \alias{bind_panels}
 \title{Merge two MSI objects of the same tissue by coordinate-matched rbind}
 \usage{
-bind_panels(obj1, obj2, label = NULL)
+bind_panels(
+  obj1,
+  obj2,
+  label = NULL,
+  feature_match = c("transition", "name"),
+  mz_tolerance = 0.05
+)
 }
 \arguments{
 \item{obj1, obj2}{\code{MSImagingExperiment} (or \code{quant_MSImagingExperiment})
@@ -13,6 +19,14 @@ objects of the same physical tissue. Both must carry \code{x} and \code{y} in
 
 \item{label}{Character. Optional. If supplied, written to
 \code{pData(result)$run} so the merged object combines cleanly downstream.}
+
+\item{feature_match}{Character. How a feature name appearing in both inputs
+is treated: \code{"transition"} (default) keeps \code{obj1}'s copy only after
+confirming both refer to the same precursor and product m/z, and errors
+otherwise; \code{"name"} keeps \code{obj1}'s copy on the strength of the name alone.}
+
+\item{mz_tolerance}{Numeric. Half-width in Da within which two precursor or
+product m/z values count as the same (default \code{0.05}).}
 }
 \value{
 A \code{quant_MSImagingExperiment} with:
@@ -22,6 +36,9 @@ A \code{quant_MSImagingExperiment} with:
 values).
 \item Pixels = intersection of (x, y) grids.
 \item Each pixel carries real intensities from both inputs.
+\item Every spectra layer both inputs carry -- \code{response}, \code{snr} and
+calibrated amounts as well as \code{intensity} -- together with
+\code{obj1}'s experiment metadata and calibration/tissue slots.
 }
 }
 \description{
@@ -41,6 +58,14 @@ cross-polarity colocalisation is meaningful at the combined object.
 The common use is pairing a positive- and a negative-mode acquisition of the
 same section, but any two panels of the same physical area work.
 }
+\section{Processed inputs}{
+
+Both inputs must carry the same set of spectra layers, since a layer present
+on only one side cannot be filled in for the other half of the features.
+Bind panels at the same stage of processing: either both raw, or both after
+the same steps.
+}
+
 \examples{
 # Both inputs must be the SAME physical area measured twice, so the example
 # splits one section into two disjoint "panels" rather than using two

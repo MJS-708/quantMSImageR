@@ -4,7 +4,8 @@
 \name{quantMSImageR-package}
 \alias{quantMSImageR}
 \alias{quantMSImageR-package}
-\title{quantMSImageR: quantification of DESI-MRM mass spectrometry imaging data}
+\title{quantMSImageR: processing and quantification of targeted mass spectrometry
+imaging data}
 \description{
 Tools (extending Cardinal) for processing and quantifying targeted DESI-MRM
 mass spectrometry imaging data: signal-to-noise filtering, tissue/background
@@ -14,6 +15,7 @@ quantification.
 \seealso{
 Useful links:
 \itemize{
+  \item \url{https://mjs-708.github.io/quantMSImageR}
   \item \url{https://github.com/MJS-708/quantMSImageR}
   \item Report bugs at \url{https://github.com/MJS-708/quantMSImageR/issues}
 }
