@@ -45,15 +45,17 @@ not be assumed without appropriate normalisation and calibration.
 ## What this package does
 
 `quantMSImageR` addresses each of those: signal-to-noise (SNR) filtering against
-background pixels, tissue/background separation, per-feature ion images and
+background pixels, tissue/background separation, per-feature ion images
+including `.txt` image outputs for overlaying with other imaging (H&E),
 quantile heatmaps -- and **quantification** against calibration standards for
 the third.
 
 ## Scope
 
-The package is currently validated for **Waters DESI-MRM** data. Other targeted
-imaging data may be analysed after conversion to a compatible
-`MSImagingExperiment`, but those workflows have not yet been formally validated.
+The package is currently validated for **Waters DESI-MRM** data. The software
+is extendable to other targeted imaging data, which may be analysed after
+conversion to a compatible `MSImagingExperiment`, though those workflows have
+not yet been formally validated.
 
 Within that scope it is designed to handle:
 
@@ -114,7 +116,7 @@ family it belongs to. The whole workflow is:
 Quantification is covered in the companion vignette; everything else is below.
 
 Per-feature images can also be exported as plain `.txt` intensity matrices,
-which load directly into ImageJ and similar tools -- useful for downstream
+which load directly into ImageJ and similar tools. Useful for downstream
 multimodal analysis such as co-registration with histology or other imaging
 modalities.
 
@@ -180,8 +182,7 @@ per-sample summary groups on.
 
 Pixel metadata uses a consistent vocabulary: `run` identifies the acquisition,
 `x`/`y` are grid coordinates, and the tissue mask lives in `sample_name` as
-`tissue_pixels` / `background_pixels`. (Masks written by earlier versions used
-`noise_pixels`; both spellings are still accepted.) The calibration path uses
+`tissue_pixels` / `background_pixels`. The calibration path uses
 `sample_type` with `Cal` / `Tissue` / `Background`.
 
 ```{r data-model}
