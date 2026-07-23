@@ -186,6 +186,34 @@ samples:
       - { file: "btm", label: "Section03" }
 ```
 
+### Dual-polarity acquisitions
+
+A sample scanned in both polarities is given `pos:` and `neg:` together. The two
+panels are matched on pixel coordinates and combined into one object, so
+positive- and negative-mode features sit side by side in the same heatmaps and
+reports:
+
+```yaml
+samples:
+  - pos: "sample_1_pos"
+    neg: "sample_1_neg"
+    run_id: "S1"
+    label:  "Ctrl"
+```
+
+Either polarity may also be a list, when a panel was split across several
+acquisitions:
+
+```yaml
+samples:
+  - pos:
+      - "sample_2_pos_panelA"
+      - "sample_2_pos_panelB"
+    neg: "sample_2_neg"
+    run_id: "S2"
+    label:  "Treatment"
+```
+
 ## Contact
 
 For questions or comments please contact Matthew J. Smith (matthew.smith@ki.se || mattyjsmith123@gmail.com).

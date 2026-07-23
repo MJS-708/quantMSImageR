@@ -6,6 +6,8 @@ package: quantMSImageR
 output:
   BiocStyle::html_document:
     toc_float: true
+pkgdown:
+  as_is: true
 vignette: >
   %\VignetteIndexEntry{1. Introduction to quantMSImageR}
   %\VignetteEngine{knitr::rmarkdown}
@@ -194,9 +196,21 @@ obj <- as(readRDS(p), "quant_MSImagingExperiment")
 
 dim(obj)                        # features x pixels
 names(spectraData(obj))         # available layers
-head(as.data.frame(fData(obj)), 3)
-head(as.data.frame(pData(obj)), 3)
 ```
+
+```{r data-model-fdata}
+DT::datatable(as.data.frame(fData(obj)), rownames = FALSE,
+              options = list(pageLength = 5, scrollX = TRUE))
+```
+
+**Table 1.** Feature metadata: one row per MRM transition.
+
+```{r data-model-pdata}
+DT::datatable(head(as.data.frame(pData(obj)), 100), rownames = FALSE,
+              options = list(pageLength = 5, scrollX = TRUE))
+```
+
+**Table 2.** Pixel metadata, first 100 pixels of one section.
 
 # Reading your own data
 
@@ -311,10 +325,11 @@ sections already carry in their `sample_name` column:
 mask_tbl <- as.data.frame(pData(combined))[, c("run", "x", "y", "sample_name")]
 
 DT::datatable(head(mask_tbl, 500), rownames = FALSE,
+              options = list(pageLength = 5, scrollX = TRUE),
               options = list(pageLength = 5))
 ```
 
-**Table 1.** Per-pixel tissue/background labelling used by `int2snr()` (first 500
+**Table 3.** Per-pixel tissue/background labelling used by `int2snr()` (first 500
 pixels).
 
 Plotting that column over the pixel coordinates shows the mask itself, which is
@@ -378,6 +393,40 @@ imageR(combined, feat_ind = 1, sample_lab = "run", scale = "suppress",
         legend.text = element_text(size = 7))
 ```
 
+## Colour-scale treatment
+
+A single ion image can look very different depending on how the colour scale is
+built, and the right choice depends on what is being judged. `scale` offers
+three treatments:
+
+- **`"suppress"`** caps the scale at `percentile` (default 99), so a few hot
+  pixels cannot flatten everything else. This is the default and the right
+  starting point for comparing sections.
+- **`"histogram"`** equalises the distribution, which reveals structure in a
+  feature whose signal spans a narrow range -- at the cost of a colour scale
+  that no longer maps linearly to response.
+- **`"sqrt"`** compresses the top of the range more gently than histogram
+  equalisation, keeping the scale monotonic in response.
+
+```{r image-scales, fig.wide = TRUE, fig.height = 3, fig.cap = "The same feature and section under the three colour-scale treatments. Only `suppress` keeps the colour scale linear in response; the others trade that for visible structure."}
+.one <- combined[, pData(combined)$run == "section01"]
+.p <- lapply(c("suppress", "histogram", "sqrt"), function(sc)
+  imageR(.one, feat_ind = 1, sample_lab = "run", scale = sc) +
+    labs(title = sc) +
+    theme(legend.position = "none",
+          plot.title = element_text(size = 9, face = "bold"),
+          strip.text = element_blank()))
+patchwork::wrap_plots(.p, nrow = 1)
+```
+
+`perc_scale = TRUE` additionally relabels the scale as a percentage of each
+image's maximum, which is useful when the absolute numbers are not comparable
+anyway.
+
+The HTML report produced by `run_study()` shows a related set of three views per
+feature, built with Cardinal's own `image()` rather than `imageR()`: capped at
+the 95th quantile, histogram-normalised, and unscaled.
+
 The same per-feature images can be written to disk as `.txt` intensity matrices
 (`generate_txt_images(output_txt = TRUE)`, or `output_txt: true` in the YAML
 config). Those files open directly in ImageJ, which is the usual route into
@@ -401,20 +450,22 @@ class and `IS_norm` names the internal standard each analyte is normalised to
 lib <- read.csv(system.file("extdata", "example_ion_library.csv",
                             package = "quantMSImageR"), check.names = FALSE)
 
-DT::datatable(lib, rownames = FALSE, options = list(pageLength = 10))
+DT::datatable(lib, rownames = FALSE,
+              options = list(pageLength = 10, scrollX = TRUE))
 ```
 
-**Table 2.** The example ion library, as supplied on disk.
+**Table 4.** The example ion library, as supplied on disk.
 
 ```{r meta}
 fm <- build_feature_meta(combined, lib)
 
 DT::datatable(fm[, c("name", "precursor_mz", "product_mz", "Type", "Met-1",
                      "IS_norm")],
-              rownames = FALSE, options = list(pageLength = 10))
+              rownames = FALSE,
+              options = list(pageLength = 10, scrollX = TRUE))
 ```
 
-**Table 3.** The same metadata after `build_feature_meta()` has joined it to
+**Table 5.** The same metadata after `build_feature_meta()` has joined it to
 each measured feature by m/z.
 
 # Quantile heatmaps across samples

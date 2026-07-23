@@ -6,6 +6,8 @@ package: quantMSImageR
 output:
   BiocStyle::html_document:
     toc_float: true
+pkgdown:
+  as_is: true
 vignette: >
   %\VignetteIndexEntry{2. Quantification with calibration standards}
   %\VignetteEngine{knitr::rmarkdown}
@@ -15,6 +17,9 @@ vignette: >
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", warning = FALSE,
                       message = FALSE)
+# The schematics in the next section are drawn before the worked example
+# attaches its packages, so ggplot2 is needed this early.
+library(ggplot2)
 ```
 
 # Introduction
@@ -47,6 +52,85 @@ contained.
 
 `cal_type` has no default: the two modes do materially different things, so it
 must be chosen explicitly.
+
+The two designs differ in where the standards are put:
+
+```{r cal-geometry, echo = FALSE, fig.wide = TRUE, fig.height = 2.6, fig.cap = "Where the standards sit in each calibration design. On-slide standards are deposited beside the section; on-tissue standards are deposited onto it, so they experience the same matrix as the analyte."}
+.mode <- c("On-slide  (cal_type = \"cal\")",
+           "On-tissue  (cal_type = \"std_addition\")")
+
+.tissue <- data.frame(mode = factor(.mode, levels = .mode),
+                      xmin = 0.4, xmax = 3.6, ymin = 0.6, ymax = 3.4)
+.spots <- rbind(
+  data.frame(mode = .mode[1],
+             x = rep(c(4.3, 4.9, 5.5), each = 3), y = rep(c(1.2, 2.0, 2.8), 3)),
+  data.frame(mode = .mode[2],
+             x = rep(c(0.9, 1.7, 2.5, 3.3), each = 3), y = rep(c(1.2, 2.0, 2.8), 4)))
+.spots$mode <- factor(.spots$mode, levels = .mode)
+
+ggplot() +
+  geom_rect(data = .tissue,
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+            fill = "#7db954", colour = "grey40", alpha = 0.55) +
+  geom_point(data = .spots, aes(x, y), shape = 21, size = 4,
+             fill = "#e8351e", colour = "grey20", stroke = 0.4) +
+  geom_text(data = data.frame(mode = factor(.mode, levels = .mode),
+                              x = 2.0, y = 0.25, lab = "tissue section"),
+            aes(x, y, label = lab), size = 3, colour = "grey25") +
+  geom_text(data = data.frame(mode = factor(.mode, levels = .mode),
+                              x = c(4.9, 2.1), y = c(0.25, 3.75),
+                              lab = "standards"),
+            aes(x, y, label = lab), size = 3, colour = "#cd023d") +
+  facet_wrap(~ mode) +
+  coord_fixed(xlim = c(0, 6), ylim = c(0, 4)) +
+  theme_void(base_size = 11) +
+  theme(strip.text = element_text(face = "bold", margin = margin(b = 6)),
+        panel.border = element_rect(colour = "grey70", fill = NA),
+        panel.spacing = unit(1.2, "lines"))
+```
+
+...and in what the fit then has to do. On-slide, the response at zero added
+amount is instrument background, so amount is read straight off the line.
+On-tissue, the response at zero added amount already contains the endogenous
+analyte, so the line is extrapolated back to the x-intercept to estimate how
+much was there before anything was deposited:
+
+```{r cal-fit-schematic, echo = FALSE, fig.wide = TRUE, fig.height = 3.2, fig.cap = "How amount is recovered in each design. The dashed segment is the extrapolation back to the x-intercept, which standard addition takes as the endogenous amount and adds to every deposited amount."}
+.add <- c(0, 10, 20, 30, 40)
+.pts <- rbind(data.frame(mode = .mode[1], amount = .add, response = 5 + 2 * .add),
+              data.frame(mode = .mode[2], amount = .add, response = 45 + 2 * .add))
+.pts$mode <- factor(.pts$mode, levels = .mode)
+
+.lines <- rbind(
+  data.frame(mode = .mode[1], x = c(0, 45),  y = 5 + 2 * c(0, 45),  seg = "fit"),
+  data.frame(mode = .mode[2], x = c(0, 45),  y = 45 + 2 * c(0, 45), seg = "fit"),
+  data.frame(mode = .mode[2], x = c(-25, 0), y = 45 + 2 * c(-25, 0), seg = "extrap"))
+.lines$mode <- factor(.lines$mode, levels = .mode)
+.xint <- data.frame(mode = factor(.mode[2], levels = .mode), x = -22.5, y = 0)
+
+ggplot() +
+  geom_hline(yintercept = 0, colour = "grey30", linewidth = 0.4) +
+  geom_vline(xintercept = 0, colour = "grey30", linewidth = 0.4) +
+  geom_line(data = .lines, aes(x, y, group = seg, linetype = seg),
+            colour = "#0f8096", linewidth = 0.7) +
+  geom_point(data = .pts, aes(amount, response), shape = 21, size = 2.6,
+             fill = "#e8351e", colour = "grey20") +
+  geom_point(data = .xint, aes(x, y), shape = 4, size = 3.4, stroke = 1.1,
+             colour = "#cd023d") +
+  geom_text(data = .xint, aes(x, y, label = "endogenous amount"),
+            hjust = 0, nudge_x = 1.5, vjust = 2, size = 3, colour = "#cd023d") +
+  scale_linetype_manual(values = c(fit = "solid", extrap = "dashed"),
+                        guide = "none") +
+  scale_x_continuous(limits = c(-30, 48)) +
+  facet_wrap(~ mode) +
+  labs(x = "amount deposited (pg / pixel)", y = "response") +
+  theme_minimal(base_size = 11) +
+  theme(strip.text = element_text(face = "bold"),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black"))
+```
+
+Both figures are schematics: the numbers are illustrative, not measured.
 
 ## Scope and assumptions
 
@@ -270,7 +354,7 @@ pixels on exactly the same x-axis, with the calibration levels marked in red.
 When the histogram sits **inside** the span of the red lines, every converted
 pixel is interpolated between real standards.
 
-```{r dyn-range, fig.wide = TRUE, fig.height = 5, fig.cap = "Calibration coverage of the measured data. Lower panel: standard spots (red) and the fitted calibration model (dashed). Upper panel: distribution of the study section's tissue pixels, with the calibration levels marked in red. Pixels falling inside the marked range are interpolated between real standards rather than extrapolated."}
+```{r dyn-range, fig.wide = TRUE, fig.height = 5, fig.cap = "Calibration coverage of the measured data. Pixels falling inside the marked range are interpolated between real standards rather than extrapolated."}
 plot_cal_coverage(study, features = analyte, val_slot = "intensity")
 ```
 
