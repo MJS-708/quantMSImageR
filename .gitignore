@@ -5,8 +5,6 @@
 .httr-oauth
 .DS_Store
 .quarto
-CLAUDE.md
-.claude/
 # man/figures is tracked: the README logo and pkgdown both read
 # from it, so an untracked one is a broken image on GitHub.
 man/figures/logo_source.png
