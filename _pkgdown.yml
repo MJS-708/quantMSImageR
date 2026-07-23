@@ -13,7 +13,7 @@ template:
     primary: "#0f8096"
 
 home:
-  title: Processing and quantification of targeted DESI-MRM imaging data
+  title: Processing and quantification of targeted mass spectrometry imaging data
   links:
   - text: Read the paper
     href: https://doi.org/10.1021/acs.analchem.4c02350
