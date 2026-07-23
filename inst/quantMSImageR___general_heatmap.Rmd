@@ -203,9 +203,9 @@ plot_tri_heatmap <- function(out, metric = "Dice", ord,
 # Installed packages carry the logo at help/figures; a source tree
 # (devtools::load_all) still has it at man/figures, so both are tried. A
 # missing logo is silently skipped -- a decoration must never stop a report.
-.logo <- system.file("help", "figures", "logo.png", package = "quantMSImageR")
+.logo <- system.file("help", "figures", "logo_512px.png", package = "quantMSImageR")
 if (!nzchar(.logo))
-  .logo <- system.file("man", "figures", "logo.png", package = "quantMSImageR")
+  .logo <- system.file("man", "figures", "logo_512px.png", package = "quantMSImageR")
 if (nzchar(.logo))
   cat(sprintf('<style>
 /* min-height guarantees the 80px logo, anchored to the bottom, clears the
