@@ -215,6 +215,25 @@ threshold, or a per-analyte override where set).
 
 ```{r import, echo = FALSE}
 
+# m/z and SNR are reported to one decimal place: that is the precision an MRM
+# ion library is quoted at, and the precision transitions are matched on.
+# Intensities are left alone -- they are measured counts, not masses.
+.round1 <- function(x) {
+  if (is.numeric(x)) return(round(x, 1))
+  chr <- as.character(x)
+  num <- suppressWarnings(as.numeric(chr))
+  # A column that is wholly numeric becomes numeric, so the table still sorts
+  # by value rather than alphabetically.
+  if (!any(is.na(num) & !is.na(chr))) return(round(num, 1))
+  # Otherwise it holds " || "-joined tokens (a feature covering several
+  # transitions); round each token and rejoin.
+  vapply(strsplit(chr, " || ", fixed = TRUE), function(tok) {
+    n <- suppressWarnings(as.numeric(tok))
+    paste(ifelse(is.na(n), tok, format(round(n, 1), trim = TRUE)),
+          collapse = " || ")
+  }, character(1))
+}
+
 .fd <- data.frame(fData(combined), check.names = FALSE)
 
 # Insert the effective SNR threshold used per feature immediately to the right
@@ -228,7 +247,18 @@ if (exists("snr_used") && !is.null(snr_used)) {
   .fd <- .fd[, .ord, drop = FALSE]
 }
 
-DT::datatable(.fd, rownames = FALSE)
+# Applied to .fd itself, so the xlsx Features tab below matches this table.
+.dp1 <- c(grep("_mz$", colnames(.fd), value = TRUE),
+          intersect("SNR_used", colnames(.fd)))
+for (.c in .dp1) .fd[[.c]] <- .round1(.fd[[.c]])
+
+# formatRound pins the display at exactly one decimal place (279 -> 279.0)
+# while the column stays numeric, so the table still sorts by value. Columns
+# left as character hold " || "-joined tokens and are already formatted.
+.dp1_num <- .dp1[vapply(.fd[.dp1], is.numeric, logical(1))]
+.dt <- DT::datatable(.fd, rownames = FALSE)
+if (length(.dp1_num)) .dt <- DT::formatRound(.dt, columns = .dp1_num, digits = 1)
+.dt
 
 ```
 

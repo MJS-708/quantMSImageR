@@ -1,8 +1,15 @@
 #' Build per-feature metadata by joining an ion library on m/z
 #'
-#' Joins each row of `fData(combined)` to the ion library on the rounded
-#' (`precursor_mz`, `product_mz`) pair. Robust to feature renames in the YAML
-#' (`features.rename`) because m/z is stable across name changes.
+#' Joins each row of `fData(combined)` to the ion library on the
+#' (`precursor_mz`, `product_mz`) pair, within `mz_tolerance`. Robust to feature
+#' renames in the YAML (`features.rename`) because m/z is stable across name
+#' changes.
+#'
+#' Matching uses the same rule as [read_mrm()], so the two cannot disagree about
+#' which library entry a feature is. They previously built their m/z keys
+#' independently -- one rounding to whole numbers, the other not -- and a
+#' feature matching several library entries silently took the first one's
+#' annotation.
 #'
 #' Used by `run_study.R` (via `inst/run_study.R`) and [run_example()] to build
 #' a per-feature metadata frame the heatmap report can consume -- e.g. for
@@ -14,6 +21,12 @@
 #' @param ion_lib_meta A `data.frame` of ion library metadata (must contain
 #'   `precursor_mz` and `product_mz`). Pass `NULL` to short-circuit and return
 #'   `NULL`.
+#' @param mz_tolerance Numeric. Half-width in Da within which a feature's
+#'   precursor and product are taken to be the library's (default `0.05`, i.e.
+#'   one decimal place). See [read_mrm()].
+#' @param ambiguity Character. What to do when a feature matches more than one
+#'   library entry: `"error"` (default), `"warn"` or `"nearest"`. See
+#'   [read_mrm()].
 #' @param verbose Logical. Emit a `message()` reporting how many features
 #'   matched. Default `TRUE`.
 #'
@@ -32,7 +45,11 @@
 #'
 #' @seealso [quantile_hm()], [generate_txt_images()]
 #' @export
-build_feature_meta <- function(combined, ion_lib_meta, verbose = TRUE) {
+build_feature_meta <- function(combined, ion_lib_meta,
+                               mz_tolerance = 0.05,
+                               ambiguity = c("error", "warn", "nearest"),
+                               verbose = TRUE) {
+  ambiguity <- match.arg(ambiguity)
   if (is.null(ion_lib_meta)) return(NULL)
 
   # Cardinal's `fData` returns a MassDataFrame; its as.data.frame method
@@ -45,13 +62,14 @@ build_feature_meta <- function(combined, ion_lib_meta, verbose = TRUE) {
     ))
   }
 
-  key_fd  <- paste(first_num(fpd$precursor_mz),
-                   first_num(fpd$product_mz), sep = "_")
-  key_lib <- paste(round(suppressWarnings(as.numeric(ion_lib_meta$precursor_mz)), 0),
-                   round(suppressWarnings(as.numeric(ion_lib_meta$product_mz)), 0),
-                   sep = "_")
-
-  midx <- match(key_fd, key_lib)
+  midx <- .match_transitions(
+    first_num(fpd$precursor_mz), first_num(fpd$product_mz),
+    ion_lib_meta$precursor_mz, ion_lib_meta$product_mz,
+    tolerance  = mz_tolerance,
+    ambiguity  = ambiguity,
+    labels     = as.character(fpd$name),
+    ref_labels = as.character(ion_lib_meta$transition_id),
+    context    = "build_feature_meta")
   feature_meta <- ion_lib_meta[midx, , drop = FALSE]
   feature_meta$name <- fpd$name
   rownames(feature_meta) <- fpd$name

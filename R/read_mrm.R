@@ -20,6 +20,10 @@
 #'   `Polarity`, `Type` (`"Analyte"` for in-tissue analytes, `"IS"` for
 #'   internal standards). Additional metadata columns are preserved by
 #'   downstream code via [build_feature_meta()].
+#'
+#'   Measured transitions are matched to it on precursor and product m/z within
+#'   `mz_tolerance`; a transition the library does not describe is kept, named
+#'   by its instrument index and typed `"Unknown"`.
 #' @param type_header Character. Name of the ion-library column holding the
 #'   feature type -- the values that mark internal standards versus analytes
 #'   (default `"Type"`). Its contents become `fData()$feature_type`, which is what
@@ -30,6 +34,18 @@
 #'   [int2response()] can use it when a panel has more than one standard.
 #'   `"None"` (or `NULL`), or simply omitting the column, is correct for a
 #'   single-standard panel.
+#' @param mz_tolerance Numeric. Half-width, in Da, within which a measured
+#'   precursor and product are taken to be the library's. The default `0.05`
+#'   matches to one decimal place, the precision MRM libraries are normally
+#'   quoted at. Widen it only if your library and method disagree by more than
+#'   that -- the wider the tolerance, the more transitions can collide, and
+#'   nominal-mass matching (`0.5`) merges isomers that differ only in the first
+#'   decimal.
+#' @param ambiguity Character. What to do when a measured transition matches
+#'   more than one library entry within `mz_tolerance`, which m/z alone cannot
+#'   resolve: `"error"` (default), `"warn"` (take the closest and say so) or
+#'   `"nearest"` (take the closest quietly). Isomers sharing a nominal
+#'   precursor and product are the usual cause.
 #' @param overwrite Logical. When `TRUE` (default) the raw text files are
 #'   re-parsed; when `FALSE` and a cached `MSImagingExperiment.rds` exists
 #'   inside the `.raw` folder, it is returned instead.
@@ -49,7 +65,11 @@
 #' @family acquisition
 #' @export
 read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE,
-                     type_header = "Type", is_norm_header = "IS_norm") {
+                     type_header = "Type", is_norm_header = "IS_norm",
+                     mz_tolerance = 0.05,
+                     ambiguity = c("error", "warn", "nearest")) {
+
+  ambiguity <- match.arg(ambiguity)
 
   # set Imaging folder
   imaging_folder <- sprintf("%s/%s.raw/imaging", folder, name)
@@ -150,45 +170,11 @@ read_mrm <- function(name, folder, lib_ion_path, overwrite = TRUE,
   run   <- factor(rep(name, nrow(coord)))
   pdata <- PositionDataFrame(run = run, coord = coord)
 
-  # Round precursors and products to 0 dp for the join (matches m/z key behaviour
-  # used throughout the package -- see build_feature_meta()).
-  transitions <- transitions |>
-    dplyr::mutate(precursor_mz = round(precursor_mz, digits = 0),
-                  product_mz   = round(product_mz,   digits = 0))
-  ion_lib <- ion_lib |>
-    dplyr::mutate(precursor_mz = round(precursor_mz, digits = 0),
-                  product_mz   = round(product_mz,   digits = 0))
-
-  # Gather info of MRM transitions from the ion library
-  ion_lib <- ion_lib |>
-    subset(Polarity == polarity) |>
-    dplyr::right_join(y = transitions, by = c("precursor_mz", "product_mz"),
-                      suffix = c("_name", "_int")) |>
-    dplyr::mutate(
-      transition_id_name = ifelse(is.na(transition_id_name),
-                                   transition_id_int, transition_id_name),
-      Polarity = ifelse(is.na(Polarity), polarity, Polarity),
-      Type     = ifelse(is.na(Type), "Unknown", Type)
-    ) |>
-    dplyr::arrange(transition_id_int) |>
-    dplyr::group_by(precursor_mz, product_mz) |>
-    dplyr::mutate(
-      transition_id_name = paste0(transition_id_name, collapse = " || "),
-      precursor_mz       = paste0(precursor_mz,       collapse = " || "),
-      product_mz         = paste0(product_mz,         collapse = " || "),
-      collision_eV       = paste0(collision_eV,       collapse = " || "),
-      cone_V             = paste0(cone_V,             collapse = " || ")
-    ) |>
-    dplyr::distinct(transition_id_name, transition_id_int, .keep_all = TRUE) |>
-    dplyr::mutate(
-      duplicate_mrms     = dplyr::row_number(),
-      transition_id_name = ifelse(duplicate_mrms > 1,
-                                  sprintf("%s:- %s", duplicate_mrms, transition_id_name),
-                                  transition_id_name)
-    ) |>
-    dplyr::ungroup() |>
-    dplyr::arrange(precursor_mz, product_mz, transition_id_int) |>
-    dplyr::mutate(new_transition_int = dplyr::row_number())
+  # Annotate the measured transitions from the ion library.
+  ion_lib <- .join_ion_library(transitions, ion_lib, polarity = polarity,
+                               type_header = type_header,
+                               mz_tolerance = mz_tolerance,
+                               ambiguity = ambiguity)
 
   # intensity data -- pull each transition's column from the wide analyte_df
   trans_cols <- match(sprintf("transition_%s", ion_lib$transition_id_int),

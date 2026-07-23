@@ -111,6 +111,71 @@ utils::globalVariables(c(
   NULL
 }
 
+# Which reference transition, if any, each query transition is.
+#
+# One definition of "same transition", used by both read_mrm() (measured
+# transitions -> ion library) and build_feature_meta() (features -> ion
+# library). They used to build string keys independently -- one rounding to
+# whole numbers, the other not -- so the two could disagree about the same pair
+# of acquisitions.
+#
+# A precursor/product pair is a transition's identity, so a query matching
+# several reference rows is genuinely ambiguous and cannot be resolved from m/z
+# alone. `ambiguity` says what to do: "error" refuses (the default, since the
+# alternative is a feature silently carrying another compound's annotation),
+# "warn" takes the closest and says so, "nearest" takes the closest quietly.
+#
+# Returns an integer vector of reference row indices, NA where nothing matched.
+.match_transitions <- function(prec, prod, ref_prec, ref_prod,
+                               tolerance = 0.05,
+                               ambiguity = c("error", "warn", "nearest"),
+                               labels = NULL, ref_labels = NULL,
+                               context = "match_transitions") {
+  ambiguity <- match.arg(ambiguity)
+  prec <- suppressWarnings(as.numeric(prec))
+  prod <- suppressWarnings(as.numeric(prod))
+  ref_prec <- suppressWarnings(as.numeric(ref_prec))
+  ref_prod <- suppressWarnings(as.numeric(ref_prod))
+
+  if (is.null(labels))     labels     <- as.character(seq_along(prec))
+  if (is.null(ref_labels)) ref_labels <- as.character(seq_along(ref_prec))
+
+  out <- rep(NA_integer_, length(prec))
+  amb <- character(0)
+
+  for (i in seq_along(prec)) {
+    if (!is.finite(prec[i]) || !is.finite(prod[i])) next
+    hit <- which(abs(ref_prec - prec[i]) <= tolerance &
+                 abs(ref_prod - prod[i]) <= tolerance)
+    if (length(hit) == 0L) next
+    if (length(hit) > 1L) {
+      # Closest by summed absolute deviation, so a report or a "nearest" run
+      # gets the best available answer rather than whichever came first.
+      hit <- hit[which.min(abs(ref_prec[hit] - prec[i]) +
+                           abs(ref_prod[hit] - prod[i]))]
+      amb <- c(amb, sprintf("  %s (%g -> %g) matches: %s", labels[i],
+                            prec[i], prod[i],
+                            paste(ref_labels[which(
+                              abs(ref_prec - prec[i]) <= tolerance &
+                              abs(ref_prod - prod[i]) <= tolerance)],
+                              collapse = ", ")))
+    }
+    out[i] <- hit
+  }
+
+  if (length(amb) && ambiguity != "nearest") {
+    msg <- paste0(context, ": ", length(amb),
+                  " transition(s) match more than one ion-library entry within ",
+                  tolerance, " Da:\n", paste(amb, collapse = "\n"),
+                  "\nm/z alone cannot say which. Tighten mz_tolerance, give the ",
+                  "colliding entries distinct product ions, or set ",
+                  "ambiguity = \"warn\" to take the closest.")
+    if (ambiguity == "error") stop(msg, call. = FALSE)
+    warning(msg, call. = FALSE)
+  }
+  out
+}
+
 # Regression weights for a calibration fit.
 #
 # 1/x and 1/x^2 are undefined at a zero (blank) level. Substituting a tiny

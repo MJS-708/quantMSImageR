@@ -1,3 +1,42 @@
+# Reorder an object's features and give it a new mz key.
+#
+# The obvious `obj[ord, ]` only works while the permutation leaves mz ascending:
+# Cardinal's MassDataFrame requires a sorted mz key, so two acquisitions that
+# list the same features in a different order could not be aligned at all. The
+# fast path is kept, with a rebuild behind it for the permutations it rejects.
+.reorder_features <- function(obj, ord, new_mz) {
+
+  out <- tryCatch({
+    o <- obj[ord, ]
+    mz(o) <- new_mz
+    o
+  }, error = function(e) NULL)
+  if (!is.null(out)) return(out)
+
+  # Pulled layer by layer: as.list() on the SpectraArrays of an already-subset
+  # object fails, and obj2 always arrives here subset to the common features.
+  .lyr <- names(spectraData(obj))
+  sp <- lapply(stats::setNames(.lyr, .lyr),
+               function(nm) as.matrix(spectra(obj, nm))[ord, , drop = FALSE])
+  fd <- as.data.frame(fData(obj))[ord, , drop = FALSE]
+  fd$mz <- new_mz
+
+  out <- MSImagingExperiment(spectraData    = sp,
+                             featureData    = do.call(MassDataFrame, as.list(fd)),
+                             pixelData      = pixelData(obj),
+                             experimentData = experimentData(obj))
+  out <- as(out, "quant_MSImagingExperiment")
+
+  # Coercion starts these empty, and losing a calibration silently would be
+  # worse than the ordering problem this is working around.
+  if (is(obj, "quant_MSImagingExperiment")) {
+    out@calibrationInfo <- obj@calibrationInfo
+    out@tissueInfo      <- obj@tissueInfo
+  }
+  featureNames(out) <- fData(out)$name
+  out
+}
+
 #' Align two MSI objects to their common features
 #'
 #' Cardinal's \code{cbind} (used by \code{\link{combine_MSIs}}) requires the
@@ -16,13 +55,18 @@
 #'     \code{obj1}, so all feature metadata originates from the first object.
 #' }
 #'
-#' Matching is by display name alone.  Users must ensure that identically named
-#' features represent the same analytical transition in both objects: two
-#' methods can reuse a name while differing in precursor ion, product ion,
-#' adduct, polarity, collision energy or transition definition, and rewriting
-#' the \code{mz} key would then silently merge different measurements.  Check
-#' \code{fData()} (precursor and product m/z in particular) before relying on
-#' the result for anything quantitative.
+#' Features are paired by display name, and by default that pairing is then
+#' \emph{verified} against the transition each name refers to: precursor and
+#' product m/z must agree to within \code{mz_tolerance}.  Two methods can reuse
+#' a name while differing in precursor ion, product ion or transition
+#' definition, and because this function rewrites the \code{mz} key, an
+#' unverified pairing would silently merge different measurements into one
+#' feature.  A disagreement is therefore an error naming the features involved.
+#'
+#' \code{feature_match = "name"} restores name-only matching for objects that
+#' carry no precursor/product metadata.  It is not the default: it cannot
+#' detect the failure above, and this function is called automatically inside
+#' \code{\link{generate_txt_images}}.
 #'
 #' The function is called automatically inside
 #' \code{\link{generate_txt_images}} before every cross-sample
@@ -38,6 +82,12 @@
 #'   \code{mz} values are used as the reference.
 #' @param obj2 A \code{quant_MSImagingExperiment} to align against
 #'   \code{obj1}.
+#' @param feature_match Character. \code{"transition"} (default) verifies that
+#'   same-named features share a precursor and product m/z; \code{"name"}
+#'   matches on the display name alone, without checking what it refers to.
+#' @param mz_tolerance Numeric. Half-width in Da within which two precursor or
+#'   product m/z values are taken to be the same (default \code{0.05}, i.e. one
+#'   decimal place).
 #'
 #' @return A named list with two elements:
 #'   \describe{
@@ -58,7 +108,10 @@
 #'
 #' @family combining acquisitions
 #' @export
-align_features <- function(obj1, obj2) {
+align_features <- function(obj1, obj2,
+                           feature_match = c("transition", "name"),
+                           mz_tolerance = 0.05) {
+  feature_match <- match.arg(feature_match)
   nms1   <- fData(obj1)$name
   nms2   <- fData(obj2)$name
   common <- intersect(nms1, nms2)
@@ -79,12 +132,41 @@ align_features <- function(obj1, obj2) {
   obj1 <- obj1[which(nms1 %in% common), ]
   obj2 <- obj2[which(nms2 %in% common), ]
 
-  # Reorder obj2 so features are in the same order as obj1
+  # Reorder obj2 so features are in the same order as obj1, and take obj1's mz
+  # key, which is what lets Cardinal's cbind accept the pair.
   ord  <- match(fData(obj1)$name, fData(obj2)$name)
-  obj2 <- obj2[ord, ]
+  obj2 <- .reorder_features(obj2, ord, mz(obj1))
 
-  # Force obj2's mz key to exactly match obj1's so Cardinal cbind succeeds
-  mz(obj2) <- mz(obj1)
+  # Confirm the paired names really are the same transition before the mz key
+  # is rewritten, since rewriting it is what makes a mismatch unrecoverable.
+  if (feature_match == "transition") {
+    .num <- function(x) suppressWarnings(as.numeric(
+      vapply(strsplit(as.character(x), " || ", fixed = TRUE), `[`,
+             character(1), 1)))
+    f1 <- fData(obj1); f2 <- fData(obj2)
+    need <- c("precursor_mz", "product_mz")
+    if (!all(need %in% names(f1)) || !all(need %in% names(f2)))
+      stop("align_features: feature_match = \"transition\" needs precursor_mz ",
+           "and product_mz in fData() of both objects. Objects read by ",
+           "read_mrm() carry them. Pass feature_match = \"name\" to match on ",
+           "the display name alone, accepting that identical names are then ",
+           "assumed to be the same transition.", call. = FALSE)
+
+    bad <- which(abs(.num(f1$precursor_mz) - .num(f2$precursor_mz)) > mz_tolerance |
+                 abs(.num(f1$product_mz)   - .num(f2$product_mz))   > mz_tolerance)
+    if (length(bad))
+      stop("align_features: ", length(bad), " feature(s) share a name but not ",
+           "a transition:\n",
+           paste(sprintf("  %s: %s -> %s vs %s -> %s",
+                         as.character(f1$name)[bad],
+                         .num(f1$precursor_mz)[bad], .num(f1$product_mz)[bad],
+                         .num(f2$precursor_mz)[bad], .num(f2$product_mz)[bad]),
+                 collapse = "\n"),
+           "\nCombining these would merge different measurements into one ",
+           "feature. Reconcile the ion libraries, or pass ",
+           "feature_match = \"name\" if the names really are authoritative.",
+           call. = FALSE)
+  }
 
   list(obj1 = obj1, obj2 = obj2)
 }

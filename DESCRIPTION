@@ -70,6 +70,7 @@ Collate:
     'int2conc.R'
     'int2response.R'
     'int2snr.R'
+    'join_ion_library.R'
     'palettes.R'
     'plot_cal_coverage.R'
     'quantMSImageR-package.R'

@@ -48,8 +48,11 @@ features <- data.frame(
                    "8-isoPGE2 || PGE2 || PGD2",
                    "8-iso-PGF-2a || 11b-PGF-2a || PGF-2a",
                    "PGE2-d4"),
-  precursor_mz = c(279L, 289L, 291L, 291L, 291L, 351L, 353L, 355L),
-  product_mz   = c(179L, 135L, 169L, 193L, 221L, 271L, 193L, 275L),
+  # Exactly the values in example_ion_library.csv: features are matched to the
+  # library to one decimal place, so rounding these to whole numbers would stop
+  # them matching their own library.
+  precursor_mz = c(279.2, 289.2, 291.2, 291.2, 291.2, 351.2, 353.2, 355.2),
+  product_mz   = c(179.1, 135.2, 169.1, 193.1, 221.2, 271.1, 193.1, 275.1),
   feature_type = c(rep("Analyte", 7L), "IS"),
   # Analyte -> the standard that normalises it. One standard here, so
   # int2response() never has to consult it; present so the bundled objects

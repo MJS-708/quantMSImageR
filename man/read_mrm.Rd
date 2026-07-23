@@ -10,7 +10,9 @@ read_mrm(
   lib_ion_path,
   overwrite = TRUE,
   type_header = "Type",
-  is_norm_header = "IS_norm"
+  is_norm_header = "IS_norm",
+  mz_tolerance = 0.05,
+  ambiguity = c("error", "warn", "nearest")
 )
 }
 \arguments{
@@ -22,7 +24,11 @@ read_mrm(
 \code{transition_id}, \code{precursor_mz}, \code{product_mz}, \code{collision_eV}, \code{cone_V},
 \code{Polarity}, \code{Type} (\code{"Analyte"} for in-tissue analytes, \code{"IS"} for
 internal standards). Additional metadata columns are preserved by
-downstream code via \code{\link[=build_feature_meta]{build_feature_meta()}}.}
+downstream code via \code{\link[=build_feature_meta]{build_feature_meta()}}.
+
+Measured transitions are matched to it on precursor and product m/z within
+\code{mz_tolerance}; a transition the library does not describe is kept, named
+by its instrument index and typed \code{"Unknown"}.}
 
 \item{overwrite}{Logical. When \code{TRUE} (default) the raw text files are
 re-parsed; when \code{FALSE} and a cached \code{MSImagingExperiment.rds} exists
@@ -39,6 +45,20 @@ maps each analyte to the internal standard normalising it (default
 \code{\link[=int2response]{int2response()}} can use it when a panel has more than one standard.
 \code{"None"} (or \code{NULL}), or simply omitting the column, is correct for a
 single-standard panel.}
+
+\item{mz_tolerance}{Numeric. Half-width, in Da, within which a measured
+precursor and product are taken to be the library's. The default \code{0.05}
+matches to one decimal place, the precision MRM libraries are normally
+quoted at. Widen it only if your library and method disagree by more than
+that -- the wider the tolerance, the more transitions can collide, and
+nominal-mass matching (\code{0.5}) merges isomers that differ only in the first
+decimal.}
+
+\item{ambiguity}{Character. What to do when a measured transition matches
+more than one library entry within \code{mz_tolerance}, which m/z alone cannot
+resolve: \code{"error"} (default), \code{"warn"} (take the closest and say so) or
+\code{"nearest"} (take the closest quietly). Isomers sharing a nominal
+precursor and product are the usual cause.}
 }
 \value{
 An \code{MSImagingExperiment} with feature metadata joined to the ion

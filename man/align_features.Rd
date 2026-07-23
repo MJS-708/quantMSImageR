@@ -4,7 +4,12 @@
 \alias{align_features}
 \title{Align two MSI objects to their common features}
 \usage{
-align_features(obj1, obj2)
+align_features(
+  obj1,
+  obj2,
+  feature_match = c("transition", "name"),
+  mz_tolerance = 0.05
+)
 }
 \arguments{
 \item{obj1}{A \code{quant_MSImagingExperiment}.  Its feature set and
@@ -12,6 +17,14 @@ align_features(obj1, obj2)
 
 \item{obj2}{A \code{quant_MSImagingExperiment} to align against
 \code{obj1}.}
+
+\item{feature_match}{Character. \code{"transition"} (default) verifies that
+same-named features share a precursor and product m/z; \code{"name"}
+matches on the display name alone, without checking what it refers to.}
+
+\item{mz_tolerance}{Numeric. Half-width in Da within which two precursor or
+product m/z values are taken to be the same (default \code{0.05}, i.e. one
+decimal place).}
 }
 \value{
 A named list with two elements:
@@ -40,13 +53,18 @@ name.  \code{\link{combine_MSIs}} then restores \code{fData} from
 \code{obj1}, so all feature metadata originates from the first object.
 }
 
-Matching is by display name alone.  Users must ensure that identically named
-features represent the same analytical transition in both objects: two
-methods can reuse a name while differing in precursor ion, product ion,
-adduct, polarity, collision energy or transition definition, and rewriting
-the \code{mz} key would then silently merge different measurements.  Check
-\code{fData()} (precursor and product m/z in particular) before relying on
-the result for anything quantitative.
+Features are paired by display name, and by default that pairing is then
+\emph{verified} against the transition each name refers to: precursor and
+product m/z must agree to within \code{mz_tolerance}.  Two methods can reuse
+a name while differing in precursor ion, product ion or transition
+definition, and because this function rewrites the \code{mz} key, an
+unverified pairing would silently merge different measurements into one
+feature.  A disagreement is therefore an error naming the features involved.
+
+\code{feature_match = "name"} restores name-only matching for objects that
+carry no precursor/product metadata.  It is not the default: it cannot
+detect the failure above, and this function is called automatically inside
+\code{\link{generate_txt_images}}.
 
 The function is called automatically inside
 \code{\link{generate_txt_images}} before every cross-sample

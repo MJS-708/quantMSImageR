@@ -4,7 +4,13 @@
 \alias{build_feature_meta}
 \title{Build per-feature metadata by joining an ion library on m/z}
 \usage{
-build_feature_meta(combined, ion_lib_meta, verbose = TRUE)
+build_feature_meta(
+  combined,
+  ion_lib_meta,
+  mz_tolerance = 0.05,
+  ambiguity = c("error", "warn", "nearest"),
+  verbose = TRUE
+)
 }
 \arguments{
 \item{combined}{An MSI object whose \code{fData} has columns \code{name},
@@ -14,6 +20,14 @@ build_feature_meta(combined, ion_lib_meta, verbose = TRUE)
 \item{ion_lib_meta}{A \code{data.frame} of ion library metadata (must contain
 \code{precursor_mz} and \code{product_mz}). Pass \code{NULL} to short-circuit and return
 \code{NULL}.}
+
+\item{mz_tolerance}{Numeric. Half-width in Da within which a feature's
+precursor and product are taken to be the library's (default \code{0.05}, i.e.
+one decimal place). See \code{\link[=read_mrm]{read_mrm()}}.}
+
+\item{ambiguity}{Character. What to do when a feature matches more than one
+library entry: \code{"error"} (default), \code{"warn"} or \code{"nearest"}. See
+\code{\link[=read_mrm]{read_mrm()}}.}
 
 \item{verbose}{Logical. Emit a \code{message()} reporting how many features
 matched. Default \code{TRUE}.}
@@ -25,11 +39,18 @@ Unmatched features become a row of NAs. Returns \code{NULL} when
 \code{ion_lib_meta} is \code{NULL}.
 }
 \description{
-Joins each row of \code{fData(combined)} to the ion library on the rounded
-(\code{precursor_mz}, \code{product_mz}) pair. Robust to feature renames in the YAML
-(\code{features.rename}) because m/z is stable across name changes.
+Joins each row of \code{fData(combined)} to the ion library on the
+(\code{precursor_mz}, \code{product_mz}) pair, within \code{mz_tolerance}. Robust to feature
+renames in the YAML (\code{features.rename}) because m/z is stable across name
+changes.
 }
 \details{
+Matching uses the same rule as \code{\link[=read_mrm]{read_mrm()}}, so the two cannot disagree about
+which library entry a feature is. They previously built their m/z keys
+independently -- one rounding to whole numbers, the other not -- and a
+feature matching several library entries silently took the first one's
+annotation.
+
 Used by \code{run_study.R} (via \code{inst/run_study.R}) and \code{\link[=run_example]{run_example()}} to build
 a per-feature metadata frame the heatmap report can consume -- e.g. for
 splitting / colour-bar annotation by an ion-library column such as \code{Met-1}.
