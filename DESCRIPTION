@@ -12,7 +12,8 @@ Description: Implements tools for processing and quantifying targeted DESI-MRM
     quantification against on-slide or on-tissue calibration standards, and
     batch export of per-feature text images for external viewers.
 License: MIT + file LICENSE
-URL: https://github.com/MJS-708/quantMSImageR
+URL: https://mjs-708.github.io/quantMSImageR,
+    https://github.com/MJS-708/quantMSImageR
 BugReports: https://github.com/MJS-708/quantMSImageR/issues
 biocViews: Software, MassSpectrometry, ImagingMassSpectrometry, Metabolomics,
     Lipidomics, QualityControl, Normalization, Visualization

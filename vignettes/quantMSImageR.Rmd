@@ -6,8 +6,6 @@ package: quantMSImageR
 output:
   BiocStyle::html_document:
     toc_float: true
-pkgdown:
-  as_is: true
 vignette: >
   %\VignetteIndexEntry{1. Introduction to quantMSImageR}
   %\VignetteEngine{knitr::rmarkdown}

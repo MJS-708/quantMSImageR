@@ -6,8 +6,6 @@ package: quantMSImageR
 output:
   BiocStyle::html_document:
     toc_float: true
-pkgdown:
-  as_is: true
 vignette: >
   %\VignetteIndexEntry{2. Quantification with calibration standards}
   %\VignetteEngine{knitr::rmarkdown}

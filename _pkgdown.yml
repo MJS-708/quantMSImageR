@@ -1,5 +1,12 @@
 url: https://mjs-708.github.io/quantMSImageR/
 
+# Figure numbering: the vignettes render through BiocStyle, which numbers
+# figures ("Figure 1: ..."). pkgdown re-renders them with its own output format
+# and drops that, so captions here are unnumbered while the Bioconductor-built
+# vignettes are numbered. Setting `pkgdown: as_is: true` in the vignette headers
+# restores BiocStyle, but its output carries no pkgdown navbar and
+# build_articles() then dies in activate_navbar(). Left as is deliberately.
+
 template:
   bootstrap: 5
   bslib:
