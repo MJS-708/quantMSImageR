@@ -1,0 +1,21 @@
+/* Figure numbering for the pkgdown site.
+ *
+ * The vignettes render through BiocStyle for Bioconductor, which numbers
+ * figures itself ("Figure 1: ..."). pkgdown re-renders them with its own
+ * output format and drops that, leaving captions unlabelled. Putting the
+ * number in fig.cap would fix the site and produce "Figure 1: Figure 1: ..."
+ * in the Bioconductor build, so it is done here instead: CSS counters affect
+ * this site only and leave the vignette sources untouched.
+ */
+body {
+  counter-reset: figure;
+}
+
+.figure {
+  counter-increment: figure;
+}
+
+.figure > p.caption::before {
+  content: "Figure " counter(figure) ": ";
+  font-weight: 600;
+}

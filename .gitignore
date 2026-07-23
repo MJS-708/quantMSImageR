@@ -14,4 +14,5 @@ man/figures/logo_source.png
 Rplots.pdf
 vignettes/figure/
 docs/
-pkgdown/
+# pkgdown/ is tracked: it holds the favicons and extra.css the
+# site is built from. The generated site itself is in docs/.
