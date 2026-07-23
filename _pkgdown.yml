@@ -1,0 +1,100 @@
+url: https://mjs-708.github.io/quantMSImageR/
+
+template:
+  bootstrap: 5
+  bslib:
+    primary: "#0f8096"
+
+home:
+  title: Processing and quantification of targeted DESI-MRM imaging data
+  links:
+  - text: Read the paper
+    href: https://doi.org/10.1021/acs.analchem.4c02350
+
+navbar:
+  structure:
+    left:  [intro, reference, articles]
+    right: [search, github]
+
+# Grouped by the @family tags used in the roxygen blocks, in pipeline order:
+# read an acquisition, assemble several, filter, visualise, quantify. An
+# alphabetical index would separate functions that are only meaningful together.
+reference:
+- title: Acquisition
+  desc: >
+    Reading a `.raw` folder against an ion library, labelling tissue against
+    background, and trimming what is not wanted.
+  contents:
+  - read_mrm
+  - select_tissue_pixels
+  - trim_MSI
+  - remove_blank_mzs
+  - build_feature_meta
+
+- title: Combining acquisitions
+  desc: >
+    Putting several acquisitions, or the two polarities of one acquisition,
+    into a single object.
+  contents:
+  - align_features
+  - combine_MSIs
+  - bind_panels
+
+- title: Filtering and normalisation
+  desc: >
+    Internal-standard response, background-referenced signal, and the masking
+    steps that act on a chosen spectra layer.
+  contents:
+  - int2response
+  - int2snr
+  - applySNR
+  - back2NA
+  - zero2na
+
+- title: Quantification
+  desc: >
+    Standards to a fitted model to an estimated amount per pixel, plus the
+    coverage check that says whether the standards bracket the tissue.
+  contents:
+  - summarise_cal_levels
+  - create_cal_curve
+  - int2conc
+  - plot_cal_coverage
+
+- title: Visualisation
+  contents:
+  - imageR
+  - quantile_hm
+  - quant_palettes
+
+- title: Whole-study workflows
+  desc: >
+    Running a complete study from a YAML configuration, and the worked example.
+  contents:
+  - run_study
+  - validate_config
+  - print.quant_validation
+  - generate_txt_images
+  - run_example
+
+- title: Classes and accessors
+  desc: >
+    The `quant_MSImagingExperiment` object and the calibration and tissue
+    metadata it carries.
+  contents:
+  - quant_MSImagingExperiment
+  - calibrationInfo-class
+  - tissueInfo-class
+  - quantMSImageR-accessors
+  - createMSIDatamatrix
+
+- title: Package
+  contents:
+  - quantMSImageR-package
+
+articles:
+- title: Vignettes
+  navbar: ~
+  contents:
+  - quantMSImageR
+  - quantification

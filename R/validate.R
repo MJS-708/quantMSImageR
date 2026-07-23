@@ -312,6 +312,19 @@ validate_config = function(config, check_paths = TRUE){
     }
   }
 
+  # ---- output --------------------------------------------------------------
+  if(!is.null(config$output$fig_dpi)){
+    d = suppressWarnings(as.numeric(config$output$fig_dpi))
+    if(length(d) != 1L || is.na(d) || d < 72)
+      .chk_add(chk, "output$fig_dpi", "error", sprintf(
+        "output$fig_dpi = '%s' must be a number of at least 72 (300 is the usual floor for a publication figure).",
+        paste(config$output$fig_dpi, collapse = ", ")))
+    else if(d > 600)
+      .chk_add(chk, "output$fig_dpi", "warning", sprintf(
+        "output$fig_dpi = %g will make a very large HTML report; 300 is usually enough.", d))
+    else .chk_add(chk, "output$fig_dpi", "ok")
+  }
+
   # ---- calibration ---------------------------------------------------------
   cal = config$calibration
   if(isTRUE(cal$enabled %||% cal$execute)){

@@ -92,6 +92,7 @@ ratios:                                 # pixel-wise numerator / denominator ima
 
 # =========================== OUTPUTS ===========================
 output:
+  fig_dpi:       300                    # figure resolution; 300 = publication floor
   render_report: True                   # build HTML report
   output_txt:    False                  # write per-feature txt images
   output_ratios: False                  # write ratio txt images (needs ratios.enabled)

@@ -237,6 +237,7 @@ run_study <- function(config_file) {
   pal_feature <- cfg$colours$feature   %||% "reading"
   hm_cell_border <- cfg$colours$cell_border %||% "white"
 
+  fig_dpi        <- cfg$output$fig_dpi        %||% 300
   render_report  <- cfg$output$render_report  %||% TRUE
   output_txt     <- cfg$output$output_txt     %||% TRUE
   output_ratios  <- cfg$output$output_ratios  %||% TRUE

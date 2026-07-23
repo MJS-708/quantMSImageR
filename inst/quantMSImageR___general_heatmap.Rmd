@@ -31,13 +31,24 @@ suppressPackageStartupMessages({
   library(viridis)
 })
 
+# Figure resolution. One value for every raster in the report -- knitr's
+# figures and the heatmap PNG below -- since they used to disagree (120 with
+# fig.retina = 3, so 360 effective, against a hardcoded 150 for the heatmap).
+# 300 dpi is the usual floor for a figure that may end up in a manuscript.
+#
+# fig.retina is 1 deliberately: it renders at dpi x 3 to look crisp on a
+# high-DPI screen, which at 300 dpi means 900 and a report several times
+# larger for no visible gain.
+.fig_dpi <- if (exists("fig_dpi")) suppressWarnings(as.numeric(fig_dpi)) else 300
+if (length(.fig_dpi) != 1L || is.na(.fig_dpi) || .fig_dpi < 72) .fig_dpi <- 300
+
 # set default options
 knitr::opts_chunk$set(echo = FALSE,
                message = FALSE,
                warning = FALSE,
                fig.align="center",
-               dpi = 120,
-               fig.retina = 3)
+               dpi = .fig_dpi,
+               fig.retina = 1)
 
 # Define a function to safely plot or show a blank plot
 safe_plot <- function(p) {
@@ -182,6 +193,37 @@ plot_tri_heatmap <- function(out, metric = "Dice", ord,
 
 ```
 
+
+```{r logo, echo=FALSE, results="asis"}
+# Package logo, placed beside the report title. The title block is written by
+# the template before any chunk runs, so an <img> emitted here would land next
+# to section 1 instead. A style rule reaches #header wherever it appears, and
+# the image rides along base64-encoded so the report stays one portable file.
+#
+# Installed packages carry the logo at help/figures; a source tree
+# (devtools::load_all) still has it at man/figures, so both are tried. A
+# missing logo is silently skipped -- a decoration must never stop a report.
+.logo <- system.file("help", "figures", "logo.png", package = "quantMSImageR")
+if (!nzchar(.logo))
+  .logo <- system.file("man", "figures", "logo.png", package = "quantMSImageR")
+if (nzchar(.logo))
+  cat(sprintf('<style>
+/* min-height guarantees the 80px logo, anchored to the bottom, clears the
+   ~24px code button above it however short the title block is. */
+#header { position: relative; min-height: 112px; }
+#header .title, #header .author, #header .date { padding-right: 100px; }
+#header::after {
+  content: ""; position: absolute; bottom: 0; right: 0;
+  width: 80px; height: 80px;
+  background: url("%s") no-repeat right bottom;
+  background-size: contain;
+}
+/* Anchored bottom-right, not top-right: the code-folding button floats in the
+   top-right corner of the same block and the two would sit on top of one
+   another. Hidden on narrow screens, where there is no room beside the title. */
+@media (max-width: 700px) { #header::after { display: none; } }
+</style>', knitr::image_uri(.logo)))
+```
 
 # 1. Study
 
@@ -379,7 +421,8 @@ for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
   # instead of into the HTML. Render to a temp PNG and embed via base64.
   .tmp <- tempfile(fileext = ".png")
   .sz  <- .hm_dev_size(p)
-  grDevices::png(.tmp, width = .sz[1], height = .sz[2], units = "in", res = 150)
+  grDevices::png(.tmp, width = .sz[1], height = .sz[2], units = "in",
+                 res = .fig_dpi)
   # Some ComplexHeatmap versions throw "depth applied to NULL" while drawing
   # several annotation legends; merging the legends avoids that code path.
   .ok <- tryCatch({ ComplexHeatmap::draw(p); TRUE }, error = function(e)
@@ -387,9 +430,9 @@ for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
                     error = function(e2) FALSE))
   grDevices::dev.off()
   if (.ok) {
-    # Display at the physical size it was drawn at (96 CSS px per inch), so a
-    # 150 dpi render stays crisp without the browser blowing it up or
-    # shrinking it; max-width keeps a wide study inside the page.
+    # Display at the physical size it was drawn at (96 CSS px per inch), so the
+    # render stays crisp without the browser blowing it up or shrinking it;
+    # max-width keeps a wide study inside the page.
     cat(sprintf(
       '<p><img src="%s" alt="quantile %g heatmap" style="width:%.0fpx;max-width:100%%;height:auto;"/></p>\n',
       knitr::image_uri(.tmp), quant_value, .sz[1] * 96

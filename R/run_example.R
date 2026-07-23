@@ -221,6 +221,7 @@ run_example <- function(render_report = TRUE,
     pal_group         <- "hat"
     pal_feature       <- "reading"
     hm_cell_border    <- "white"
+    fig_dpi           <- 300
     out_path          <- tmp_dir
     report_fn         <- "Example"
     ratios_cfg        <- NULL

@@ -9,7 +9,6 @@
 ^search_ion_library\.R$
 ^\.Rhistory$
 ^\.gitignore$
-^man/figures$
 ^\.claude/plans$
 ^LICENSE\.md$
 ^quantMSImageR\.BiocCheck$
