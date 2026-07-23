@@ -23,6 +23,12 @@
 #'   `pData(.)`.
 #' @param label Character. Optional. If supplied, written to
 #'   `pData(result)$run` so the merged object combines cleanly downstream.
+#' @param feature_match Character. How a feature name appearing in both inputs
+#'   is treated: `"transition"` (default) keeps `obj1`'s copy only after
+#'   confirming both refer to the same precursor and product m/z, and errors
+#'   otherwise; `"name"` keeps `obj1`'s copy on the strength of the name alone.
+#' @param mz_tolerance Numeric. Half-width in Da within which two precursor or
+#'   product m/z values count as the same (default `0.05`).
 #'
 #' @return A `quant_MSImagingExperiment` with:
 #'   \itemize{
@@ -31,7 +37,16 @@
 #'           values).
 #'     \item Pixels = intersection of (x, y) grids.
 #'     \item Each pixel carries real intensities from both inputs.
+#'     \item Every spectra layer both inputs carry -- `response`, `snr` and
+#'           calibrated amounts as well as `intensity` -- together with
+#'           `obj1`'s experiment metadata and calibration/tissue slots.
 #'   }
+#'
+#' @section Processed inputs:
+#' Both inputs must carry the same set of spectra layers, since a layer present
+#' on only one side cannot be filled in for the other half of the features.
+#' Bind panels at the same stage of processing: either both raw, or both after
+#' the same steps.
 #'
 #' @seealso [combine_MSIs()], [generate_txt_images()]
 #'
@@ -51,7 +66,11 @@
 #'
 #' @family combining acquisitions
 #' @export
-bind_panels <- function(obj1, obj2, label = NULL) {
+bind_panels <- function(obj1, obj2, label = NULL,
+                        feature_match = c("transition", "name"),
+                        mz_tolerance = 0.05) {
+
+  feature_match <- match.arg(feature_match)
 
   pd1 <- pData(obj1); pd2 <- pData(obj2)
   if (!all(c("x", "y") %in% names(pd1)) ||
@@ -79,6 +98,39 @@ bind_panels <- function(obj1, obj2, label = NULL) {
   nms2 <- as.character(fData(obj2c)$name)
   overlap <- intersect(nms1, nms2)
   if (length(overlap) > 0) {
+    # obj2's copy is discarded, so it is worth knowing the two are the same
+    # measurement before choosing one of them. A shared name across two panels
+    # can easily be two different transitions.
+    if (feature_match == "transition") {
+      .num <- function(x) suppressWarnings(as.numeric(
+        vapply(strsplit(as.character(x), " || ", fixed = TRUE), `[`,
+               character(1), 1)))
+      f1 <- fData(obj1c); f2 <- fData(obj2c)
+      need <- c("precursor_mz", "product_mz")
+      if (!all(need %in% names(f1)) || !all(need %in% names(f2)))
+        stop("bind_panels: feature_match = \"transition\" needs precursor_mz ",
+             "and product_mz in fData() of both objects. Pass ",
+             "feature_match = \"name\" to drop duplicates on the name alone.",
+             call. = FALSE)
+
+      i1 <- match(overlap, nms1); i2 <- match(overlap, nms2)
+      bad <- which(abs(.num(f1$precursor_mz)[i1] - .num(f2$precursor_mz)[i2]) > mz_tolerance |
+                   abs(.num(f1$product_mz)[i1]   - .num(f2$product_mz)[i2])   > mz_tolerance)
+      if (length(bad))
+        stop("bind_panels: ", length(bad), " feature name(s) appear in both ",
+             "panels over different transitions:
+",
+             paste(sprintf("  %s: %s -> %s vs %s -> %s", overlap[bad],
+                           .num(f1$precursor_mz)[i1][bad], .num(f1$product_mz)[i1][bad],
+                           .num(f2$precursor_mz)[i2][bad], .num(f2$product_mz)[i2][bad]),
+                   collapse = "
+"),
+             "
+Keeping one would discard a different measurement. Rename them ",
+             "in the ion library, or pass feature_match = \"name\" if the names ",
+             "really are authoritative.", call. = FALSE)
+    }
+
     message(sprintf(
       "  bind_panels: dropping %d duplicate feature(s) from obj2: %s",
       length(overlap), paste(overlap, collapse = ", ")))
@@ -86,11 +138,20 @@ bind_panels <- function(obj1, obj2, label = NULL) {
     nms2  <- as.character(fData(obj2c)$name)
   }
 
-  # 3. rbind intensity matrices
-  idata <- rbind(
-    as.matrix(spectraData(obj1c)[["intensity"]]),
-    as.matrix(spectraData(obj2c)[["intensity"]])
-  )
+  # 3. rbind every spectra layer, not only intensity: binding a pair of
+  #    processed panels used to silently return raw data, because response,
+  #    snr and any calibrated layers were dropped here.
+  lyr1 <- names(spectraData(obj1c)); lyr2 <- names(spectraData(obj2c))
+  if (!identical(sort(lyr1), sort(lyr2)))
+    stop("bind_panels: the two objects carry different spectra layers (",
+         paste(sort(lyr1), collapse = ", "), " vs ",
+         paste(sort(lyr2), collapse = ", "),
+         "). A layer on only one side cannot be filled in for the other half ",
+         "of the features -- process both panels the same way before binding.",
+         call. = FALSE)
+
+  sdata <- lapply(stats::setNames(lyr1, lyr1), function(nm)
+    rbind(as.matrix(spectra(obj1c, nm)), as.matrix(spectra(obj2c, nm))))
 
   # 4. Combined fData with unique sequential mz keys (Cardinal needs unique mz)
   fd1 <- as.data.frame(fData(obj1c))
@@ -120,10 +181,20 @@ bind_panels <- function(obj1, obj2, label = NULL) {
 
   # 6. Assemble and return
   out <- MSImagingExperiment(
-    spectraData = idata,
-    featureData = fd_mdf,
-    pixelData   = pdata
+    spectraData    = sdata,
+    featureData    = fd_mdf,
+    pixelData      = pdata,
+    experimentData = experimentData(obj1c)
   )
   featureNames(out) <- combined_fd$name
-  as(out, "quant_MSImagingExperiment")
+  out <- as(out, "quant_MSImagingExperiment")
+
+  # Coercion starts these empty. obj1 supplied the pixel grid and wins on
+  # duplicate features, so its metadata is the one that still describes the
+  # result; losing a calibration silently would be worse than not carrying it.
+  if (is(obj1c, "quant_MSImagingExperiment")) {
+    out@calibrationInfo <- obj1c@calibrationInfo
+    out@tissueInfo      <- obj1c@tissueInfo
+  }
+  out
 }
