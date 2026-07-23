@@ -497,6 +497,7 @@ imageR(combined, feat_ind = 1, sample_lab = "run", val_slot = "intensity",
 | Function | Takes | Produces |
 |---|---|---|
 | `run_study()` | a YAML configuration file | runs the whole study: `.txt` images, optional calibration, one HTML report per SNR threshold |
+| `validate_config()` | the same file | a report of every problem found in it, before anything is read or written |
 | `generate_txt_images()` | acquisition names, paths, ion library, SNR settings | list of combined/SNR-filtered objects; optional per-feature `.txt` images |
 | `run_example()` | nothing (all paths resolved internally) | the same list plus `calibrated` and `report`, having rendered the HTML report |
 
@@ -546,11 +547,66 @@ run a large study unattended:
 Rscript -e 'quantMSImageR::run_study("study_config.yaml")'
 ```
 
+## The configuration as a record of the analysis
+
+Driving a study from a file rather than from a session has a consequence worth
+stating plainly: **the configuration is a complete, human-readable record of
+how the data were processed.** Every choice that affects a reported number --
+which acquisitions belong to which group, the SNR thresholds and any
+per-analyte overrides, whether internal-standard normalisation ran and against
+which standard, the calibration design and its weighting, how much
+extrapolation was tolerated -- is written down in one file rather than left in
+a script's history or a chain of interactive calls.
+
+That file is small enough to deposit alongside the data, cite in a methods
+section, or track in version control, where a `diff` shows exactly what changed
+between two versions of an analysis. Re-running it reproduces the reports,
+including the `.txt` exports other tools consume. In the language of the FAIR
+principles (Wilkinson *et al.*, 2016) it is the *reusable* part that is hardest to
+retrofit: the data may be deposited and the code may be public, but without the
+parameters neither can be re-run to the same numbers.
+
+A record is only as good as its correctness, which is what `validate_config()`
+is for. It runs every check rather than stopping at the first failure, so one
+call reports every problem in the file:
+
+```{r validate, eval = FALSE}
+validate_config("path/to/study_config.yaml")
+```
+
+```
+quantMSImageR validation: 2 error(s), 1 warning(s), 26 check(s)
+
+Errors:
+  - parameters$average_method = 'geometric'; use 'mean' or 'median'.
+  - parameters$is_name = 'PGE2-d4' is not a value of the ion library's 'Type'
+    column. Values present: Analyte, IS. Note this is a type label, not a
+    transition name.
+```
+
+`run_study()` calls it first and refuses to start if there are errors, so a
+configuration that cannot be trusted never produces output that looks
+trustworthy. The checks are deliberately cross-file -- the ion library, the
+calibration metadata and the config have to agree with each other, not merely
+be individually well-formed -- because the failures that matter are the ones
+that would otherwise produce a plausible-looking result computed from the wrong
+column, rather than an obvious crash.
+
+Two checks exist because those mistakes were made while building this package:
+`is_name` is verified against the ion library's type column, since a transition
+name there silently normalises nothing; and calibration analytes that match no
+transition are flagged, since calibration selects by name and an unmatched
+analyte simply produces no curve.
+
 # References
 
 Smith MJ, *et al.* Quantitative mass spectrometry imaging of lipid mediators
 using DESI-MRM. *Analytical Chemistry* (2024).
 <https://pubs.acs.org/doi/10.1021/acs.analchem.4c02350>
+
+Wilkinson MD, *et al.* The FAIR Guiding Principles for scientific data
+management and stewardship. *Scientific Data* **3**, 160018 (2016).
+<https://doi.org/10.1038/sdata.2016.18>
 
 # Session information
 
