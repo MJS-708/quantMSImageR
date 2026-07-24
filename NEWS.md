@@ -1,3 +1,10 @@
+# quantMSImageR 0.99.1
+
+* Added `show()` methods for the `calibrationInfo`, `tissueInfo` and
+  `quant_MSImagingExperiment` classes.
+* Enabled R-universe build checking.
+* Vignette, help-page and package-title clarifications; documentation tidy-up.
+
 # quantMSImageR 0.99.0
 
 * First Bioconductor submission.
