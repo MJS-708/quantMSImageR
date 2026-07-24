@@ -22,10 +22,10 @@ library(ggplot2)
 
 # Introduction
 
-Mass spectrometry imaging measures analyte **response** at each pixel rather
+Mass spectrometry imaging measures analyte response at each pixel rather
 than analyte amount directly. Using calibration standards, `quantMSImageR` can
-convert this response into an **estimated amount per pixel** (pg/pixel) and,
-when pixel dimensions are known, an **estimated real amount** (pg/mm²). These
+convert this response into an estimated amount per pixel (pg/pixel) and,
+when pixel dimensions are known, an estimated real amount (pg/mm²). These
 estimates are conditional on the calibration design, internal standard choice
 and strategy, matrix matching, acquisition conditions, and validity of the
 fitted model.
@@ -91,7 +91,7 @@ fitted model.
 }
 ```
 
-**On-slide (external) calibration** deposits standards on the slide adjacent to
+On-slide (external) calibration deposits standards on the slide adjacent to
 the tissue. This captures instrumental response during the same acquisition but
 does not reproduce tissue-specific matrix effects. Use `cal_type = "cal"`.
 
@@ -99,10 +99,10 @@ does not reproduce tissue-specific matrix effects. Use `cal_type = "cal"`.
 patchwork::wrap_plots(.slide_plot(FALSE), .fit_plot(FALSE), widths = c(1, 1.1))
 ```
 
-**On-tissue calibration** deposits standards onto tissue, or onto a
+On-tissue calibration deposits standards onto tissue, or onto a
 representative tissue homogenate. Matrix matching is better, but endogenous
 analyte signal and spatial heterogeneity still need careful treatment. Use
-`cal_type = "std_addition"`. **Standard addition**: `create_cal_curve()` fits
+`cal_type = "std_addition"`. Standard addition: `create_cal_curve()` fits
 response against deposited amount, takes the x-intercept of that line as the endogenous
 amount already present in the tissue, shifts every deposited amount by it so the
 axis expresses *total* amount (endogenous + added), drops the background level
@@ -124,23 +124,13 @@ user's responsibility:
 
 - the standard is the same chemical species as the endogenous analyte;
 - transitions and acquisition settings match between standards and sample;
-- calibration levels bracket the signal actually measured in tissue
-  (checked by `plot_cal_coverage()`);
+- calibration levels expand the response range of the signal actually measured
+  in tissue (checked by `plot_cal_coverage()`);
 - the fitted model is adequate, with acceptable residual behaviour;
 - the calibration substrate is a reasonable matrix match for the tissue;
-- any internal standard behaves consistently across the acquisition;
+- any internal standard is analogous to the endogenous analyte and is
+  consistently measured throughout the acquisition;
 - pixel dimensions are known, for conversion to pg/mm².
-
-Keeping the analytical steps distinct from the interpretive one:
-
-1. raw intensity;
-2. internal-standard-normalised response (`int2response()`);
-3. background-referenced response / SNR (`int2snr()`);
-4. calibrated amount estimate (`int2conc()`);
-5. biological interpretation.
-
-Steps 1--4 are analytical transformations performed by the package. Step 5
-remains conditional on the assumptions above.
 
 # Installation
 
@@ -267,9 +257,9 @@ R-squared of the line that `int2conc()` inverts.
 
 ## R² is not enough
 
-R² reports only how much of the variance in the standards the straight line
-accounts for. Treat a low R² as a definite warning and a high R² as necessary
-but not sufficient.
+Whilst a useful metric R² reports only how much of the variance in the
+standards the straight line accounts for. Treat a low R² as a definite warning
+and a high R² as necessary but not sufficient.
 
 Before relying on the estimates, examine at minimum:
 
@@ -284,7 +274,7 @@ Before relying on the estimates, examine at minimum:
   residual structure of your analytical method.
 
 Plotting those fits gives the calibration curves. The line must come from the
-**stored** model:
+stored model:
 
 ```{r curve-plot, fig.wide = TRUE, fig.cap = "Calibration curves. Each point is one standard spot's summarised response; the line is predicted from the stored, weighted model that int2conc() inverts."}
 cal_data <- calibrationLevels(cal)
@@ -335,7 +325,7 @@ standards constrain the fit. `plot_cal_coverage()` enables this to be
 evaluated. The lower panel is the calibration itself -- the standard spots (red) and the fitted model (dashed) that
 `int2conc()` inverts. The upper panel is the distribution of the section's own
 pixels on exactly the same x-axis, with the calibration levels marked in red.
-When the histogram sits **inside** the span of the red lines, every converted
+When the histogram sits inside the span of the red lines, every converted
 pixel is interpolated between real standards.
 
 ```{r dyn-range, fig.wide = TRUE, fig.height = 5, fig.cap = "Calibration coverage of the measured data. Pixels falling inside the marked range are interpolated between real standards rather than extrapolated."}
@@ -408,7 +398,7 @@ run_study("path/to/study_config.yaml")
 
 # Interpretation and limitations
 
-The values produced here are **calibrated amount estimates**, not volumetric
+The values produced here are calibrated amount estimates, not volumetric
 concentrations and not traceable reference measurements. Reporting them as
 `pg/pixel` or `pg/mm²` is a statement about the calibration, not a claim about
 the absolute biological content of a voxel.

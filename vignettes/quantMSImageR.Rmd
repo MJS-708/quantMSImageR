@@ -21,48 +21,48 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", warning = FALSE,
 
 A targeted DESI-MRM imaging run produces one intensity per transition per pixel,
 across tens of thousands of pixels and several acquisitions. Turning that into a
-biological result runs into three problems at once.
+biological result runs into several challenges.
 
-**Most pixels are not tissue.** A section occupies part of the scanned area, and
-the surrounding slide still returns signal -- chemical background, carryover and
-detector noise. Left in, those pixels drag down every summary statistic and make
-images look more uniform than they are. Which pixels are tissue has to be
-decided per acquisition, and the decision has to survive being re-applied to a
-different MRM panel of the same sample.
+A tissue section occupies part of the scanned area, and the surrounding slide
+still returns signal: chemical background, termed background pixels. Left in,
+those pixels drag down every summary statistic and make images look more uniform
+than they are. Which pixels are tissue has to be decided per acquisition, and
+the decision has to survive being re-applied to a different MRM panel of the
+same sample. Additionally, these pixels aid determining a pseudo noise level for
+filtering purposes.
 
-**Not every monitored transition yields usable analyte signal.** A transition
-can be listed in the method and still carry no usable signal in a given section,
-or sit so close to background that it is indistinguishable from it. Reporting
-those alongside genuine measurements is how spurious hits reach a figure.
+Targeted panels are limited in number, so often multiple scans of the same area
+need to be acquired and thus merged.
 
-**Response is not amount.** Response depends on ionisation efficiency and local
-matrix suppression, so raw responses should not be interpreted as analyte
-amount, and their comparability between analytes, sections or instruments should
-not be assumed without appropriate normalisation and calibration.
+Response depends on ionisation efficiency and local matrix suppression, so raw
+responses should not be interpreted as analyte amount, and their comparability
+between analytes, sections or instruments should not be assumed without
+appropriate normalisation and calibration.
 
 ## What this package does
 
 `quantMSImageR` addresses each of those: signal-to-noise (SNR) filtering against
 background pixels, tissue/background separation, per-feature ion images
 including `.txt` image outputs for overlaying with other imaging (H&E),
-quantile heatmaps -- and **quantification** against calibration standards for
+quantile heatmaps -- and quantification against calibration standards for
 the third.
 
 ## Scope
 
-The package is currently validated for **Waters DESI-MRM** data. The software
-is extendable to targeted imaging data may be analysed after conversion to a
-compatible `MSImagingExperiment`, but those workflows have not yet been formally
-validated.
+The package is currently validated for Waters DESI-MRM data. The software is
+extendable to targeted imaging data, which may be analysed after conversion to a
+compatible `MSImagingExperiment`. However, accessing raw data from other
+targeted imaging methods is not yet validated.
 
 Within that scope it is designed to handle:
 
 - background-referenced filtering against non-tissue pixels;
+- merging of targeted panels;
 - targeted ion-image visualisation and `.txt` export;
 - cross-sample summaries such as quantile heatmaps;
 - calibration-based amount estimation.
 
-It does **not** do the following, by design -- other tools do them better:
+It does not do the following, by design:
 
 | Not provided | Use instead |
 |---|---|
@@ -134,8 +134,8 @@ BiocManager::install("quantMSImageR")
 # Quick start
 
 The fastest way to see the whole workflow is `run_example()`, which runs the
-imaging workflow on two synthetic groups (**A**, circular tissue, n = 3;
-**B**, square tissue, n = 3), renders the HTML report, and also demonstrates
+imaging workflow on two synthetic groups (A, circular tissue, n = 3;
+B, square tissue, n = 3), renders the HTML report, and also demonstrates
 quantification on the bundled calibration standards:
 
 ```{r quickstart, eval = FALSE}
@@ -152,7 +152,7 @@ Every acquisition is a `Cardinal::MSImagingExperiment`. `quantMSImageR` adds the
 `quant_MSImagingExperiment` subclass, which carries two extra slots for
 calibration and tissue metadata, so most functions coerce with `as()` first.
 
-The object is **features x pixels**: one row per MRM transition, one column per
+The object is features x pixels: one row per MRM transition, one column per
 pixel. Calculated quantities -- `response`, `snr`, calibrated amount -- are
 stored as *additional* spectra layers. Masking functions are the exception:
 `applySNR()`, `back2NA()` and `zero2na()` modify the selected `val_slot` in
@@ -167,7 +167,7 @@ afterwards.
 | calibration | fitted models, calibration levels, fit diagnostics | `calibrationModels(x)`, `calibrationLevels(x)`, `calibrationDiagnostics(x)` |
 | tissue summaries | pixel and ROI matrices | `tissueMatrix(x)`, `tissueData(x)` |
 
-Multiple acquisitions are held in **one object**, distinguished by the `run`
+Multiple acquisitions are held in one object, distinguished by the `run`
 column of `pData()` -- that is what `combine_MSIs()` produces and what every
 per-sample summary groups on.
 
@@ -239,9 +239,9 @@ ready for `select_tissue_pixels()` and the rest of the workflow.
 | `combine_MSIs()` | two or more aligned objects | one object, each acquisition its own `run` |
 | `bind_panels()` | two objects on a shared `(x, y)` grid | features of both on the pixel-grid intersection |
 
-Note the difference between the last two. `combine_MSIs()` stacks **different
-sections** side by side, adding pixels. `bind_panels()` merges **two
-acquisitions of the same physical area** -- typically a positive- and a
+Note the difference between the last two. `combine_MSIs()` stacks different
+sections side by side, adding pixels. `bind_panels()` merges two
+acquisitions of the same physical area -- typically a positive- and a
 negative-mode run of one section, or two MRM panels -- adding features to the
 same pixels:
 
@@ -256,8 +256,8 @@ neg <- read_mrm("acq_section1_neg", folder = "path/to/raw",
 both <- bind_panels(pos, neg, label = "S1")
 ```
 
-The bundled example is six sections: three of group **A** (circular tissue) and
-three of group **B** (square tissue). They ship as RDS, so `read_mrm()` is not
+The bundled example is six sections: three of group A (circular tissue) and
+three of group B (square tissue). They ship as RDS, so `read_mrm()` is not
 needed here. `combine_MSIs()` binds them into a single object, keeping each
 section as its own `run`:
 
@@ -305,8 +305,8 @@ select_tissue_pixels(
 )
 ```
 
-It writes the resulting mask as `tissue_pixels.csv` **inside the acquisition's
-`.raw` folder**, where `int2snr()` and `generate_txt_images()` read it. The mask
+It writes the resulting mask as `tissue_pixels.csv` inside the acquisition's
+`.raw` folder, where `int2snr()` and `generate_txt_images()` read it. The mask
 is simply a per-pixel label -- tissue versus background -- which the bundled
 sections already carry in their `sample_name` column:
 
@@ -345,7 +345,7 @@ ggplot(mask_tbl, aes(x, -y, fill = sample_name)) +
 
 | Function | Takes | Produces |
 |---|---|---|
-| `imageR()` | object, `feat_ind`, `val_slot`, `sample_lab`, `scale` | a **`ggplot`** ion image |
+| `imageR()` | object, `feat_ind`, `val_slot`, `sample_lab`, `scale` | a `ggplot` ion image |
 | `quantile_hm()` | object, `quant_val`, sample order/labels, `feature_split` | a `ComplexHeatmap::Heatmap` (rows = samples, columns = features) |
 | `quant_palettes()` | palette name, optional `n` | the hex colours used by both, for reuse in your own plots |
 
@@ -387,13 +387,13 @@ A single ion image can look very different depending on how the colour scale is
 built, and the right choice depends on what is being judged. `scale` offers
 three treatments:
 
-- **`"suppress"`** caps the scale at `percentile` (default 99), so a few hot
+- `"suppress"` caps the scale at `percentile` (default 99), so a few hot
   pixels cannot flatten everything else. This is the default and the right
   starting point for comparing sections.
-- **`"histogram"`** equalises the distribution, which reveals structure in a
+- `"histogram"` equalises the distribution, which reveals structure in a
   feature whose signal spans a narrow range -- at the cost of a colour scale
   that no longer maps linearly to response.
-- **`"sqrt"`** compresses the top of the range more gently than histogram
+- `"sqrt"` compresses the top of the range more gently than histogram
   equalisation, keeping the scale monotonic in response.
 
 ```{r image-scales, fig.wide = TRUE, fig.height = 3, fig.cap = "The same feature and section under the three colour-scale treatments. Only `suppress` keeps the colour scale linear in response; the others trade that for visible structure."}
@@ -459,8 +459,8 @@ each measured feature by m/z.
 # Quantile heatmaps across samples
 
 `quantile_hm()` summarises each feature to a per-sample quantile and returns a
-`ComplexHeatmap::Heatmap`. **Rows are samples, grouped by study group; columns
-are features, split by the `Met-1` class joined above** -- studies usually have
+`ComplexHeatmap::Heatmap`. Rows are samples, grouped by study group; columns
+are features, split by the `Met-1` class joined above -- studies usually have
 more samples than features, so the long dimension runs vertically. Cells are
 drawn square (stretching to at most 1.5:1 when one dimension is much longer),
 so the heatmap grows with the data rather than distorting to fill the device.
@@ -496,7 +496,7 @@ quantile_hm(combined, quant_val = 0.95,
 | Function | Takes | Produces |
 |---|---|---|
 | `int2response()` | object + internal-standard name | intensities normalised to the IS (`response`) |
-| `int2snr()` | object, `background`/`tissue` labels, `snr_thresh`, optional `snr_overrides` | adds an **`snr`** slot; below threshold and non-tissue become `NA` |
+| `int2snr()` | object, `background`/`tissue` labels, `snr_thresh`, optional `snr_overrides` | adds an `snr` slot; below threshold and non-tissue become `NA` |
 | `applySNR()` | object carrying an `snr` slot | sub-threshold pixels set to `NA` in `val_slot` |
 | `back2NA()` | object + background label | background pixels set to `NA` |
 | `zero2na()` | object, `val_slot` | zeros replaced with `NA` |
@@ -590,7 +590,7 @@ Rscript -e 'quantMSImageR::run_study("study_config.yaml")'
 ## The configuration as a record of the analysis
 
 Driving a study from a file rather than from a session means a complete
-**human-readable configuration file to document how the data were processed.**
+human-readable configuration file to document how the data were processed.
 Every choice that affects the results (which acquisitions belong to which group,
 the SNR thresholds and any per-analyte overrides, whether internal-standard
 normalisation ran and against which standard, the calibration design and its
@@ -633,7 +633,7 @@ Pulmonary Tissue. *Analytical Chemistry* (2024).
 <https://doi.org/10.1021/acs.analchem.4c02350>
 
 Wilkinson MD, *et al.* The FAIR Guiding Principles for scientific data
-management and stewardship. *Scientific Data* **3**, 160018 (2016).
+management and stewardship. *Scientific Data* 3, 160018 (2016).
 <https://doi.org/10.1038/sdata.2016.18>
 
 # Session information
