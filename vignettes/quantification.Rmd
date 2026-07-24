@@ -255,8 +255,6 @@ DT::datatable(eqn, rownames = FALSE,
 **Table 3.** Fitted calibration model per analyte: the slope, intercept and
 R-squared of the line that `int2conc()` inverts.
 
-## R² is not enough
-
 Whilst a useful metric R² reports only how much of the variance in the
 standards the straight line accounts for. Treat a low R² as a definite warning
 and a high R² as necessary but not sufficient.
