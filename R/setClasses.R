@@ -91,6 +91,20 @@ setValidity("calibrationInfo", function(object) {
   if (length(msg)) msg else TRUE
 })
 
+#' @param object A `calibrationInfo` object.
+#' @rdname calibrationInfo-class
+#' @exportMethod show
+setMethod("show", "calibrationInfo", function(object) {
+  cat("calibrationInfo\n")
+  n <- length(object@cal_list)
+  cat("  analytes fitted     :", n, "\n")
+  if (n > 0 && !is.null(names(object@cal_list)))
+    cat("  models              :",
+        paste(names(object@cal_list), collapse = ", "), "\n")
+  cat("  calibration levels  :", nrow(object@cal_response_data), "rows\n")
+  invisible(object)
+})
+
 
 #' Tissue-level summaries for an imaging experiment
 #'
@@ -142,6 +156,17 @@ tissueInfo = setClass("tissueInfo",
                              feature_metadata = "data.frame"
                            )
 )
+
+#' @param object A `tissueInfo` object.
+#' @rdname tissueInfo-class
+#' @exportMethod show
+setMethod("show", "tissueInfo", function(object) {
+  cat("tissueInfo\n")
+  cat("  pixel matrix        :", nrow(object@all_pixel_matrix), "pixels x ",
+      ncol(object@all_pixel_matrix), "features\n")
+  cat("  ROI averages        :", nrow(object@roi_average_matrix), "rows\n")
+  invisible(object)
+})
 
 
 #' Quantifiable MS imaging experiment

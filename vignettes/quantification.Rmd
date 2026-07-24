@@ -79,8 +79,10 @@ fitted model.
                 linetype = "dashed") +
       geom_point(aes(x = -22.5, y = 0), shape = 4, size = 3.4, stroke = 1.1,
                  colour = "#cd023d") +
-      annotate("text", x = -21, y = 0, label = "endogenous amount",
-               hjust = 0, vjust = 2, size = 3, colour = "#cd023d")
+      annotate("text", x = -22.5, y = 16, label = "endogenous
+amount",
+               hjust = 0.5, vjust = 0, size = 2.9, lineheight = 0.9,
+               colour = "#cd023d")
   }
 
   g + scale_x_continuous(limits = if (on_tissue) c(-30, 48) else c(-5, 48)) +

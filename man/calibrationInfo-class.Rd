@@ -4,7 +4,14 @@
 \name{calibrationInfo-class}
 \alias{calibrationInfo-class}
 \alias{calibrationInfo}
+\alias{show,calibrationInfo-method}
 \title{Calibration metadata for an imaging experiment}
+\usage{
+\S4method{show}{calibrationInfo}(object)
+}
+\arguments{
+\item{object}{A \code{calibrationInfo} object.}
+}
 \value{
 An object of class \code{calibrationInfo}.
 }

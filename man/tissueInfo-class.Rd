@@ -4,7 +4,14 @@
 \name{tissueInfo-class}
 \alias{tissueInfo-class}
 \alias{tissueInfo}
+\alias{show,tissueInfo-method}
 \title{Tissue-level summaries for an imaging experiment}
+\usage{
+\S4method{show}{tissueInfo}(object)
+}
+\arguments{
+\item{object}{A \code{tissueInfo} object.}
+}
 \value{
 An object of class \code{tissueInfo}.
 }
