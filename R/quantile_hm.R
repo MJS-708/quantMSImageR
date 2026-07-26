@@ -176,16 +176,21 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
     grp_cols <- .anno_cols(grp_levels, group_palette)
     .col_args <- list(); .col_args[[group_split_name]] <- grp_cols
     .anno_args <- list(); .anno_args[[group_split_name]] <- gs
-    # show_legend = FALSE: the group colour bar is already labelled by the row
-    # titles, so its legend is redundant -- and drawing it alongside the
-    # feature-group + Z-score legends triggers a ComplexHeatmap legend/viewport
-    # bug ("depth applied to NULL") with multiple groups.
+    # Show the group colour key: the row slice titles are suppressed
+    # (row_title = NULL), so without this legend the group colours are
+    # unlabelled. Drawing several annotation legends together can trip a
+    # ComplexHeatmap viewport bug ("depth applied to NULL"); the report draws
+    # with merge_legends = TRUE, which packs the legends and avoids it.
     left_anno <- do.call(ComplexHeatmap::rowAnnotation,
-      c(.anno_args, list(col = .col_args, show_legend = FALSE,
+      c(.anno_args, list(col = .col_args, show_legend = TRUE,
                           gp = .anno_gp,
                           show_annotation_name = TRUE,
                           annotation_name_gp = .lab_gp,
-                          annotation_name_side = "bottom")))
+                          annotation_name_side = "bottom",
+                          annotation_legend_param = list(
+                            title_gp = grid::gpar(fontsize = fontsize,
+                                                   fontface = "bold"),
+                            labels_gp = .lab_gp))))
   }
 
   # Coloured top annotation for the feature groups.

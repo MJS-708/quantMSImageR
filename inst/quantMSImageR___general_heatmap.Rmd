@@ -374,7 +374,9 @@ if (length(.cell_border) != 1L || is.na(.cell_border) ||
     .h_fun <- utils::getFromNamespace("height", "ComplexHeatmap")
     grDevices::pdf(NULL)
     on.exit(grDevices::dev.off(), add = TRUE)
-    ht <- ComplexHeatmap::draw(p)
+    # merge_legends = TRUE to match the actual render (see the [hm] chunk), so the
+    # measured size includes the merged legend column.
+    ht <- ComplexHeatmap::draw(p, merge_legends = TRUE)
     w  <- grid::convertWidth(.w_fun(ht),  "in", valueOnly = TRUE)
     h  <- grid::convertHeight(.h_fun(ht), "in", valueOnly = TRUE)
     if (!is.finite(w) || !is.finite(h) || w <= 0 || h <= 0) return(fallback)
@@ -423,11 +425,14 @@ for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
   .sz  <- .hm_dev_size(p)
   grDevices::png(.tmp, width = .sz[1], height = .sz[2], units = "in",
                  res = .fig_dpi)
-  # Some ComplexHeatmap versions throw "depth applied to NULL" while drawing
-  # several annotation legends; merging the legends avoids that code path.
-  .ok <- tryCatch({ ComplexHeatmap::draw(p); TRUE }, error = function(e)
-           tryCatch({ ComplexHeatmap::draw(p, merge_legends = TRUE); TRUE },
-                    error = function(e2) FALSE))
+  # Draw with merge_legends = TRUE so the Z-score, Group and feature-class keys
+  # pack into one legend column -- this also avoids a ComplexHeatmap viewport bug
+  # ("depth applied to NULL") that some versions hit when several annotation
+  # legends are drawn separately. Fall back to a plain draw if merging fails.
+  .ok <- tryCatch({ ComplexHeatmap::draw(p, merge_legends = TRUE); TRUE },
+           error = function(e)
+             tryCatch({ ComplexHeatmap::draw(p); TRUE },
+                      error = function(e2) FALSE))
   grDevices::dev.off()
   if (.ok) {
     # Display at the physical size it was drawn at (96 CSS px per inch), so the

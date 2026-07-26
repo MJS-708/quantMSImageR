@@ -1,3 +1,9 @@
+# quantMSImageR 0.99.2
+
+* Report heatmap now shows the sample-group colour legend (the group colour bar
+  was previously drawn without a key). Legends are merged into one column, which
+  also avoids a ComplexHeatmap drawing error seen with multiple annotations.
+
 # quantMSImageR 0.99.1
 
 * Added `show()` methods for the `calibrationInfo`, `tissueInfo` and
