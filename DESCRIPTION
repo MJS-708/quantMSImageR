@@ -1,7 +1,7 @@
 Package: quantMSImageR
 Title: Processing and Quantification of Targeted Mass Spectrometry Imaging
     Data
-Version: 0.99.2
+Version: 0.99.3
 Authors@R:
     person("Matthew J.", "Smith", , "mattyjsmith123@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-7357-2670"))

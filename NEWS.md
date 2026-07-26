@@ -1,3 +1,11 @@
+# quantMSImageR 0.99.3
+
+* Fixed `run_example()` / `generate_txt_images()`: trimming empty background
+  borders no longer removes the last background pixels when the tissue fills a
+  perfect rectangle, which had left `int2snr()` with nothing to reference.
+* Fixed the HTML report for single-acquisition studies: the run-to-group map is
+  now built in an always-run chunk, so single-sample reports render.
+
 # quantMSImageR 0.99.2
 
 * Report heatmap now shows the sample-group colour legend (the group colour bar

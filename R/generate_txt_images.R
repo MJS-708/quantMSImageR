@@ -368,7 +368,15 @@ generate_txt_images <- function(
 
       obj <- as(obj, "quant_MSImagingExperiment")
     }
+    # trim_MSI() drops fully-background border rows/columns. When the tissue fills
+    # a perfect rectangle every background pixel lies in such a border, so trimming
+    # would remove them all and leave int2snr() with nothing to reference against.
+    # Keep the untrimmed object in that case.
+    .has_bg  <- function(o) any(as.character(pData(o)$sample_name) %in%
+                                  .bg_labels("background_pixels"))
+    .pre_trim <- obj
     obj <- trim_MSI(MSI_data = obj)
+    if (.has_bg(.pre_trim) && !.has_bg(obj)) obj <- .pre_trim
     if (!is.null(exclude) && length(exclude) > 0) {
       keep <- !fData(obj)$name %in% exclude
       if (!all(keep)) {

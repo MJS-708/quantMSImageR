@@ -357,6 +357,11 @@ if (length(.cell_border) != 1L || is.na(.cell_border) ||
   character(0)
 }
 .grp_cols   <- .cat_cols(.grp_levels, .pal_group)
+
+# run_id -> group label. Defined here (always run) so single-sample reports,
+# which skip the comparison chunks, still have it for the ion-image ordering.
+if (exists("heatmap_labs") && exists("heatmap_order"))
+  run_to_lab <- stats::setNames(heatmap_labs, heatmap_order)
 ```
 
 ```{r hm-size, echo=FALSE, include=FALSE}
