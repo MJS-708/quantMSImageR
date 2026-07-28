@@ -1,3 +1,23 @@
+# quantMSImageR 0.99.4
+
+* Transitions are now matched to the ion library at unit resolution
+  (`mz_tolerance` default `0.4`, was `0.05`). A triple quadrupole running MRM
+  selects Q1 and Q3 at unit resolution, so a product ion written as `308.1` and
+  one written as `308.3` are the same measurement; matching more tightly than
+  the instrument resolves made annotation depend on how many decimal places
+  were typed into the library. Applies to `read_mrm()`, `build_feature_meta()`,
+  `align_features()` and `bind_panels()`. Precursor **and** product must still
+  both agree.
+* `ambiguity` gains a `"combine"` mode, now the default. A transition matching
+  several library entries is named for all of them, joined with `" || "` --
+  e.g. `"LTC4 || 14_15-LTC4"`, isomers 0.03 Da apart on the product ion that no
+  acquisition can separate. Annotation columns come from the closest entry.
+  `"error"`, `"warn"` and `"nearest"` are unchanged.
+* Combining across entries of differing `Type` is refused: one feature cannot
+  be both analyte and internal standard.
+* Fixed the `show` methods export, which was declared in NAMESPACE without the
+  generic being imported from `methods`.
+
 # quantMSImageR 0.99.3
 
 * Fixed `run_example()` / `generate_txt_images()`: trimming empty background

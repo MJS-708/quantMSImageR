@@ -7,7 +7,7 @@
 #' quantification.
 #'
 #' @keywords internal
-#' @importFrom methods as is new setValidity validObject
+#' @importFrom methods as is new setValidity show validObject
 #' @importFrom stats median na.omit quantile sd setNames
 #' @importFrom utils read.csv read.table write.csv write.table
 #' @importFrom grDevices dev.new rainbow
