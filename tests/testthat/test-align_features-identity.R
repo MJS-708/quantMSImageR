@@ -60,17 +60,26 @@ test_that("a shared name over a different transition is refused", {
   expect_equal(mz(al$obj2), mz(al$obj1))
 })
 
-test_that("agreement is judged to one decimal place", {
+test_that("agreement is judged at unit resolution", {
   a <- mk(c("f1", "f2"), c(291.2, 355.2), c(193.1, 275.1))
   b <- mk(c("f1", "f2"), c(291.23, 355.24), c(193.13, 275.14), run = "s2")
   expect_silent(align_features(a, b))
 
-  # A whole nominal unit apart is a different transition, and the default no
-  # longer waves it through.
+  # MRM selects Q1 and Q3 at unit resolution, so two methods can write the
+  # same channel as 193.1 and 193.0. That is a transcription difference, not a
+  # different transition, and the check must not reject the pair over it.
   c2 <- mk(c("f1", "f2"), c(291.0, 355.4), c(193.0, 275.3), run = "s2")
-  expect_error(align_features(a, c2),
+  expect_silent(align_features(a, c2))
+
+  # Tightening below what the instrument resolves rejects it again -- available
+  # for a high-resolution method, wrong as a default for MRM.
+  expect_error(align_features(a, c2, mz_tolerance = 0.05),
                regexp = "share a name but not a transition")
-  expect_silent(align_features(a, c2, mz_tolerance = 0.5))
+
+  # A whole nominal unit out on the product ion is a different transition.
+  d <- mk(c("f1", "f2"), c(291.2, 355.2), c(194.3, 276.4), run = "s2")
+  expect_error(align_features(a, d),
+               regexp = "share a name but not a transition")
 })
 
 test_that("objects without transition metadata must opt in to name matching", {

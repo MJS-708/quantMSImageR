@@ -18,8 +18,9 @@
 #   new_transition_int  1..n, the mz key
 .join_ion_library <- function(transitions, ion_lib, polarity,
                               type_header = "Type",
-                              mz_tolerance = 0.05,
-                              ambiguity = c("error", "warn", "nearest")) {
+                              mz_tolerance = 0.4,
+                              ambiguity = c("combine", "error", "warn",
+                                            "nearest")) {
 
   ambiguity <- match.arg(ambiguity)
 
@@ -37,16 +38,51 @@
     ref_labels = as.character(lib$transition_id),
     context    = "read_mrm")
 
+  amb_sets <- attr(idx, "matches")
+
   # Library columns for the matched row; NA throughout where nothing matched.
   out <- lib[idx, , drop = FALSE]
   rownames(out) <- NULL
+
+  # A transition matching several library entries is named for all of them:
+  # "LTC4 || 14_15-LTC4". Annotation columns still come from the closest entry,
+  # so the name is the only place the ambiguity is recorded - which is why the
+  # Type guard below matters.
+  lib_name <- rep(NA_character_, length(idx))
+  lib_name[!is.na(idx)] <- as.character(lib$transition_id[idx[!is.na(idx)]])
+
+  if (ambiguity == "combine") {
+    for (i in seq_along(amb_sets)) {
+      h <- amb_sets[[i]]
+      if (is.null(h)) next
+      # Joining an analyte to an internal standard would give one feature two
+      # incompatible roles and quietly break IS normalisation. A library that
+      # does that is wrong, not ambiguous.
+      if (type_header %in% names(lib)) {
+        types <- unique(as.character(lib[[type_header]][h]))
+        if (length(types) > 1L)
+          stop("read_mrm: transition ", transitions$transition_id[i],
+               " matches library entries of differing ", type_header, " (",
+               paste(types, collapse = ", "), "): ",
+               paste(as.character(lib$transition_id[h]), collapse = ", "),
+               ".\nThese cannot share a feature. Fix the ion library.",
+               call. = FALSE)
+      }
+      lib_name[i] <- paste(unique(as.character(lib$transition_id[h])),
+                           collapse = " || ")
+    }
+    # Keep transition_id in step with the name, or a report can show the joined
+    # name in one column and one of its halves in another.
+    if ("transition_id" %in% names(out))
+      out$transition_id <- ifelse(is.na(idx), out$transition_id, lib_name)
+  }
 
   out$transition_id_int  <- transitions$transition_id
   out$precursor_mz       <- as.character(transitions$precursor_mz)
   out$product_mz         <- as.character(transitions$product_mz)
   out$transition_id_name <- ifelse(is.na(idx),
                                    as.character(transitions$transition_id),
-                                   as.character(lib$transition_id[idx]))
+                                   lib_name)
   out$Polarity <- polarity
   if (type_header %in% names(out))
     out[[type_header]] <- ifelse(is.na(out[[type_header]]), "Unknown",

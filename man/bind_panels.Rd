@@ -9,7 +9,7 @@ bind_panels(
   obj2,
   label = NULL,
   feature_match = c("transition", "name"),
-  mz_tolerance = 0.05
+  mz_tolerance = 0.4
 )
 }
 \arguments{
@@ -26,7 +26,8 @@ confirming both refer to the same precursor and product m/z, and errors
 otherwise; \code{"name"} keeps \code{obj1}'s copy on the strength of the name alone.}
 
 \item{mz_tolerance}{Numeric. Half-width in Da within which two precursor or
-product m/z values count as the same (default \code{0.05}).}
+product m/z values count as the same (default \code{0.4}, i.e. nominal mass --
+MRM selects Q1 and Q3 at unit resolution). See \code{\link[=read_mrm]{read_mrm()}}.}
 }
 \value{
 A \code{quant_MSImagingExperiment} with:

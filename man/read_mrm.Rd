@@ -11,8 +11,8 @@ read_mrm(
   overwrite = TRUE,
   type_header = "Type",
   is_norm_header = "IS_norm",
-  mz_tolerance = 0.05,
-  ambiguity = c("error", "warn", "nearest")
+  mz_tolerance = 0.4,
+  ambiguity = c("combine", "error", "warn", "nearest")
 )
 }
 \arguments{
@@ -47,18 +47,37 @@ maps each analyte to the internal standard normalising it (default
 single-standard panel.}
 
 \item{mz_tolerance}{Numeric. Half-width, in Da, within which a measured
-precursor and product are taken to be the library's. The default \code{0.05}
-matches to one decimal place, the precision MRM libraries are normally
-quoted at. Widen it only if your library and method disagree by more than
-that -- the wider the tolerance, the more transitions can collide, and
-nominal-mass matching (\code{0.5}) merges isomers that differ only in the first
-decimal.}
+precursor and product are taken to be the library's. \strong{Both} must agree;
+a row matching on precursor alone is not a match.
+
+The default \code{0.4} is nominal-mass matching, because that is what the
+instrument does: a triple quadrupole running MRM selects Q1 and Q3 at unit
+resolution, so a product ion written as \code{308.1} and one written as \code{308.3}
+are the same measurement and no acquisition can separate them. Matching
+more tightly than the instrument resolves invents a distinction that is not
+in the data, and makes annotation depend on how many decimal places
+somebody typed into the library.
+
+The consequence is that genuinely isobaric compounds now collide -- which
+is correct, and is what \code{ambiguity = "combine"} is for. Tighten it only for
+a high-resolution method where Q3 really is selective.}
 
 \item{ambiguity}{Character. What to do when a measured transition matches
 more than one library entry within \code{mz_tolerance}, which m/z alone cannot
-resolve: \code{"error"} (default), \code{"warn"} (take the closest and say so) or
-\code{"nearest"} (take the closest quietly). Isomers sharing a nominal
-precursor and product are the usual cause.}
+resolve. Isomers sharing a nominal precursor and product are the usual
+cause, and at unit resolution they are indistinguishable by definition.
+
+\code{"combine"} (default) names the feature for every entry it matched, joined
+with \code{" || "} -- \code{"LTC4 || 14_15-LTC4"}. The joined name says the
+measurement is one of these, which is what the data supports; naming it for
+one of them asserts more than was measured. Annotation columns come from
+the closest entry. \code{"error"} refuses, which is right when a collision means
+the library is wrong rather than the chemistry ambiguous; \code{"warn"} takes
+the closest and says so; \code{"nearest"} takes the closest quietly.
+
+Two library entries for the \emph{same} compound are redundancy, not ambiguity.
+\code{"combine"} reports those in its message so they can be removed from the
+library rather than carried as a joined name forever.}
 }
 \value{
 An \code{MSImagingExperiment} with feature metadata joined to the ion

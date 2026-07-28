@@ -23,22 +23,20 @@ test_that("a measured transition is matched to its library entry", {
   expect_equal(j$new_transition_int, 1:2)
 })
 
-test_that("matching is to one decimal place by default", {
-  # The instrument reports 291.23 where the library says 291.2: same
-  # transition to the precision an MRM library is quoted at.
+test_that("matching is at unit resolution, because MRM is", {
+  # A triple quadrupole running MRM sets Q1 and Q3 at unit resolution, so the
+  # decimals in a library entry are a transcription detail, not a measurement.
+  # 291.23 -> 193.13 and 291.0 -> 193.0 are the same channel as 291.2 -> 193.1.
   j <- .join_ion_library(trans(291.23, 193.13), lib(), polarity = "Negative")
   expect_equal(j$transition_id_name, "13-HOTE")
 
-  # A whole nominal unit away is a different transition, not a rounding
-  # difference. Nominal-mass matching could not tell these apart.
   j0 <- .join_ion_library(trans(291.0, 193.0), lib(), polarity = "Negative")
-  expect_equal(j0$transition_id_name, "1")
-  expect_equal(j0$Type, "Unknown")
+  expect_equal(j0$transition_id_name, "13-HOTE")
 
-  # Widening to nominal mass brings it back.
-  j1 <- .join_ion_library(trans(291.0, 193.0), lib(), polarity = "Negative",
-                          mz_tolerance = 0.5)
-  expect_equal(j1$transition_id_name, "13-HOTE")
+  # A whole nominal unit out on the product is a different channel.
+  j1 <- .join_ion_library(trans(291.2, 194.3), lib(), polarity = "Negative")
+  expect_equal(j1$transition_id_name, "1")
+  expect_equal(j1$Type, "Unknown")
 
   # A transition the library does not describe is kept, not dropped.
   j2 <- .join_ion_library(trans(500.0, 100.0), lib(), polarity = "Negative")
@@ -47,20 +45,54 @@ test_that("matching is to one decimal place by default", {
   expect_equal(j2$Type, "Unknown")
 })
 
-test_that("isomers separated only by product ion do not collide", {
+test_that("precursor and product must BOTH match", {
+  # Right precursor, wrong product: not a match. Matching on the precursor
+  # alone would annotate a feature as a compound the product ion rules out.
+  j <- .join_ion_library(trans(291.2, 300.0), lib(), polarity = "Negative")
+  expect_equal(j$Type, "Unknown")
+
+  # And the other way round.
+  j2 <- .join_ion_library(trans(400.0, 193.1), lib(), polarity = "Negative")
+  expect_equal(j2$Type, "Unknown")
+})
+
+test_that("isomers separated by more than a unit on the product do not collide", {
   # All three share precursor 291.2; the product ion is what distinguishes
-  # them, and at the default tolerance it does.
+  # them, and at unit resolution 169.1 / 193.1 / 221.2 still do.
   j <- .join_ion_library(trans(rep(291.2, 3), c(169.1, 193.1, 221.2)), lib(),
                          polarity = "Negative")
   expect_equal(j$transition_id_name, c("9-HOTE", "13-HOTE", "15-HOTE"))
 })
 
-test_that("an ambiguous match is an error, and says why", {
-  # Widening the tolerance to 30 Da makes the three 291.2 isomers
-  # indistinguishable -- exactly the collapse nominal-mass matching risks.
+test_that("an ambiguous match is named for every entry it matched", {
+  # Widening to 30 Da makes the three 291.2 isomers indistinguishable. Two
+  # isomers really can share a transition at unit resolution -- LTC4 and
+  # 14_15-LTC4 are 0.03 Da apart on the product -- and naming the feature for
+  # one of them would assert more than was measured.
+  expect_message(
+    j <- .join_ion_library(trans(291.2, 193.1), lib(), polarity = "Negative",
+                           mz_tolerance = 30),
+    regexp = "9-HOTE, 13-HOTE, 15-HOTE")
+  expect_equal(j$transition_id_name, "9-HOTE || 13-HOTE || 15-HOTE")
+  # transition_id must not disagree with the name it was built from.
+  expect_equal(j$transition_id, "9-HOTE || 13-HOTE || 15-HOTE")
+  # Annotation still comes from the closest entry.
+  expect_equal(j$Type, "Analyte")
+})
+
+test_that("combining never merges an analyte with an internal standard", {
+  # One feature cannot be both: it would silently break IS normalisation.
+  # A library that puts them on one transition is wrong, not ambiguous.
   expect_error(
     .join_ion_library(trans(291.2, 193.1), lib(), polarity = "Negative",
-                      mz_tolerance = 30),
+                      mz_tolerance = 100),
+    regexp = "differing Type")
+})
+
+test_that("the stricter ambiguity modes still behave", {
+  expect_error(
+    .join_ion_library(trans(291.2, 193.1), lib(), polarity = "Negative",
+                      mz_tolerance = 30, ambiguity = "error"),
     regexp = "match more than one ion-library entry")
 
   expect_warning(
@@ -98,7 +130,9 @@ test_that("build_feature_meta uses the same rule as the join", {
   expect_equal(nrow(fm), nrow(fData(obj)))
   expect_equal(as.character(fm$transition_id), as.character(fData(obj)$name))
 
-  # An ambiguous library must be refused here too, not resolved by position.
-  expect_error(build_feature_meta(obj, l, mz_tolerance = 50, verbose = FALSE),
+  # An ambiguous library must be refused here too when asked to be, not
+  # resolved by position.
+  expect_error(build_feature_meta(obj, l, mz_tolerance = 50, verbose = FALSE,
+                                  ambiguity = "error"),
                regexp = "match more than one ion-library entry")
 })

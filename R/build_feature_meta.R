@@ -22,11 +22,12 @@
 #'   `precursor_mz` and `product_mz`). Pass `NULL` to short-circuit and return
 #'   `NULL`.
 #' @param mz_tolerance Numeric. Half-width in Da within which a feature's
-#'   precursor and product are taken to be the library's (default `0.05`, i.e.
-#'   one decimal place). See [read_mrm()].
+#'   precursor and product -- both, not either -- are taken to be the library's.
+#'   Default `0.4`, nominal-mass matching, because MRM selects Q1 and Q3 at unit
+#'   resolution. See [read_mrm()].
 #' @param ambiguity Character. What to do when a feature matches more than one
-#'   library entry: `"error"` (default), `"warn"` or `"nearest"`. See
-#'   [read_mrm()].
+#'   library entry: `"combine"` (default, name it for all of them joined with
+#'   `" || "`), `"error"`, `"warn"` or `"nearest"`. See [read_mrm()].
 #' @param verbose Logical. Emit a `message()` reporting how many features
 #'   matched. Default `TRUE`.
 #'
@@ -46,8 +47,9 @@
 #' @seealso [quantile_hm()], [generate_txt_images()]
 #' @export
 build_feature_meta <- function(combined, ion_lib_meta,
-                               mz_tolerance = 0.05,
-                               ambiguity = c("error", "warn", "nearest"),
+                               mz_tolerance = 0.4,
+                               ambiguity = c("combine", "error", "warn",
+                                             "nearest"),
                                verbose = TRUE) {
   ambiguity <- match.arg(ambiguity)
   if (is.null(ion_lib_meta)) return(NULL)
@@ -71,6 +73,22 @@ build_feature_meta <- function(combined, ion_lib_meta,
     ref_labels = as.character(ion_lib_meta$transition_id),
     context    = "build_feature_meta")
   feature_meta <- ion_lib_meta[midx, , drop = FALSE]
+
+  # Same rule as read_mrm(): a feature matching several library entries is
+  # named for all of them. Kept in step here so a report cannot show the joined
+  # name in one column and one of its halves in another.
+  amb_sets <- attr(midx, "matches")
+  if (ambiguity == "combine" && !is.null(amb_sets) &&
+      "transition_id" %in% names(feature_meta)) {
+    for (i in seq_along(amb_sets)) {
+      h <- amb_sets[[i]]
+      if (is.null(h)) next
+      feature_meta$transition_id[i] <-
+        paste(unique(as.character(ion_lib_meta$transition_id[h])),
+              collapse = " || ")
+    }
+  }
+
   feature_meta$name <- fpd$name
   rownames(feature_meta) <- fpd$name
 

@@ -8,7 +8,7 @@ align_features(
   obj1,
   obj2,
   feature_match = c("transition", "name"),
-  mz_tolerance = 0.05
+  mz_tolerance = 0.4
 )
 }
 \arguments{
@@ -23,8 +23,10 @@ same-named features share a precursor and product m/z; \code{"name"}
 matches on the display name alone, without checking what it refers to.}
 
 \item{mz_tolerance}{Numeric. Half-width in Da within which two precursor or
-product m/z values are taken to be the same (default \code{0.05}, i.e. one
-decimal place).}
+product m/z values are taken to be the same (default \code{0.4}, i.e.
+nominal mass). MRM selects Q1 and Q3 at unit resolution, so two panels can
+record the same channel as 308.17 and 308.2; at a tighter tolerance this
+check would reject them as different transitions. See \link{read_mrm}.}
 }
 \value{
 A named list with two elements:

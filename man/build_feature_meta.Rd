@@ -7,8 +7,8 @@
 build_feature_meta(
   combined,
   ion_lib_meta,
-  mz_tolerance = 0.05,
-  ambiguity = c("error", "warn", "nearest"),
+  mz_tolerance = 0.4,
+  ambiguity = c("combine", "error", "warn", "nearest"),
   verbose = TRUE
 )
 }
@@ -22,12 +22,13 @@ build_feature_meta(
 \code{NULL}.}
 
 \item{mz_tolerance}{Numeric. Half-width in Da within which a feature's
-precursor and product are taken to be the library's (default \code{0.05}, i.e.
-one decimal place). See \code{\link[=read_mrm]{read_mrm()}}.}
+precursor and product -- both, not either -- are taken to be the library's.
+Default \code{0.4}, nominal-mass matching, because MRM selects Q1 and Q3 at unit
+resolution. See \code{\link[=read_mrm]{read_mrm()}}.}
 
 \item{ambiguity}{Character. What to do when a feature matches more than one
-library entry: \code{"error"} (default), \code{"warn"} or \code{"nearest"}. See
-\code{\link[=read_mrm]{read_mrm()}}.}
+library entry: \code{"combine"} (default, name it for all of them joined with
+\code{" || "}), \code{"error"}, \code{"warn"} or \code{"nearest"}. See \code{\link[=read_mrm]{read_mrm()}}.}
 
 \item{verbose}{Logical. Emit a \code{message()} reporting how many features
 matched. Default \code{TRUE}.}

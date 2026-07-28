@@ -122,14 +122,33 @@ utils::globalVariables(c(
 #
 # A precursor/product pair is a transition's identity, so a query matching
 # several reference rows is genuinely ambiguous and cannot be resolved from m/z
-# alone. `ambiguity` says what to do: "error" refuses (the default, since the
-# alternative is a feature silently carrying another compound's annotation),
-# "warn" takes the closest and says so, "nearest" takes the closest quietly.
+# alone. `ambiguity` says what to do:
 #
-# Returns an integer vector of reference row indices, NA where nothing matched.
+#   "combine" (default) keeps the closest row's annotation but names the
+#             feature for EVERY entry it matched, joined with " || ", e.g.
+#             "LTC4 || 14_15-LTC4". Two isomers really can share a transition:
+#             LTC4 (626.3 -> 308.17) and 14_15-LTC4 (626.3 -> 308.2) are 0.03 Da
+#             apart and no acquisition can separate them. The joined name says
+#             the measurement is one of these, which is what the data supports;
+#             naming it for one of them asserts something it does not. The
+#             separator matches the convention already used for merged
+#             transitions elsewhere in the package.
+#   "error"   refuses. Right when a collision means the library is wrong rather
+#             than the chemistry ambiguous.
+#   "warn"    takes the closest and says so.
+#   "nearest" takes the closest quietly.
+#
+# A joined name is not a substitute for a clean library: two entries for the
+# SAME compound are redundancy, and "combine" says so in its message rather
+# than papering over it.
+#
+# Returns an integer vector of reference row indices (the closest match), NA
+# where nothing matched, carrying attr "matches": a list holding, for each
+# ambiguous query, every reference row it matched. NULL for unambiguous ones.
 .match_transitions <- function(prec, prod, ref_prec, ref_prod,
                                tolerance = 0.05,
-                               ambiguity = c("error", "warn", "nearest"),
+                               ambiguity = c("combine", "error", "warn",
+                                             "nearest"),
                                labels = NULL, ref_labels = NULL,
                                context = "match_transitions") {
   ambiguity <- match.arg(ambiguity)
@@ -142,6 +161,7 @@ utils::globalVariables(c(
   if (is.null(ref_labels)) ref_labels <- as.character(seq_along(ref_prec))
 
   out <- rep(NA_integer_, length(prec))
+  hits <- vector("list", length(prec))
   amb <- character(0)
 
   for (i in seq_along(prec)) {
@@ -150,29 +170,37 @@ utils::globalVariables(c(
                  abs(ref_prod - prod[i]) <= tolerance)
     if (length(hit) == 0L) next
     if (length(hit) > 1L) {
-      # Closest by summed absolute deviation, so a report or a "nearest" run
-      # gets the best available answer rather than whichever came first.
-      hit <- hit[which.min(abs(ref_prec[hit] - prec[i]) +
-                           abs(ref_prod[hit] - prod[i]))]
+      hits[[i]] <- hit
       amb <- c(amb, sprintf("  %s (%g -> %g) matches: %s", labels[i],
                             prec[i], prod[i],
-                            paste(ref_labels[which(
-                              abs(ref_prec - prec[i]) <= tolerance &
-                              abs(ref_prod - prod[i]) <= tolerance)],
-                              collapse = ", ")))
+                            paste(ref_labels[hit], collapse = ", ")))
+      # Closest by summed absolute deviation, so every mode gets the best
+      # available annotation rather than whichever row came first.
+      hit <- hit[which.min(abs(ref_prec[hit] - prec[i]) +
+                           abs(ref_prod[hit] - prod[i]))]
     }
     out[i] <- hit
   }
+  attr(out, "matches") <- hits
 
-  if (length(amb) && ambiguity != "nearest") {
-    msg <- paste0(context, ": ", length(amb),
-                  " transition(s) match more than one ion-library entry within ",
-                  tolerance, " Da:\n", paste(amb, collapse = "\n"),
-                  "\nm/z alone cannot say which. Tighten mz_tolerance, give the ",
-                  "colliding entries distinct product ions, or set ",
-                  "ambiguity = \"warn\" to take the closest.")
-    if (ambiguity == "error") stop(msg, call. = FALSE)
-    warning(msg, call. = FALSE)
+  if (length(amb)) {
+    if (ambiguity == "combine") {
+      message(context, ": ", length(amb), " transition(s) match more than one ",
+              "ion-library entry within ", tolerance, " Da; each is named for ",
+              "all of them:\n", paste(amb, collapse = "\n"),
+              "\nIf any pair above is the same compound entered twice, that is ",
+              "library redundancy - de-duplicate it rather than shipping a ",
+              "joined name.")
+    } else if (ambiguity != "nearest") {
+      msg <- paste0(context, ": ", length(amb),
+                    " transition(s) match more than one ion-library entry within ",
+                    tolerance, " Da:\n", paste(amb, collapse = "\n"),
+                    "\nm/z alone cannot say which. Tighten mz_tolerance, give ",
+                    "the colliding entries distinct product ions, or set ",
+                    "ambiguity = \"combine\" to name it for both.")
+      if (ambiguity == "error") stop(msg, call. = FALSE)
+      warning(msg, call. = FALSE)
+    }
   }
   out
 }

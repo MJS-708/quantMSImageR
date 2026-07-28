@@ -28,7 +28,8 @@
 #'   confirming both refer to the same precursor and product m/z, and errors
 #'   otherwise; `"name"` keeps `obj1`'s copy on the strength of the name alone.
 #' @param mz_tolerance Numeric. Half-width in Da within which two precursor or
-#'   product m/z values count as the same (default `0.05`).
+#'   product m/z values count as the same (default `0.4`, i.e. nominal mass --
+#'   MRM selects Q1 and Q3 at unit resolution). See [read_mrm()].
 #'
 #' @return A `quant_MSImagingExperiment` with:
 #'   \itemize{
@@ -68,7 +69,7 @@
 #' @export
 bind_panels <- function(obj1, obj2, label = NULL,
                         feature_match = c("transition", "name"),
-                        mz_tolerance = 0.05) {
+                        mz_tolerance = 0.4) {
 
   feature_match <- match.arg(feature_match)
 
