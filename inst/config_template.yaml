@@ -14,6 +14,16 @@ paths:
 
 # ============================ SAMPLES ============================
 # one entry per sample. pos:/neg: = .raw name(s); run_id unique; label = group.
+# Several .raw files for one sample? Add `combine:` to say what they are:
+#   panels  (default) different transitions over the same pixels
+#   stitch            pieces of ONE tissue acquired in separate passes, e.g.
+#                     a section too tall for the stage done as top then bottom.
+#                     Their pixels are unioned into a single run -- two halves
+#                     of one tissue are not two replicates.
+#   - neg:     ["18Apr_p6-antIgEtop", "18Apr_p6-antIgEbtm"]
+#     combine: "stitch"
+#     run_id:  "P6_a-IgE"
+#     label:   "a-IgE"
 samples:
   - neg: "acq_run_ctrl_neg"             # pos: and/or neg: (string or list)
     run_id: "S1"                        # unique per sample
@@ -32,6 +42,7 @@ parameters:
     #"PGE2":     5                      # display or ion-library names
     #"12-HETE":  1.2
   heatmap_row_split: "Met-1"            # ion-library column to split heatmap columns | omit
+  heatmap_style:  "auto"                # auto (contribution if any group has 3+ reps) | per_sample | contribution
   thresh:         20                    # cold-spot percentile removed
   perc:           97                    # hot-spot percentile suppressed
   rot_clockwise:  0                     # image rotation: 0/1/2/3 x 90 deg

@@ -88,6 +88,7 @@ al <- align_features(readRDS(p1), readRDS(p2))
 
 Other combining acquisitions:
 \code{\link[=bind_panels]{bind_panels()}},
-\code{\link{combine_MSIs,MSImagingExperiment-method}}
+\code{\link{combine_MSIs,MSImagingExperiment-method}},
+\code{\link[=stitch_acquisitions]{stitch_acquisitions()}}
 }
 \concept{combining acquisitions}

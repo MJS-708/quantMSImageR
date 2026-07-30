@@ -13,6 +13,10 @@ logo_source.png
 
 Rplots.pdf
 vignettes/figure/
+# Knitting a vignette in place (RStudio's Knit button) leaves its .html beside
+# the .Rmd. R CMD build would then ship that stale copy inside the package, so
+# it is ignored here - the real vignette is built from the .Rmd into doc/.
+vignettes/*.html
 docs/
 # pkgdown/ is tracked: it holds the favicons and extra.css the
 # site is built from. The generated site itself is in docs/.

@@ -80,6 +80,7 @@ gg <- imageR(obj, feat_ind = 1, sample_lab = "run", scale = "suppress")
 }
 \seealso{
 Other visualisation:
+\code{\link[=contribution_hm]{contribution_hm()}},
 \code{\link[=quant_palettes]{quant_palettes()}},
 \code{\link[=quantile_hm]{quantile_hm()}}
 }

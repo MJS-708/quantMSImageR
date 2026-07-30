@@ -17,7 +17,7 @@ output:
 knitr::opts_chunk$set(echo = FALSE)
 
 # Attach the analysis packages this report calls with unqualified names
-# (%>% + dplyr verbs, ggplot2 geoms, ComplexHeatmap, viridis) so it renders
+# (%>% + dplyr verbs, ggplot2 geoms, viridis) so it renders
 # self-contained -- both from run_example() (which renders inside the package
 # namespace) and from run_study.R (global env). All are quantMSImageR Imports,
 # so they are guaranteed installed alongside the package. Other packages the
@@ -27,7 +27,6 @@ suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
   library(ggplot2)
-  library(ComplexHeatmap)
   library(viridis)
 })
 
@@ -306,10 +305,39 @@ if (length(.dp1_num)) .dt <- DT::formatRound(.dt, columns = .dp1_num, digits = 1
 
 # 2. Heatmap {.tabset .tabset-fade}
 
-Z-scored nth-percentile intensity per feature across samples (clipped to [−1, 1]).
-Rows are individual sections ordered by group; columns are features. Cells are
-drawn square, so the panel grows with the study rather than distorting to fill
-a fixed area.
+Nth-percentile intensity per feature per sample, z-scored per feature across
+samples. Rows are individual sections ordered by group; columns are features,
+split by class. Cells are drawn square, so the panel grows with the study
+rather than distorting to fill a fixed area.
+
+```{r hm-style-note, echo=FALSE, results="asis"}
+# Which of the two heatmaps to draw. "auto" decides from the study design;
+# never both, since two readings of one matrix stacked together is more to
+# compare rather than more information.
+.style_cfg <- if (exists("heatmap_style") && !is.null(heatmap_style)) {
+  heatmap_style
+} else {
+  "auto"
+}
+.hm_style <- quantMSImageR:::.heatmap_style(.style_cfg, heatmap_labs)
+
+# Which heatmap this is, said in the report rather than left to the config.
+#
+# Braces are required on both arms: a bare `else` starting a new line at top
+# level is a parse error, which is why the [palettes] chunk above brackets its
+# if/else too.
+.style_note <- if (identical(.hm_style, "contribution")) {
+  paste0("Each cell carries two things: the **hue** is that sample's *group* ",
+         "mean for the feature, and the **opacity** is how much that *sample* ",
+         "contributed to it. A uniformly solid block is a real group effect; ",
+         "one opaque tile among faded ones is a group mean resting on a ",
+         "single sample. Features with no variance across samples are grey.")
+} else {
+  paste0("Each cell is that sample's own z-score, clipped to [-1, 1] -- every ",
+         "sample shown directly, with no group summary in between.")
+}
+cat(.style_note, "\n\n")
+```
 
 ```{r palettes, echo=FALSE, include=FALSE}
 # Palettes come from the YAML `colours:` block via run_study(); run_example()
@@ -365,12 +393,12 @@ if (exists("heatmap_labs") && exists("heatmap_order"))
 ```
 
 ```{r hm-size, echo=FALSE, include=FALSE}
-# quantile_hm() gives the heatmap body an absolute size in millimetres, so the
-# device must be sized to the heatmap rather than the other way round. Drawing
-# once on a null device lets ComplexHeatmap report the total size it needs
-# (body + annotations + labels + legends); anything left over would otherwise
-# be emitted as white space around a small panel.
-.hm_dev_size <- function(p, fallback = c(12, 7)) {
+# Both heatmaps give the body an absolute size in millimetres, so the device
+# must be sized to the heatmap rather than the other way round. Drawing once on
+# a null device lets ComplexHeatmap report the total size it needs (body +
+# annotations + labels + legends); anything left over would otherwise be
+# emitted as white space around a small panel.
+.hm_dev_size <- function(p, extra = NULL, fallback = c(12, 7)) {
   tryCatch({
     # ComplexHeatmap documents measuring a drawn heatmap this way but does not
     # export the two accessors, so they are fetched by name; the whole thing
@@ -379,9 +407,10 @@ if (exists("heatmap_labs") && exists("heatmap_order"))
     .h_fun <- utils::getFromNamespace("height", "ComplexHeatmap")
     grDevices::pdf(NULL)
     on.exit(grDevices::dev.off(), add = TRUE)
-    # merge_legends = TRUE to match the actual render (see the [hm] chunk), so the
-    # measured size includes the merged legend column.
-    ht <- ComplexHeatmap::draw(p, merge_legends = TRUE)
+    # Measured with the same arguments the real render uses, including the
+    # opacity key -- a legend left out here becomes white space there.
+    ht <- ComplexHeatmap::draw(p, merge_legends = TRUE,
+                               annotation_legend_list = extra)
     w  <- grid::convertWidth(.w_fun(ht),  "in", valueOnly = TRUE)
     h  <- grid::convertHeight(.h_fun(ht), "in", valueOnly = TRUE)
     if (!is.finite(w) || !is.finite(h) || w <= 0 || h <= 0) return(fallback)
@@ -403,41 +432,64 @@ if (exists("feature_meta") && !is.null(feature_meta) &&
   .row_split[is.na(.row_split) | !nzchar(trimws(.row_split))] <- "Other"
 }
 
-for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
+.split_name <- if (exists("heatmap_row_split") && !is.null(heatmap_row_split) &&
+                   nzchar(heatmap_row_split)) heatmap_row_split else "Pathway"
 
-  cat( paste('## ', as.character(quant_value*100), "th quantile heatmap", '\n\n' ) )
+# A z-score needs something to compare against. With one acquisition the
+# per-feature sd is undefined, so every cell would be missing -- and the old
+# implementation drew them all at the ramp midpoint, which reads as a real
+# result rather than an absent one. Say so instead of drawing either.
+if (length(heatmap_order) < 2) {
+  cat("## Heatmap\n\n",
+      "*Not drawn: a single acquisition has nothing to be scored against. ",
+      "Per-feature intensities are in section 1.2, and the ion images below ",
+      "show their distribution.*\n\n", sep = "")
+} else {
 
-  p = quantile_hm(MSIobject = combined,
-                  quant_val = quant_value,
-                  heatmap_order = heatmap_order,
-                  heatmap_labs = heatmap_labs,
-                  feature_split = .row_split,
-                  feature_split_name = if (exists("heatmap_row_split") &&
-                                           !is.null(heatmap_row_split) &&
-                                           nzchar(heatmap_row_split))
-                                         heatmap_row_split else "Pathway",
-                  group_split_name = "Group",
-                  palette          = .pal_heatmap,
-                  group_palette    = .pal_group,
-                  feature_palette  = .pal_feature,
-                  cell_border      = .cell_border)
+for (quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)) {
+
+  cat(paste('## ', as.character(quant_value * 100), "th quantile heatmap",
+            '\n\n'))
+
+  .args <- list(MSIobject = combined, quant_val = quant_value,
+                heatmap_order = heatmap_order, heatmap_labs = heatmap_labs,
+                feature_split = .row_split,
+                feature_split_name = .split_name,
+                group_split_name = "Group",
+                palette          = .pal_heatmap,
+                group_palette    = .pal_group,
+                feature_palette  = .pal_feature,
+                cell_border      = .cell_border)
+
+  p <- if (identical(.hm_style, "contribution")) {
+    do.call(quantMSImageR::contribution_hm, .args)
+  } else {
+    do.call(quantMSImageR::quantile_hm, .args)
+  }
+
+  # The opacity channel has no colour mapping, so contribution_hm() attaches
+  # its key for draw() to place alongside the others.
+  .extra <- attr(p, "contribution_legend")
 
   # ComplexHeatmap's draw() targets the active grid device. Inside a
   # results="asis" chunk that device is the screen, not the chunk's PNG
   # capture, so print(p) would spill the plot to the R session window
   # instead of into the HTML. Render to a temp PNG and embed via base64.
   .tmp <- tempfile(fileext = ".png")
-  .sz  <- .hm_dev_size(p)
+  .sz  <- .hm_dev_size(p, extra = .extra)
   grDevices::png(.tmp, width = .sz[1], height = .sz[2], units = "in",
                  res = .fig_dpi)
-  # Draw with merge_legends = TRUE so the Z-score, Group and feature-class keys
-  # pack into one legend column -- this also avoids a ComplexHeatmap viewport bug
-  # ("depth applied to NULL") that some versions hit when several annotation
-  # legends are drawn separately. Fall back to a plain draw if merging fails.
-  .ok <- tryCatch({ ComplexHeatmap::draw(p, merge_legends = TRUE); TRUE },
-           error = function(e)
-             tryCatch({ ComplexHeatmap::draw(p); TRUE },
-                      error = function(e2) FALSE))
+  # Draw with merge_legends = TRUE so the value, Group and feature-class keys
+  # pack into one legend column -- this also avoids a ComplexHeatmap viewport
+  # bug ("depth applied to NULL") that some versions hit when several
+  # annotation legends are drawn separately. Fall back to a plain draw if
+  # merging fails.
+  .ok <- tryCatch({
+      ComplexHeatmap::draw(p, merge_legends = TRUE,
+                           annotation_legend_list = .extra); TRUE
+    }, error = function(e)
+      tryCatch({ ComplexHeatmap::draw(p); TRUE },
+               error = function(e2) FALSE))
   grDevices::dev.off()
   if (.ok) {
     # Display at the physical size it was drawn at (96 CSS px per inch), so the
@@ -453,6 +505,8 @@ for(quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)){
   unlink(.tmp)
 
   cat('\n \n')
+
+}
 
 }
 

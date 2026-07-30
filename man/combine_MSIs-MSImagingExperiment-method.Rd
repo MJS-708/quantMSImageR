@@ -36,6 +36,7 @@ combined <- combine_MSIs(readRDS(p1), readRDS(p2))
 \seealso{
 Other combining acquisitions:
 \code{\link[=align_features]{align_features()}},
-\code{\link[=bind_panels]{bind_panels()}}
+\code{\link[=bind_panels]{bind_panels()}},
+\code{\link[=stitch_acquisitions]{stitch_acquisitions()}}
 }
 \concept{combining acquisitions}

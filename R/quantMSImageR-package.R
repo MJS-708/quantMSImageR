@@ -21,7 +21,7 @@
 #' @importFrom ggplot2 coord_cartesian facet_wrap scale_fill_manual
 #' @importFrom ggplot2 rel theme theme_minimal
 #' @importFrom circlize colorRamp2
-#' @importFrom ggplot2 scale_fill_gradientn
+#' @importFrom ggplot2 scale_fill_gradientn scale_alpha_identity
 #' @importFrom grDevices colorRampPalette
 #' @importFrom patchwork wrap_plots
 #' @importFrom yaml read_yaml
@@ -40,7 +40,9 @@ utils::globalVariables(c(
   "pg_perpixel", "response_perpixel", "sd_response",
   "pixel_ind", "precursor_mz", "product_mz", "response", "sample_name",
   "transition_id_int",
-  "transition_id_name", "x", "x_loci", "y", "y_loci"
+  "transition_id_name", "x", "x_loci", "y", "y_loci",
+  # contribution_hm()
+  "alpha", "feature_group", "fill", "group", "sample"
 ))
 
 # Background-pixel label aliases.

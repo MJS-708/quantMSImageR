@@ -155,6 +155,15 @@ validate_config = function(config, check_paths = TRUE){
           type_header, paste(colnames(ion_lib), collapse = ", ")))
       else .chk_add(chk, "type_header column", "ok")
 
+      # A typo here would otherwise fall through to the default and quietly
+      # draw the other heatmap, which is hard to notice in a long report.
+      hs = par$heatmap_style
+      if(!is.null(hs) && !hs %in% c("auto", "per_sample", "contribution"))
+        .chk_add(chk, "heatmap_style", "error", sprintf(
+          "parameters$heatmap_style = '%s'; use 'auto', 'per_sample' or 'contribution'.",
+          hs))
+      else .chk_add(chk, "heatmap_style", "ok")
+
       hrs = par$heatmap_row_split
       if(!is.null(hrs) && nzchar(hrs) && !hrs %in% colnames(ion_lib))
         .chk_add(chk, "heatmap_row_split column", "warning", sprintf(
@@ -166,6 +175,22 @@ validate_config = function(config, check_paths = TRUE){
 
   # ---- samples -------------------------------------------------------------
   s = config$samples
+
+  # A typo in `combine:` silently falls back to "panels", which for two spatial
+  # halves of one tissue either errors deep inside bind_panels() or keeps only
+  # the overlapping pixels. Catch it here, where the message can name it.
+  #
+  # Checked outside the ion-library block on purpose: this is a per-sample key,
+  # so gating it on a readable library would skip it whenever check_paths is
+  # FALSE - which is exactly when a config is being checked before its data
+  # exists.
+  .cmb = unlist(lapply(config$samples, function(x) x$combine))
+  .bad = setdiff(unique(as.character(.cmb)), c("panels", "stitch"))
+  if(length(.bad))
+    .chk_add(chk, "sample combine mode", "error", sprintf(
+      "samples$combine = %s; use 'panels' (different transitions over the same pixels) or 'stitch' (pieces of one tissue).",
+      paste(sQuote(.bad), collapse = ", ")))
+  else .chk_add(chk, "sample combine mode", "ok")
   if(!is.null(s)){
     if(!length(s)){
       .chk_add(chk, "samples listed", "error", "samples: is empty.")

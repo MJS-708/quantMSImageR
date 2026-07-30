@@ -107,6 +107,7 @@ hm <- quantile_hm(obj, quant_val = 0.5,
 }
 \seealso{
 Other visualisation:
+\code{\link[=contribution_hm]{contribution_hm()}},
 \code{\link{imageR,quant_MSImagingExperiment-method}},
 \code{\link[=quant_palettes]{quant_palettes()}}
 }

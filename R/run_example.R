@@ -214,6 +214,10 @@ run_example <- function(render_report = TRUE,
     ion_lib_meta      <- .ion_lib
     feature_meta      <- build_feature_meta(combined, ion_lib_meta)
     heatmap_row_split <- "Met-1"
+    # Mirrors parameters$heatmap_style, so the example renders the same way a
+    # YAML-driven study does. The example has three sections per group, so
+    # "auto" selects the contribution heatmap; set "per_sample" to compare.
+    heatmap_style <- "auto"
     # Mirrors the YAML `colours:` block, so the example report is coloured the
     # same way a real study would be.
     pal_ion           <- "heatmap0"

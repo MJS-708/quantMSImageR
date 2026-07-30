@@ -92,44 +92,14 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
 
   palette <- match.arg(palette)
 
-  # A hairline in the background colour between cells. Adjacent samples often
-  # land in the same clipped z-score, and without a border they merge into one
-  # block so the number of sections is no longer readable off the panel.
-  # One font size for every label on the panel, so the sample names, the
-  # rotated feature names and the annotation titles stay in proportion.
-  .lab_gp <- grid::gpar(fontsize = fontsize)
-
-  .rect_gp  <- if (is.na(cell_border)) grid::gpar(col = NA)
-               else grid::gpar(col = cell_border, lwd = 0.5)
-  # Same treatment for the annotation bars, so they read as one tile per
-  # sample / feature rather than a continuous stripe.
-  .anno_gp  <- .rect_gp
-
-  # Prepare the output matrix
-  sample_names = unique(pData(MSIobject)$run)
-
-  if(!all(is.na(heatmap_order))){
-    sample_names <- factor(sample_names, levels = heatmap_order)
-  }
-
-  featurenames = fData(MSIobject)$name
-
-  out_matrix = matrix(NA, ncol = length(sample_names), nrow = length(featurenames))
-
-  # Loop to fill the out_matrix with quantile values
-  for(col in seq_along(sample_names)){
-    subsetMSI = MSIobject[, which(pData(MSIobject)$run == sample_names[col])]
-
-    intensity_data = spectraData(subsetMSI)[["intensity"]]
-    out_matrix[,col] = apply(intensity_data, 1, quantile, probs = quant_val, na.rm = TRUE)
-  }
-
-  rownames(out_matrix) = featurenames
-  colnames(out_matrix) = sample_names
-
-  # Reorder the columns of out_matrix according to the custom sample order (heatmap_order)
-  # drop=FALSE preserves matrix dimensions when heatmap_order has only one element
-  out_matrix <- out_matrix[, heatmap_order, drop = FALSE]
+  # Shared with contribution_hm(), so the two views of one study cannot
+  # disagree about what the underlying numbers are.
+  #
+  # This also fixes heatmap_order = NA, the documented default: the previous
+  # code summarised every run and then indexed the result by `heatmap_order`,
+  # so the default subscripted by NA and returned a column of NAs. Only the
+  # report's always-supplied argument kept it working.
+  out_matrix <- .quantile_matrix(MSIobject, quant_val, heatmap_order)
 
   # Scale each row to the percentage of its maximum value, avoiding division by 0
   row_max <- matrixStats::rowMaxs(out_matrix, na.rm = TRUE)
@@ -161,19 +131,72 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
   # where there is room for it, and keeps sample names horizontally readable.
   z_matrix <- t(z_matrix)
 
-  # Feature grouping (Met-1 / Pathway) now splits COLUMNS.
+  # Feature grouping (Met-1 / Pathway) splits COLUMNS.
   fs <- if (!is.null(feature_split))
           factor(feature_split, levels = unique(feature_split)) else NULL
 
-  # Sample grouping (Treatment / Group) now splits ROWS.
+  # Sample grouping (Treatment / Group) splits ROWS.
   gs <- if (!all(is.na(heatmap_labs)))
           factor(heatmap_labs, levels = unique(heatmap_labs)) else NULL
+
+  # Annotations, splits, cell sizing and fonts all come from one place, shared
+  # with contribution_hm(), so the two heatmaps of a study are the same panel
+  # and only the cell fill differs between them.
+  layout <- .hm_layout(n_row = nrow(z_matrix), n_col = ncol(z_matrix),
+                       gs = gs, fs = fs,
+                       group_split_name = group_split_name,
+                       feature_split_name = feature_split_name,
+                       group_palette = group_palette,
+                       feature_palette = feature_palette,
+                       cell_size = cell_size, max_aspect = max_aspect,
+                       cell_border = cell_border, fontsize = fontsize)
+
+  # Diverging ramp anchored at 0, since the matrix is a z-score clipped to
+  # [-1, 1] and the midpoint is meaningful.
+  .cols   <- quant_palettes(palette)
+  .col_fn <- circlize::colorRamp2(
+    seq(-1, 1, length.out = length(.cols)), .cols)
+
+  hm <- do.call(ComplexHeatmap::Heatmap, c(list(
+    z_matrix, name = "Z-score", col = .col_fn), layout))
+
+  return(hm)
+}
+
+
+# The parts of a heatmap that are not the cells: group and feature colour
+# bars, the splits they imply, cell sizing and label fonts.
+#
+# Extracted so quantile_hm() and contribution_hm() cannot drift apart. They
+# are two readings of one matrix, so a reader has to be able to put them side
+# by side and trust that a colour bar means the same thing in both.
+#
+# Returns the argument list to splice into ComplexHeatmap::Heatmap().
+.hm_layout <- function(n_row, n_col, gs, fs,
+                       group_split_name = "Group",
+                       feature_split_name = "Pathway",
+                       group_palette = "hat", feature_palette = "reading",
+                       cell_size = 8, max_aspect = 1.5,
+                       cell_border = "white", fontsize = 8) {
+
+  # One font size for every label on the panel, so the sample names, the
+  # rotated feature names and the annotation titles stay in proportion.
+  .lab_gp <- grid::gpar(fontsize = fontsize)
+
+  # A hairline in the background colour between cells. Adjacent samples often
+  # land in the same clipped z-score, and without a border they merge into one
+  # block so the number of sections is no longer readable off the panel.
+  .rect_gp <- if (length(cell_border) != 1L || is.na(cell_border))
+                grid::gpar(col = NA)
+              else grid::gpar(col = cell_border, lwd = 0.5)
+  # Same treatment for the annotation bars, so they read as one tile per
+  # sample / feature rather than a continuous stripe.
+  .anno_gp <- .rect_gp
 
   # Coloured left annotation for the sample groups.
   left_anno <- NULL
   if (!is.null(gs)) {
-    grp_levels <- levels(gs)
-    grp_cols <- .anno_cols(grp_levels, group_palette)
+    grp_cols <- .anno_cols(levels(gs), group_palette)
     .col_args <- list(); .col_args[[group_split_name]] <- grp_cols
     .anno_args <- list(); .anno_args[[group_split_name]] <- gs
     # Show the group colour key: the row slice titles are suppressed
@@ -196,8 +219,7 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
   # Coloured top annotation for the feature groups.
   top_anno <- NULL
   if (!is.null(fs)) {
-    fs_levels <- levels(fs)
-    fs_cols <- .anno_cols(fs_levels, feature_palette)
+    fs_cols <- .anno_cols(levels(fs), feature_palette)
     .col_args <- list(); .col_args[[feature_split_name]] <- fs_cols
     .anno_args <- list(); .anno_args[[feature_split_name]] <- fs
     top_anno <- do.call(ComplexHeatmap::HeatmapAnnotation,
@@ -211,46 +233,35 @@ quantile_hm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = 
                           annotation_name_side = "right")))
   }
 
-  # Absolute cell sizing. Without width/height ComplexHeatmap stretches the body
-  # to fill the device, which makes cells oblong whenever the two dimensions
-  # differ. Sizing the body in millimetres makes cells square; when one
-  # dimension has more than four times the entries of the other, cells on the
-  # short dimension may stretch up to `max_aspect` so the body is not a sliver.
+  # Absolute cell sizing. Without width/height ComplexHeatmap stretches the
+  # body to fill the device, which makes cells oblong whenever the two
+  # dimensions differ. Sizing the body in millimetres makes cells square; when
+  # one dimension has more than four times the entries of the other, cells on
+  # the short dimension may stretch up to `max_aspect` so the body is not a
+  # sliver.
   .size <- NULL
   if (!is.null(cell_size) && !all(is.na(cell_size))) {
-    n_row <- nrow(z_matrix)   # samples
-    n_col <- ncol(z_matrix)   # features
-
     cell_w <- cell_size
     cell_h <- cell_size
     if (n_col > 0 && n_row > 0) {
       if (n_row / n_col > 4)      cell_w <- cell_size * max_aspect
       else if (n_col / n_row > 4) cell_h <- cell_size * max_aspect
     }
-
     .size <- list(width  = grid::unit(n_col * cell_w, "mm"),
                   height = grid::unit(n_row * cell_h, "mm"))
   }
 
-  # row_title is suppressed: sample groups are labelled by the left colour bar,
-  # so the group name is not repeated down the side.
-  # Diverging ramp anchored at 0, since the matrix is a z-score clipped to
-  # [-1, 1] and the midpoint is meaningful.
-  .cols   <- quant_palettes(palette)
-  .col_fn <- circlize::colorRamp2(
-    seq(-1, 1, length.out = length(.cols)), .cols)
-
-  hm <- do.call(ComplexHeatmap::Heatmap, c(list(
-    z_matrix, name = "Z-score", col = .col_fn, rect_gp = .rect_gp,
+  # row_title is suppressed: sample groups are labelled by the left colour
+  # bar, so the group name is not repeated down the side.
+  c(list(
+    rect_gp = .rect_gp,
     row_names_gp = .lab_gp, column_names_gp = .lab_gp,
-    heatmap_legend_param = list(title_gp = grid::gpar(fontsize = fontsize,
-                                                       fontface = "bold"),
-                                labels_gp = .lab_gp),
+    heatmap_legend_param = list(
+      title_gp = grid::gpar(fontsize = fontsize, fontface = "bold"),
+      labels_gp = .lab_gp),
     cluster_rows = FALSE, cluster_columns = FALSE, show_row_dend = FALSE,
     row_split = gs, row_title = NULL, cluster_row_slices = FALSE,
     column_split = fs, column_title = NULL, cluster_column_slices = FALSE,
     left_annotation = left_anno,
-    top_annotation = top_anno), .size))
-
-  return(hm)
+    top_annotation = top_anno), .size)
 }

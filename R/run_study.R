@@ -190,6 +190,8 @@ run_study <- function(config_file) {
     list(
       pos     = if (!is.null(s$pos)) as.character(unlist(s$pos)) else NULL,
       neg     = if (!is.null(s$neg)) as.character(unlist(s$neg)) else NULL,
+      # What several .raw files for this sample mean. See generate_txt_images().
+      combine = if (!is.null(s$combine)) as.character(s$combine) else "panels",
       section = if (!is.null(s$section)) as.character(s$section) else NULL,
       label   = heatmap_order[i]
     )
@@ -228,6 +230,10 @@ run_study <- function(config_file) {
   remove_IS      <- cfg$parameters$remove_IS      %||% TRUE
   baseline_label    <- trimws(cfg$parameters$baseline_label %||% heatmap_labs[1])
   heatmap_row_split <- cfg$parameters$heatmap_row_split %||% NULL
+  # Which heatmap section 2 draws. "auto" picks by study design; see
+  # .heatmap_style() for the rule. Never both -- two readings of one matrix
+  # stacked together is more to compare, not more information.
+  heatmap_style <- cfg$parameters$heatmap_style %||% "auto"
 
   # Report palettes (see the `colours:` block of config_template.yaml). Read
   # here so the report picks them up from this frame at render time.

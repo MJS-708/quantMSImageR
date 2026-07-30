@@ -56,6 +56,7 @@ quant_palettes("hat", n = 3)
 }
 \seealso{
 Other visualisation:
+\code{\link[=contribution_hm]{contribution_hm()}},
 \code{\link{imageR,quant_MSImagingExperiment-method}},
 \code{\link[=quantile_hm]{quantile_hm()}}
 }

@@ -347,6 +347,7 @@ ggplot(mask_tbl, aes(x, -y, fill = sample_name)) +
 |---|---|---|
 | `imageR()` | object, `feat_ind`, `val_slot`, `sample_lab`, `scale` | a `ggplot` ion image |
 | `quantile_hm()` | object, `quant_val`, sample order/labels, `feature_split` | a `ComplexHeatmap::Heatmap` (rows = samples, columns = features) |
+| `contribution_hm()` | the same arguments | the same `ComplexHeatmap::Heatmap`, with group mean as hue and per-sample contribution as opacity |
 | `quant_palettes()` | palette name, optional `n` | the hex colours used by both, for reuse in your own plots |
 
 Colours are consistent across the package and selectable per plot. `imageR()`
@@ -488,6 +489,37 @@ quantile_hm(combined, quant_val = 0.95,
             feature_split = feature_split, feature_split_name = "Met-1",
             cell_size = 10, fontsize = 7)
 ```
+
+## Seeing which sample carried a group effect
+
+`contribution_hm()` draws the same matrix but encodes two things per cell: the
+**hue** is the sample's *group* mean for that feature, and the **opacity** is
+that *sample's* contribution to it. A uniformly solid block is a real group
+effect; one opaque tile among faded ones is a group mean resting on a single
+replicate, which a plain group-mean heatmap cannot show.
+
+It takes the same arguments as `quantile_hm()` and returns the same kind of
+object, laid out identically -- same group and feature colour bars, same
+splits, same square cells. Only the cell fill differs, so the two can be read
+against each other directly. The HTML report draws one or the other, never
+both: `parameters: heatmap_style:` selects `per_sample`, `contribution`, or
+`auto`, which picks the contribution view once any group has three or more
+replicates -- the point at which a group mean can rest on one of them without
+saying so -- and the per-sample view otherwise.
+
+Two details matter for reading it. Values are z-scored per feature across
+*all* samples rather than within group, so a cell means "high or low for this
+feature". And the two channels get separate colour limits: a group mean of
+\(n\) replicates is roughly \(\sqrt{n}\) smaller than a single sample's
+z-score, so reusing one limit for both washes the panel out.
+
+```{r heatmap-contribution, fig.wide = TRUE, fig.cap = "The same median summary as a group mean, with each sample's contribution to that mean drawn as opacity. A solid block is a group effect; a lone opaque tile is a mean resting on one section."}
+contribution_hm(combined, quant_val = 0.5,
+                heatmap_order = sections, heatmap_labs = groups,
+                feature_split = feature_split, feature_split_name = "Met-1",
+                cell_size = 10, fontsize = 7)
+```
+
 
 # Signal-to-noise filtering
 

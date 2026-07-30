@@ -395,12 +395,24 @@ generate_txt_images <- function(
   # rates and therefore produce different pixel grids -- pixels are matched on
   # (x, y), features are stacked, so each matched pixel ends up with both
   # panels' transitions.
-  load_and_prep_multiple <- function(fns_vec, label) {
+  # `mode` says what several .raw files under one sample mean:
+  #   "panels" (default) different transitions over the same pixels
+  #   "stitch"           pieces of one tissue, acquired in separate passes
+  # They are different operations -- bind_panels() intersects pixels and would
+  # keep nothing from two halves that do not overlap -- so the YAML has to say
+  # which, rather than the code guessing from the data.
+  load_and_prep_multiple <- function(fns_vec, label, mode = "panels") {
     fns_vec <- as.character(unlist(fns_vec))
     objs    <- lapply(fns_vec, load_and_prep_acq)
-    obj     <- objs[[1]]
-    for (i in seq_along(objs)[-1])
-      obj <- bind_panels(obj, objs[[i]], label = label)
+    if (length(objs) == 1L) {
+      obj <- objs[[1]]
+    } else if (identical(mode, "stitch")) {
+      obj <- stitch_acquisitions(objs, label = label)
+    } else {
+      obj <- objs[[1]]
+      for (i in seq_along(objs)[-1])
+        obj <- bind_panels(obj, objs[[i]], label = label)
+    }
     pData(obj)$run <- factor(rep(label, ncol(obj)))
     obj
   }
@@ -428,6 +440,8 @@ generate_txt_images <- function(
       pos_fns <- if (!is.null(fn_entry$pos)) unlist(fn_entry$pos) else NULL
       neg_fns <- if (!is.null(fn_entry$neg)) unlist(fn_entry$neg) else NULL
       section <- if (!is.null(fn_entry$section)) as.character(fn_entry$section) else NULL
+      combine_mode <- if (!is.null(fn_entry$combine))
+                        as.character(fn_entry$combine) else "panels"
 
       if (!is.null(section) && nzchar(section)) {
         # RDS-section mode: one section of one acquisition
@@ -437,13 +451,18 @@ generate_txt_images <- function(
         tissue   <- load_and_prep_acq(raw_name, section = section)
         pData(tissue)$run <- factor(rep(fn_label, ncol(tissue)))
       } else if (!is.null(pos_fns) && !is.null(neg_fns)) {
-        # Both polarities: combine within each polarity then bind across
-        pos_obj <- load_and_prep_multiple(pos_fns, label = fn_label)
-        neg_obj <- load_and_prep_multiple(neg_fns, label = fn_label)
+        # Both polarities: combine within each polarity then bind across.
+        # `combine` describes the several files WITHIN a polarity; the two
+        # polarities are always panels of one another.
+        pos_obj <- load_and_prep_multiple(pos_fns, label = fn_label,
+                                          mode = combine_mode)
+        neg_obj <- load_and_prep_multiple(neg_fns, label = fn_label,
+                                          mode = combine_mode)
         tissue  <- bind_panels(pos_obj, neg_obj, label = fn_label)
       } else {
         # Single polarity (pos: OR neg: only)
-        tissue <- load_and_prep_multiple(pos_fns %||% neg_fns, label = fn_label)
+        tissue <- load_and_prep_multiple(pos_fns %||% neg_fns,
+                                         label = fn_label, mode = combine_mode)
       }
     } else {
       # Plain string: backward-compatible single acquisition

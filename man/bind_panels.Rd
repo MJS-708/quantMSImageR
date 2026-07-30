@@ -87,6 +87,7 @@ nrow(fData(merged))   # features from both panels
 
 Other combining acquisitions:
 \code{\link[=align_features]{align_features()}},
-\code{\link{combine_MSIs,MSImagingExperiment-method}}
+\code{\link{combine_MSIs,MSImagingExperiment-method}},
+\code{\link[=stitch_acquisitions]{stitch_acquisitions()}}
 }
 \concept{combining acquisitions}

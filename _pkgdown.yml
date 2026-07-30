@@ -46,6 +46,7 @@ reference:
   - align_features
   - combine_MSIs
   - bind_panels
+  - stitch_acquisitions
 
 - title: Filtering and normalisation
   desc: >
@@ -72,6 +73,7 @@ reference:
   contents:
   - imageR
   - quantile_hm
+  - contribution_hm
   - quant_palettes
 
 - title: Whole-study workflows
