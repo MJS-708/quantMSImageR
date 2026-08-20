@@ -41,7 +41,7 @@ utils::globalVariables(c(
   "pixel_ind", "precursor_mz", "product_mz", "response", "sample_name",
   "transition_id_int",
   "transition_id_name", "x", "x_loci", "y", "y_loci",
-  # contribution_hm()
+  # contributionHm()
   "alpha", "feature_group", "fill", "group", "sample"
 ))
 
@@ -116,8 +116,8 @@ utils::globalVariables(c(
 
 # Which reference transition, if any, each query transition is.
 #
-# One definition of "same transition", used by both read_mrm() (measured
-# transitions -> ion library) and build_feature_meta() (features -> ion
+# One definition of "same transition", used by both readMRM() (measured
+# transitions -> ion library) and buildFeatureMeta() (features -> ion
 # library). They used to build string keys independently -- one rounding to
 # whole numbers, the other not -- so the two could disagree about the same pair
 # of acquisitions.

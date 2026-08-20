@@ -1,0 +1,94 @@
+setGeneric("createMSIDataMatrix", function(MSIobject, ...) standardGeneric("createMSIDataMatrix"))
+
+#' Create a feature-by-sample MSI data matrix
+#'
+#' Flattens the pixel-level object into tabular form for downstream statistics:
+#' one row per pixel, or one row per region of interest when `roi_header` names
+#' a grouping column.
+#'
+#' @import Cardinal
+#' @include setClasses.R
+#'
+#' @param MSIobject A `quant_MSImagingExperiment` object.
+#' @param val_slot Character. Spectra slot to tabulate (default `"intensity"`).
+#' @param inputNA Logical. Convert zeros in the matrix to `NA` (default `TRUE`).
+#' @param roi_header Character. Column of `pData()` identifying regions of
+#'   interest to average over. `NA` (the default) skips the ROI average and
+#'   keeps one row per pixel.
+#' @return The input object with its `tissueInfo` slot populated:
+#'   `all_pixel_matrix` (one row per pixel, one column per feature),
+#'   `roi_average_matrix` (one row per ROI, when `roi_header` is given) and the
+#'   accompanying sample/ROI metadata.
+#'
+#' @examples
+#' p <- system.file("extdata", "example.raw", "section01.RDS",
+#'                  package = "quantMSImageR")
+#' obj <- as(readRDS(p), "quant_MSImagingExperiment")
+#' obj <- createMSIDataMatrix(obj, val_slot = "intensity", roi_header = NA)
+#'
+#' @aliases createMSIDataMatrix
+#' @export
+setMethod("createMSIDataMatrix", "quant_MSImagingExperiment",
+          function(MSIobject, val_slot = "intensity", inputNA = TRUE, roi_header = NA){
+
+            # Subset pixels in ROIs only (based on roi_header). ROI is the
+            # grouping key used below: the pixel index when no roi_header is
+            # given, otherwise the roi_header column itself.
+            if(is.na(roi_header)){
+              pData(MSIobject)$ROI = seq_len(nrow(pData(MSIobject)))
+            } else{
+              MSIobject = MSIobject[, which(!is.na(pData(MSIobject)[[roi_header]]))]
+              pData(MSIobject)$ROI = pData(MSIobject)[[roi_header]]
+            }
+
+            # Update pixel data
+            pixel_df = data.frame(pData(MSIobject)) |>
+              subset(!is.na(ROI)) |>
+              tibble::rownames_to_column("pixel_ind") |>
+              dplyr::mutate(pixel_ind = sprintf("pixel_%s", pixel_ind))
+
+
+            # All pixel df
+            all_pixel_df = data.frame(
+              vapply(seq_len(nrow(fData(MSIobject))),
+                     function(x) spectraData(MSIobject)[[val_slot]][x, ],
+                     numeric(ncol(MSIobject)))
+            ) |>
+              dplyr::mutate(pixel_ind = pixel_df$pixel_ind)
+            colnames(all_pixel_df) = c(fData(MSIobject)$name, "pixel_ind")
+
+            .keep_cols = c(fData(MSIobject)$name, "pixel_ind",
+                           if (!is.na(roi_header)) roi_header)
+            all_pixel_df = dplyr::left_join(all_pixel_df, pixel_df, by = "pixel_ind") |> dplyr::select(dplyr::any_of(.keep_cols))
+
+
+            if(inputNA){
+              all_pixel_df <- replace(all_pixel_df, all_pixel_df==0, NA)
+            }
+
+
+            # Create average ROI df
+            if(!is.na(roi_header)){
+
+              #### THIS NEEDS FIXING TO SUMMARISE EACH FEATURE INDEPENDENTLY!!!!
+              ave_df = all_pixel_df |>
+                dplyr::group_by(dplyr::across(dplyr::all_of(roi_header))) |>
+                dplyr::summarise(dplyr::across(dplyr::any_of(c(fData(MSIobject)$name)), \(x) mean(x, na.rm = TRUE))) |>
+                tibble::column_to_rownames(roi_header)
+
+              if(inputNA){
+                ave_df <- replace(ave_df, ave_df==0, NA)
+              }
+
+              MSIobject@tissueInfo@roi_average_matrix = ave_df
+            }
+
+            all_pixel_df = all_pixel_df |>
+              tibble::column_to_rownames("pixel_ind") |>
+              dplyr::select(dplyr::any_of(c(fData(MSIobject)$name)))
+
+            MSIobject@tissueInfo@all_pixel_matrix = all_pixel_df
+            MSIobject@tissueInfo@sample_metadata = pixel_df
+
+            return(MSIobject)
+          })

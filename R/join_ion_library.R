@@ -1,6 +1,6 @@
 # Annotate measured MRM transitions from an ion library.
 #
-# Split out of read_mrm() so it can be exercised without a .raw folder: the
+# Split out of readMRM() so it can be exercised without a .raw folder: the
 # join is the part with the analytical risk in it, and the surrounding function
 # needs instrument text files that no test can supply.
 #
@@ -26,7 +26,7 @@
 
   lib <- ion_lib[as.character(ion_lib$Polarity) == polarity, , drop = FALSE]
   if (nrow(lib) == 0)
-    warning("read_mrm: the ion library has no ", polarity,
+    warning("readMRM: the ion library has no ", polarity,
             " entries, so no transition can be annotated.", call. = FALSE)
 
   idx <- .match_transitions(
@@ -36,7 +36,7 @@
     ambiguity  = ambiguity,
     labels     = paste0("transition ", transitions$transition_id),
     ref_labels = as.character(lib$transition_id),
-    context    = "read_mrm")
+    context    = "readMRM")
 
   amb_sets <- attr(idx, "matches")
 
@@ -61,7 +61,7 @@
       if (type_header %in% names(lib)) {
         types <- unique(as.character(lib[[type_header]][h]))
         if (length(types) > 1L)
-          stop("read_mrm: transition ", transitions$transition_id[i],
+          stop("readMRM: transition ", transitions$transition_id[i],
                " matches library entries of differing ", type_header, " (",
                paste(types, collapse = ", "), "): ",
                paste(as.character(lib$transition_id[h]), collapse = ", "),

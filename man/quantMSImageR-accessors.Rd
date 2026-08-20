@@ -94,8 +94,8 @@ Note the naming: \code{calibrationInfo()} and \code{tissueInfo()} are the \emph{
 constructors}, so the slot accessors are \code{calibrationData()} and
 \code{tissueData()}.
 
-The calibration accessors follow the workflow. \code{\link[=summarise_cal_levels]{summarise_cal_levels()}}
-populates \code{calibrationLevels()}, \code{\link[=create_cal_curve]{create_cal_curve()}} fills
+The calibration accessors follow the workflow. \code{\link[=summariseCalLevels]{summariseCalLevels()}}
+populates \code{calibrationLevels()}, \code{\link[=createCalCurve]{createCalCurve()}} fills
 \code{calibrationModels()} and \code{calibrationR2()}, and \code{\link[=int2conc]{int2conc()}} reads the
 models back out. \code{calibrationData()} moves the whole block at once, which is
 what carrying fitted models from a standards acquisition to a study object
@@ -107,9 +107,9 @@ cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
           "quant_MSImagingExperiment")
 cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
 
-cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
+cal <- summariseCalLevels(cal, cal_metadata, val_slot = "intensity",
                             cal_label = "Cal", id = "identifier")
-cal <- create_cal_curve(cal, cal_type = "cal")
+cal <- createCalCurve(cal, cal_type = "cal")
 
 names(calibrationModels(cal))
 calibrationDiagnostics(cal)

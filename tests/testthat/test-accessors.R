@@ -7,9 +7,9 @@ fitted_cal <- function() {
             "quant_MSImagingExperiment")
   meta <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
 
-  cal <- summarise_cal_levels(cal, meta, val_slot = "intensity",
+  cal <- summariseCalLevels(cal, meta, val_slot = "intensity",
                               cal_label = "Cal", id = "identifier")
-  create_cal_curve(cal, cal_type = "cal")
+  createCalCurve(cal, cal_type = "cal")
 }
 
 test_that("calibration accessors return the underlying slots", {
@@ -61,7 +61,7 @@ test_that("tissue accessors return the datamatrix slots", {
   p <- system.file("extdata", "example.raw", "section01.RDS",
                    package = "quantMSImageR")
   obj <- as(readRDS(p), "quant_MSImagingExperiment")
-  obj <- createMSIDatamatrix(obj, val_slot = "intensity", roi_header = NA)
+  obj <- createMSIDataMatrix(obj, val_slot = "intensity", roi_header = NA)
 
   expect_identical(tissueData(obj), obj@tissueInfo)
   expect_identical(tissueMatrix(obj, which = "pixel"),

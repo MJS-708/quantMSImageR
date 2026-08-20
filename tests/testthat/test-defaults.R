@@ -7,12 +7,12 @@ bundled_section <- function() {
   as(readRDS(p), "quant_MSImagingExperiment")
 }
 
-test_that("int2snr defaults to median, as documented", {
+test_that("int2SNR defaults to median, as documented", {
   obj <- bundled_section()
 
-  default <- int2snr(obj, snr_thresh = 3)
-  median  <- int2snr(obj, snr_thresh = 3, average = "median")
-  mean    <- int2snr(obj, snr_thresh = 3, average = "mean")
+  default <- int2SNR(obj, snr_thresh = 3)
+  median  <- int2SNR(obj, snr_thresh = 3, average = "median")
+  mean    <- int2SNR(obj, snr_thresh = 3, average = "mean")
 
   expect_equal(spectra(default, "snr"), spectra(median, "snr"))
   # And the two summaries genuinely differ, so the test above has teeth.
@@ -24,7 +24,7 @@ test_that("filtering defaults match the imaging convention out of the box", {
   # needs no argument overrides.
   obj <- bundled_section()
 
-  expect_silent(snr <- int2snr(obj, snr_thresh = 3))
+  expect_silent(snr <- int2SNR(obj, snr_thresh = 3))
   expect_true("snr" %in% names(spectraData(snr)))
   expect_true(any(is.finite(spectra(snr, "snr"))))
 
@@ -33,26 +33,26 @@ test_that("filtering defaults match the imaging convention out of the box", {
   expect_true(all(is.na(spectra(bg, "intensity")[, bg_px])))
 })
 
-test_that("int2snr adds a slot rather than replacing intensity", {
+test_that("int2SNR adds a slot rather than replacing intensity", {
   obj <- bundled_section()
-  out <- int2snr(obj, snr_thresh = 3)
+  out <- int2SNR(obj, snr_thresh = 3)
 
   expect_equal(spectra(out, "intensity"), spectra(obj, "intensity"))
   expect_true("snr" %in% names(spectraData(out)))
 })
 
-test_that("create_cal_curve requires cal_type explicitly", {
+test_that("createCalCurve requires cal_type explicitly", {
   cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
   skip_if_not(file.exists(file.path(cal_dir, "cal_MSI.RDS")))
 
   cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
             "quant_MSImagingExperiment")
   meta <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
-  cal <- summarise_cal_levels(cal, meta, val_slot = "intensity",
+  cal <- summariseCalLevels(cal, meta, val_slot = "intensity",
                               cal_label = "Cal", id = "identifier")
 
-  expect_error(create_cal_curve(cal), "must be given explicitly")
-  expect_error(create_cal_curve(cal, cal_type = "nonsense"), "should be one of")
+  expect_error(createCalCurve(cal), "must be given explicitly")
+  expect_error(createCalCurve(cal, cal_type = "nonsense"), "should be one of")
 })
 
 test_that("int2conc warns above 10 percent extrapolated pixels", {
@@ -62,9 +62,9 @@ test_that("int2conc warns above 10 percent extrapolated pixels", {
   cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
             "quant_MSImagingExperiment")
   meta <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
-  cal <- summarise_cal_levels(cal, meta, val_slot = "intensity",
+  cal <- summariseCalLevels(cal, meta, val_slot = "intensity",
                               cal_label = "Cal", id = "identifier")
-  cal <- create_cal_curve(cal, cal_type = "cal")
+  cal <- createCalCurve(cal, cal_type = "cal")
 
   # S4 hides the real signature inside .local, so read the deparsed method.
   src <- paste(deparse(getMethod("int2conc", "quant_MSImagingExperiment")),
@@ -79,7 +79,7 @@ test_that("int2conc warns above 10 percent extrapolated pixels", {
   # The bundled calibration brackets the bundled tissue signal, so nothing is
   # extrapolated. This doubles as a regression test on the example data: if a
   # future change to generate_cal_data.R breaks that coverage, the vignette's
-  # plot_cal_coverage() figure would stop demonstrating the good case.
+  # plotCalCoverage() figure would stop demonstrating the good case.
   expect_true(all(diag$out_of_range == 0))
   expect_no_warning(
     suppressMessages(int2conc(cal, pixel_header = "sample_type",
@@ -93,9 +93,9 @@ test_that("calibrationR2 returns only R-squared; diagnostics returns the rest", 
   cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
             "quant_MSImagingExperiment")
   meta <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
-  cal <- summarise_cal_levels(cal, meta, val_slot = "intensity",
+  cal <- summariseCalLevels(cal, meta, val_slot = "intensity",
                               cal_label = "Cal", id = "identifier")
-  cal <- create_cal_curve(cal, cal_type = "cal")
+  cal <- createCalCurve(cal, cal_type = "cal")
   out <- suppressMessages(suppressWarnings(
     int2conc(cal, pixel_header = "sample_type", pixels = "Tissue")))
 

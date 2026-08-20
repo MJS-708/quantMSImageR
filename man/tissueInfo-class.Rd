@@ -17,7 +17,7 @@ An object of class \code{tissueInfo}.
 }
 \description{
 Holds the tabular views of an imaging experiment produced by
-\code{\link[=createMSIDatamatrix]{createMSIDatamatrix()}}: one row per pixel, and optionally one row per region
+\code{\link[=createMSIDataMatrix]{createMSIDataMatrix()}}: one row per pixel, and optionally one row per region
 of interest, together with the accompanying metadata. It is carried in the
 \code{tissueInfo} slot of a \link{quant_MSImagingExperiment}.
 }
@@ -26,13 +26,13 @@ of interest, together with the accompanying metadata. It is carried in the
 \item{\code{all_pixel_matrix}}{\code{data.frame}, one row per pixel and one column
 per feature.}
 \item{\code{roi_average_matrix}}{\code{data.frame}, one row per region of interest,
-populated only when \code{createMSIDatamatrix(roi_header=)} is given.}
+populated only when \code{createMSIDataMatrix(roi_header=)} is given.}
 \item{\code{sample_metadata}}{\code{data.frame} describing the rows of the matrices
 above (sample, run, ROI identifier).}
 \item{\code{feature_metadata}}{\code{data.frame} describing their columns.}
 }
 
-All four are zero-row data frames until \code{\link[=createMSIDatamatrix]{createMSIDatamatrix()}} has run.
+All four are zero-row data frames until \code{\link[=createMSIDataMatrix]{createMSIDataMatrix()}} has run.
 Access them with \code{\link[=tissueMatrix]{tissueMatrix()}} and \code{\link[=tissueData]{tissueData()}} rather than \code{@}.
 }
 \section{Slots}{
@@ -53,11 +53,11 @@ ti <- tissueInfo()
 p <- system.file("extdata", "example.raw", "section01.RDS",
                  package = "quantMSImageR")
 obj <- as(readRDS(p), "quant_MSImagingExperiment")
-obj <- createMSIDatamatrix(obj, val_slot = "intensity", roi_header = NA)
+obj <- createMSIDataMatrix(obj, val_slot = "intensity", roi_header = NA)
 dim(tissueMatrix(obj, which = "pixel"))
 
 }
 \seealso{
-\link{quant_MSImagingExperiment}, \code{\link[=createMSIDatamatrix]{createMSIDatamatrix()}},
+\link{quant_MSImagingExperiment}, \code{\link[=createMSIDataMatrix]{createMSIDataMatrix()}},
 \link{quantMSImageR-accessors}
 }

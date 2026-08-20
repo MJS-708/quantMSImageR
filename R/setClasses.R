@@ -12,18 +12,18 @@
 #' \describe{
 #'   \item{`cal_metadata`}{`data.frame`. The calibration design supplied by the
 #'     user: one row per (spot, analyte), with columns `identifier`, `analyte`,
-#'     `amount_pg` and `level`. Set by [summarise_cal_levels()].}
+#'     `amount_pg` and `level`. Set by [summariseCalLevels()].}
 #'   \item{`cal_response_data`}{`data.frame`. Summarised response per
 #'     calibration level, with columns `analyte`, `pg_perpixel`,
-#'     `response_perpixel` and `level`. Set by [summarise_cal_levels()].}
+#'     `response_perpixel` and `level`. Set by [summariseCalLevels()].}
 #'   \item{`cal_list`}{`list`. One `stats::lm` per analyte, of
 #'     `response_perpixel ~ pg_perpixel`, **named by analyte** so that
 #'     [int2conc()] can match models to features by `fData(x)$name`. Set by
-#'     [create_cal_curve()].}
+#'     [createCalCurve()].}
 #'   \item{`r2_df`}{`data.frame`. One row per analyte, with `feature` and `r2`;
 #'     [int2conc()] adds an `out_of_range` column giving the proportion of
 #'     pixels extrapolated beyond the calibrated range. Set by
-#'     [create_cal_curve()].}
+#'     [createCalCurve()].}
 #' }
 #'
 #' Invariants checked by the validity method: `cal_list` must be named if it is
@@ -52,12 +52,12 @@
 #' cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
 #'           "quant_MSImagingExperiment")
 #' cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
-#' cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
+#' cal <- summariseCalLevels(cal, cal_metadata, val_slot = "intensity",
 #'                             cal_label = "Cal", id = "identifier")
-#' cal <- create_cal_curve(cal, cal_type = "cal")
+#' cal <- createCalCurve(cal, cal_type = "cal")
 #' calibrationDiagnostics(cal)
 #'
-#' @seealso [quant_MSImagingExperiment], [create_cal_curve()],
+#' @seealso [quant_MSImagingExperiment], [createCalCurve()],
 #'   [quantMSImageR-accessors]
 #' @family calibration
 #' @name calibrationInfo-class
@@ -109,7 +109,7 @@ setMethod("show", "calibrationInfo", function(object) {
 #' Tissue-level summaries for an imaging experiment
 #'
 #' Holds the tabular views of an imaging experiment produced by
-#' [createMSIDatamatrix()]: one row per pixel, and optionally one row per region
+#' [createMSIDataMatrix()]: one row per pixel, and optionally one row per region
 #' of interest, together with the accompanying metadata. It is carried in the
 #' `tissueInfo` slot of a [quant_MSImagingExperiment].
 #'
@@ -118,13 +118,13 @@ setMethod("show", "calibrationInfo", function(object) {
 #'   \item{`all_pixel_matrix`}{`data.frame`, one row per pixel and one column
 #'     per feature.}
 #'   \item{`roi_average_matrix`}{`data.frame`, one row per region of interest,
-#'     populated only when `createMSIDatamatrix(roi_header=)` is given.}
+#'     populated only when `createMSIDataMatrix(roi_header=)` is given.}
 #'   \item{`sample_metadata`}{`data.frame` describing the rows of the matrices
 #'     above (sample, run, ROI identifier).}
 #'   \item{`feature_metadata`}{`data.frame` describing their columns.}
 #' }
 #'
-#' All four are zero-row data frames until [createMSIDatamatrix()] has run.
+#' All four are zero-row data frames until [createMSIDataMatrix()] has run.
 #' Access them with [tissueMatrix()] and [tissueData()] rather than `@`.
 #'
 #' @slot roi_average_matrix `data.frame` of per-ROI averages.
@@ -140,10 +140,10 @@ setMethod("show", "calibrationInfo", function(object) {
 #' p <- system.file("extdata", "example.raw", "section01.RDS",
 #'                  package = "quantMSImageR")
 #' obj <- as(readRDS(p), "quant_MSImagingExperiment")
-#' obj <- createMSIDatamatrix(obj, val_slot = "intensity", roi_header = NA)
+#' obj <- createMSIDataMatrix(obj, val_slot = "intensity", roi_header = NA)
 #' dim(tissueMatrix(obj, which = "pixel"))
 #'
-#' @seealso [quant_MSImagingExperiment], [createMSIDatamatrix()],
+#' @seealso [quant_MSImagingExperiment], [createMSIDataMatrix()],
 #'   [quantMSImageR-accessors]
 #' @name tissueInfo-class
 #' @aliases tissueInfo-class
@@ -184,7 +184,7 @@ setMethod("show", "tissueInfo", function(object) {
 #' \describe{
 #'   \item{`intensity`}{Raw measured response, as read from the acquisition.}
 #'   \item{`response`}{Internal-standard-normalised, added by [int2response()].}
-#'   \item{`snr`}{Background-referenced signal-to-noise, added by [int2snr()].}
+#'   \item{`snr`}{Background-referenced signal-to-noise, added by [int2SNR()].}
 #'   \item{`pg_pixel`, `pg_mm2`}{Calibrated amount estimates, added by
 #'     [int2conc()].}
 #' }
@@ -196,7 +196,7 @@ setMethod("show", "tissueInfo", function(object) {
 #' without which [int2conc()] cannot produce `pg_mm2`.
 #'
 #' Several acquisitions are held in a single object, distinguished by the `run`
-#' column of `pData()`; this is what [combine_MSIs()] produces and what the
+#' column of `pData()`; this is what [combineMSIs()] produces and what the
 #' per-sample summaries group on.
 #'
 #' @slot calibrationInfo A [calibrationInfo-class] object.
@@ -218,11 +218,11 @@ setMethod("show", "tissueInfo", function(object) {
 #' head(as.data.frame(pData(obj)), 3)
 #'
 #' # Derived layers accumulate alongside intensity
-#' obj <- int2snr(obj, snr_thresh = 3)
+#' obj <- int2SNR(obj, snr_thresh = 3)
 #' names(spectraData(obj))
 #'
 #' @seealso [calibrationInfo-class], [tissueInfo-class],
-#'   [quantMSImageR-accessors], [combine_MSIs()]
+#'   [quantMSImageR-accessors], [combineMSIs()]
 #'
 #' @import Cardinal
 #' @name quant_MSImagingExperiment

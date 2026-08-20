@@ -30,7 +30,7 @@ setGeneric("imageR", function(MSIobject, ...) standardGeneric("imageR"))
 #'   maximum (`TRUE`) rather than raw values (`FALSE`, the default).
 #' @param palette Character. Colour scale for the image: `"heatmap0"` (the
 #'   default, matching the YAML `colours: ion_image:` default) or `"viridis"`
-#'   (perceptually uniform and colour-blind safe). See [quant_palettes()].
+#'   (perceptually uniform and colour-blind safe). See [quantPalettes()].
 #' @param blank_back Logical; when TRUE background/zero pixels are drawn transparent.
 #' @param aspect_ratio numeric plot aspect ratio (default 1).
 #' @param text_image Logical; when TRUE return the image as a numeric matrix
@@ -59,7 +59,7 @@ setMethod("imageR", "quant_MSImagingExperiment",
               if (p == "viridis")
                 scale_fill_viridis(na.value = "white")
               else
-                ggplot2::scale_fill_gradientn(colours = quant_palettes(p),
+                ggplot2::scale_fill_gradientn(colours = quantPalettes(p),
                                               na.value = "white")
             }
 

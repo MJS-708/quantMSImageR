@@ -3,7 +3,7 @@ setGeneric("applySNR", function(MSIobject, ...) standardGeneric("applySNR"))
 #' Apply SNR mask to intensity values
 #'
 #' Sets pixels to `NA` in `val_slot` wherever the `snr` spectra slot is `NA`.
-#' Typically called after `int2snr()`: pixels that did not pass the SNR threshold
+#' Typically called after `int2SNR()`: pixels that did not pass the SNR threshold
 #' (stored as `NA` in the `snr` slot) are suppressed in the intensity slot so
 #' they are excluded from downstream analysis and visualisation.
 #'
@@ -15,7 +15,7 @@ setGeneric("applySNR", function(MSIobject, ...) standardGeneric("applySNR"))
 #' @include setClasses.R
 #'
 #' @param MSIobject A `quant_MSImagingExperiment` object containing both
-#'   `val_slot` and an `snr` spectra slot (populated by `int2snr()`).
+#'   `val_slot` and an `snr` spectra slot (populated by `int2SNR()`).
 #' @param val_slot Character. Name of the intensity slot to mask (default
 #'   `"intensity"`).
 #' @param ... Additional arguments (currently unused).
@@ -26,10 +26,10 @@ setGeneric("applySNR", function(MSIobject, ...) standardGeneric("applySNR"))
 #' p <- system.file("extdata", "example.raw", "section01.RDS",
 #'                  package = "quantMSImageR")
 #' obj <- as(readRDS(p), "quant_MSImagingExperiment")
-#' obj <- int2snr(obj, snr_thresh = 3)
+#' obj <- int2SNR(obj, snr_thresh = 3)
 #' obj <- applySNR(obj, val_slot = "intensity")
 #'
-#' @seealso [int2snr()]
+#' @seealso [int2SNR()]
 #' @family filtering
 #' @aliases applySNR
 #' @export

@@ -33,17 +33,17 @@
   structure(list(errors   = env$errors,
                  warnings = env$warnings,
                  summary  = do.call(rbind, env$rows)),
-            class = "quant_validation")
+            class = "quantValidation")
 }
 
 #' Print a validation result
 #'
-#' @param x A `quant_validation` object.
+#' @param x A `quantValidation` object.
 #' @param ... Ignored.
 #' @return `x`, invisibly.
 #' @family workflow
 #' @export
-print.quant_validation = function(x, ...){
+print.quantValidation = function(x, ...){
   n_e = length(x$errors); n_w = length(x$warnings)
   cat(sprintf("quantMSImageR validation: %d error(s), %d warning(s), %d check(s)\n",
               n_e, n_w, nrow(x$summary)))
@@ -61,7 +61,7 @@ print.quant_validation = function(x, ...){
 #' internal-standard settings coherent with each other.
 #'
 #' Every check runs, so one call reports every problem rather than stopping at
-#' the first. [run_study()] calls this first and refuses to start if there are
+#' the first. [runStudy()] calls this first and refuses to start if there are
 #' errors -- these are mistakes that would otherwise surface as an obscure
 #' failure halfway through a long run, or worse, as a plausible-looking result
 #' computed from the wrong column.
@@ -71,24 +71,24 @@ print.quant_validation = function(x, ...){
 #'   ion library and calibration files exist on disk (default `TRUE`). Set
 #'   `FALSE` to validate a config's structure away from its data.
 #'
-#' @return A `quant_validation` object with `errors`, `warnings` and a `summary`
+#' @return A `quantValidation` object with `errors`, `warnings` and a `summary`
 #'   data frame of every check.
 #'
 #' @examples
 #' # The shipped template is structurally valid; its placeholder paths are not
 #' # meant to exist, so the path checks are skipped here.
 #' cfg <- system.file("config_template.yaml", package = "quantMSImageR")
-#' validate_config(cfg, check_paths = FALSE)
+#' validateConfig(cfg, check_paths = FALSE)
 #'
 #' @family workflow
 #' @export
-validate_config = function(config, check_paths = TRUE){
+validateConfig = function(config, check_paths = TRUE){
 
   `%||%` = function(a, b) if (is.null(a)) b else a
 
   if(is.character(config) && length(config) == 1L){
     if(!file.exists(config))
-      stop("validate_config: config file not found: ", config, call. = FALSE)
+      stop("validateConfig: config file not found: ", config, call. = FALSE)
     config = yaml::read_yaml(config)
   }
 
@@ -177,7 +177,7 @@ validate_config = function(config, check_paths = TRUE){
   s = config$samples
 
   # A typo in `combine:` silently falls back to "panels", which for two spatial
-  # halves of one tissue either errors deep inside bind_panels() or keeps only
+  # halves of one tissue either errors deep inside bindPanels() or keeps only
   # the overlapping pixels. Catch it here, where the message can name it.
   #
   # Checked outside the ion-library block on purpose: this is a per-sample key,
@@ -310,7 +310,7 @@ validate_config = function(config, check_paths = TRUE){
 
   # ---- colours -------------------------------------------------------------
   if(!is.null(config$colours)){
-    known = names(quant_palettes())
+    known = names(quantPalettes())
     for(k in names(config$colours)){
       v = as.character(config$colours[[k]])
 

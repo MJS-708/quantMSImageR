@@ -15,7 +15,7 @@
 }
 \arguments{
 \item{MSIobject}{A \code{quant_MSImagingExperiment} carrying calibration models
-fitted by \code{\link[=create_cal_curve]{create_cal_curve()}}.}
+fitted by \code{\link[=createCalCurve]{createCalCurve()}}.}
 
 \item{val_slot}{Character. Spectra slot holding the measured response
 (default \code{"intensity"}).}
@@ -32,7 +32,7 @@ quantify (default \code{"tissue_pixels"}, the imaging convention). Pass
 feature's pixels allowed to fall outside the calibrated range, i.e. to be
 extrapolated rather than interpolated (default \code{0.1}, so at least 90\% of
 pixels must be interpolated between real standards). Exceeding it is an
-\strong{error}, naming the features and pointing at \code{\link[=plot_cal_coverage]{plot_cal_coverage()}}:
+\strong{error}, naming the features and pointing at \code{\link[=plotCalCoverage]{plotCalCoverage()}}:
 either the standards need to bracket the tissue, or the extrapolation has
 to be accepted explicitly by raising this value (\code{1} accepts any). Any
 extrapolation at all is reported by \code{message()}; this controls only the
@@ -57,7 +57,7 @@ analyte amount directly. The values produced here are calibrated \emph{amount}
 estimates (pg per pixel, and pg per mm-squared where the pixel size is
 known), not volumetric concentrations. They are conditional on the
 calibration design, matrix matching, acquisition conditions and the validity
-of the fitted model -- see \code{\link[=plot_cal_coverage]{plot_cal_coverage()}} for the coverage check that
+of the fitted model -- see \code{\link[=plotCalCoverage]{plotCalCoverage()}} for the coverage check that
 should accompany them.
 }
 \section{Areal conversion}{
@@ -80,9 +80,9 @@ cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
 cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
           "quant_MSImagingExperiment")
 cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
-cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
+cal <- summariseCalLevels(cal, cal_metadata, val_slot = "intensity",
                             cal_label = "Cal", id = "identifier")
-cal <- create_cal_curve(cal, cal_type = "cal")
+cal <- createCalCurve(cal, cal_type = "cal")
 
 # A calibration acquisition labels its pixels in `sample_type`, so the
 # imaging defaults are overridden here
@@ -92,8 +92,8 @@ cal <- int2conc(cal, pixel_header = "sample_type", pixels = "Tissue")
 \seealso{
 Other calibration:
 \code{\link{calibrationInfo-class}},
-\code{\link{create_cal_curve,quant_MSImagingExperiment-method}},
-\code{\link{plot_cal_coverage,quant_MSImagingExperiment-method}},
-\code{\link{summarise_cal_levels,quant_MSImagingExperiment-method}}
+\code{\link{createCalCurve,quant_MSImagingExperiment-method}},
+\code{\link{plotCalCoverage,quant_MSImagingExperiment-method}},
+\code{\link{summariseCalLevels,quant_MSImagingExperiment-method}}
 }
 \concept{calibration}

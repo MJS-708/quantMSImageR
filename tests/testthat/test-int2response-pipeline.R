@@ -5,7 +5,7 @@
 is_fns <- list(list(neg = "example", section = "section01", label = "A"))
 
 run_with <- function(...) {
-  generate_txt_images(
+  generateTxtImages(
     fns          = is_fns,
     data_path    = system.file("extdata", package = "quantMSImageR"),
     image_dir    = tempfile(),

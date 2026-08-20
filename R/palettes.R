@@ -1,6 +1,6 @@
 #' Colour palettes used by quantMSImageR
 #'
-#' The palettes available to [imageR()], [quantile_hm()] and the metadata
+#' The palettes available to [imageR()], [quantileHm()] and the metadata
 #' colour bars, returned as named character vectors of hex colours.
 #'
 #' @details
@@ -39,13 +39,13 @@
 #'   hex colours when `name` is given.
 #'
 #' @examples
-#' names(quant_palettes())
-#' quant_palettes("heatmap2")
-#' quant_palettes("hat", n = 3)
+#' names(quantPalettes())
+#' quantPalettes("heatmap2")
+#' quantPalettes("hat", n = 3)
 #'
 #' @family visualisation
 #' @export
-quant_palettes <- function(name = NULL, n = NULL) {
+quantPalettes <- function(name = NULL, n = NULL) {
 
   pals <- list(
     # Sequential ramps
@@ -89,8 +89,8 @@ quant_palettes <- function(name = NULL, n = NULL) {
 # hcl.colors when a palette name is not one of the vendored sets.
 .anno_cols <- function(levels, palette = "hat") {
   n <- max(length(levels), 2)
-  cols <- if (palette %in% names(quant_palettes()))
-            quant_palettes(palette, n = n)
+  cols <- if (palette %in% names(quantPalettes()))
+            quantPalettes(palette, n = n)
           else
             grDevices::hcl.colors(n, palette = palette)
   stats::setNames(cols[seq_along(levels)], levels)

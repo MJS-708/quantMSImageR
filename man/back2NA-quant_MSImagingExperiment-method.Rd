@@ -58,8 +58,8 @@ obj <- back2NA(obj)
 \seealso{
 Other filtering:
 \code{\link{applySNR,quant_MSImagingExperiment-method}},
+\code{\link{int2SNR,quant_MSImagingExperiment-method}},
 \code{\link{int2response,quant_MSImagingExperiment-method}},
-\code{\link{int2snr,quant_MSImagingExperiment-method}},
-\code{\link{zero2na,quant_MSImagingExperiment-method}}
+\code{\link{zero2NA,quant_MSImagingExperiment-method}}
 }
 \concept{filtering}

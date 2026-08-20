@@ -32,21 +32,21 @@ reference:
     Reading a `.raw` folder against an ion library, labelling tissue against
     background, and trimming what is not wanted.
   contents:
-  - read_mrm
-  - select_tissue_pixels
-  - trim_MSI
-  - remove_blank_mzs
-  - build_feature_meta
+  - readMRM
+  - selectTissuePixels
+  - trimMSI
+  - removeBlankMzs
+  - buildFeatureMeta
 
 - title: Combining acquisitions
   desc: >
     Putting several acquisitions, or the two polarities of one acquisition,
     into a single object.
   contents:
-  - align_features
-  - combine_MSIs
-  - bind_panels
-  - stitch_acquisitions
+  - alignFeatures
+  - combineMSIs
+  - bindPanels
+  - stitchAcquisitions
 
 - title: Filtering and normalisation
   desc: >
@@ -54,37 +54,37 @@ reference:
     steps that act on a chosen spectra layer.
   contents:
   - int2response
-  - int2snr
+  - int2SNR
   - applySNR
   - back2NA
-  - zero2na
+  - zero2NA
 
 - title: Quantification
   desc: >
     Standards to a fitted model to an estimated amount per pixel, plus the
     coverage check that says whether the standards bracket the tissue.
   contents:
-  - summarise_cal_levels
-  - create_cal_curve
+  - summariseCalLevels
+  - createCalCurve
   - int2conc
-  - plot_cal_coverage
+  - plotCalCoverage
 
 - title: Visualisation
   contents:
   - imageR
-  - quantile_hm
-  - contribution_hm
-  - quant_palettes
+  - quantileHm
+  - contributionHm
+  - quantPalettes
 
 - title: Whole-study workflows
   desc: >
     Running a complete study from a YAML configuration, and the worked example.
   contents:
-  - run_study
-  - validate_config
-  - print.quant_validation
-  - generate_txt_images
-  - run_example
+  - runStudy
+  - validateConfig
+  - print.quantValidation
+  - generateTxtImages
+  - runExample
 
 - title: Classes and accessors
   desc: >
@@ -95,7 +95,7 @@ reference:
   - calibrationInfo-class
   - tissueInfo-class
   - quantMSImageR-accessors
-  - createMSIDatamatrix
+  - createMSIDataMatrix
 
 - title: Package
   contents:

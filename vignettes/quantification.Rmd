@@ -104,7 +104,7 @@ patchwork::wrap_plots(.slide_plot(FALSE), .fit_plot(FALSE), widths = c(1, 1.1))
 On-tissue calibration deposits standards onto tissue, or onto a
 representative tissue homogenate. Matrix matching is better, but endogenous
 analyte signal and spatial heterogeneity still need careful treatment. Use
-`cal_type = "std_addition"`. Standard addition: `create_cal_curve()` fits
+`cal_type = "std_addition"`. Standard addition: `createCalCurve()` fits
 response against deposited amount, takes the x-intercept of that line as the endogenous
 amount already present in the tissue, shifts every deposited amount by it so the
 axis expresses *total* amount (endogenous + added), drops the background level
@@ -127,7 +127,7 @@ user's responsibility:
 - the standard is the same chemical species as the endogenous analyte;
 - transitions and acquisition settings match between standards and sample;
 - calibration levels expand the response range of the signal actually measured
-  in tissue (checked by `plot_cal_coverage()`);
+  in tissue (checked by `plotCalCoverage()`);
 - the fitted model is adequate, with acceptable residual behaviour;
 - the calibration substrate is a reasonable matrix match for the tissue;
 - any internal standard is analogous to the endogenous analyte and is
@@ -148,27 +148,27 @@ When a calibration standards acquisition is available, `quantMSImageR` fits a
 response-versus-amount model per analyte and converts tissue-pixel responses to
 `pg_pixel` and `pg_mm2`. The workflow is three steps:
 
-1. `summarise_cal_levels()` -- average each calibration level per standard spot,
-2. `create_cal_curve()` -- fit the response-vs-amount model per analyte,
+1. `summariseCalLevels()` -- average each calibration level per standard spot,
+2. `createCalCurve()` -- fit the response-vs-amount model per analyte,
 3. `int2conc()` -- apply those models to convert tissue-pixel responses to
    estimated amounts,
 
-then `plot_cal_coverage()` to confirm the standards actually bracket the signal
+then `plotCalCoverage()` to confirm the standards actually bracket the signal
 measured in tissue.
 
 *Family: `calibration`.*
 
 | Function | Takes | Produces |
 |---|---|---|
-| `summarise_cal_levels()` | object with `Cal` pixels + `identifier`; `cal_metadata` (`identifier`, `analyte`, `amount_pg`, `level`) | fills `cal_response_data` and the per-level pixel counts |
-| `create_cal_curve()` | that object; `cal_type = "cal"` or `"std_addition"` | fills `cal_list` (one linear model per analyte) and `r2_df` |
+| `summariseCalLevels()` | object with `Cal` pixels + `identifier`; `cal_metadata` (`identifier`, `analyte`, `amount_pg`, `level`) | fills `cal_response_data` and the per-level pixel counts |
+| `createCalCurve()` | that object; `cal_type = "cal"` or `"std_addition"` | fills `cal_list` (one linear model per analyte) and `r2_df` |
 | `int2conc()` | object carrying `cal_list`; `pixel_header` / `pixels`; `experimentData$pixelSize` for the mm² layer | adds `pg_pixel` and `pg_mm2`; features without a curve are dropped |
-| `plot_cal_coverage()` | a calibrated object (after `int2conc()`) | a `patchwork` figure: pixel histogram above the calibration curve |
+| `plotCalCoverage()` | a calibrated object (after `int2conc()`) | a `patchwork` figure: pixel histogram above the calibration curve |
 
 This vignette demonstrates the workflow on a small synthetic calibration
 dataset bundled with the package. It applies the resulting models to a study
 section, and then shows how the same steps are driven from a study YAML
-configuration. `run_example(calibrate = TRUE)` runs the chain end-to-end. The
+configuration. `runExample(calibrate = TRUE)` runs the chain end-to-end. The
 core imaging workflow that produces the object these operate on -- SNR
 filtering, ion images, heatmaps -- is covered in the
 *Introduction to quantMSImageR* vignette.
@@ -220,15 +220,15 @@ standard spot.
 
 # Fitting and diagnosing calibration models
 
-`summarise_cal_levels()` averages the signal at each calibration spot, and
-`create_cal_curve()` fits a linear response-vs-amount model per analyte (here
+`summariseCalLevels()` averages the signal at each calibration spot, and
+`createCalCurve()` fits a linear response-vs-amount model per analyte (here
 `cal_type = "cal"` for on-slide standards; use `"std_addition"` for standard
 addition on tissue).
 
 ```{r fit}
-cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
+cal <- summariseCalLevels(cal, cal_metadata, val_slot = "intensity",
                             cal_label = "Cal", id = "identifier")
-cal <- create_cal_curve(cal, cal_type = "cal")
+cal <- createCalCurve(cal, cal_type = "cal")
 ```
 
 Each fit is a straight line, `response = slope x (pg/pixel) + intercept`, which
@@ -264,11 +264,11 @@ and a high R² as necessary but not sufficient.
 Before relying on the estimates, examine at minimum:
 
 - the calibration range, and whether the tissue signal falls inside it
-  (`plot_cal_coverage()`, below);
+  (`plotCalCoverage()`, below);
 - residual patterns against fitted amount;
 - precision across calibration replicates;
 - the lower and upper quantifiable limits implied by the design;
-- whether the fit needs weighting. `create_cal_curve()` currently applies
+- whether the fit needs weighting. `createCalCurve()` currently applies
   inverse-amount (`1/amount`) weighting. This reduces the influence of the
   highest calibration levels, but its suitability should be assessed from the
   residual structure of your analytical method.
@@ -321,7 +321,7 @@ analyte
 ## Checking calibration coverage
 
 Converting a response into an amount estimate is only trustworthy where the
-standards constrain the fit. `plot_cal_coverage()` enables this to be
+standards constrain the fit. `plotCalCoverage()` enables this to be
 evaluated. The lower panel is the calibration itself -- the standard spots (red) and the fitted model (dashed) that
 `int2conc()` inverts. The upper panel is the distribution of the section's own
 pixels on exactly the same x-axis, with the calibration levels marked in red.
@@ -329,7 +329,7 @@ When the histogram sits inside the span of the red lines, every converted
 pixel is interpolated between real standards.
 
 ```{r dyn-range, fig.wide = TRUE, fig.height = 5, fig.cap = "Calibration coverage of the measured data. Pixels falling inside the marked range are interpolated between real standards rather than extrapolated."}
-plot_cal_coverage(study, features = analyte, val_slot = "intensity")
+plotCalCoverage(study, features = analyte, val_slot = "intensity")
 ```
 
 Called without `features` it draws one facet per calibrated analyte, which is
@@ -339,7 +339,7 @@ the data.
 ## Handling out-of-range pixels
 
 Either the calibration needs re-acquiring such that tissue pixels are
-interpolated (recheck with `plot_cal_coverage()` as above). Or a small % of
+interpolated (recheck with `plotCalCoverage()` as above). Or a small % of
 extrapolation of extreme pixels is acceptable for your purpose and is set by
 `max_out_of_range` (`1` accepts any).
 
@@ -393,7 +393,7 @@ rendered report gains a *Quantification* section carrying the fits, the coverage
 plot and calibrated ion images:
 
 ```{r run-study, eval = FALSE}
-run_study("path/to/study_config.yaml")
+runStudy("path/to/study_config.yaml")
 ```
 
 # Interpretation and limitations

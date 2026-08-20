@@ -118,7 +118,7 @@ obj <- int2response(obj, val_slot = "intensity",
 Other filtering:
 \code{\link{applySNR,quant_MSImagingExperiment-method}},
 \code{\link{back2NA,quant_MSImagingExperiment-method}},
-\code{\link{int2snr,quant_MSImagingExperiment-method}},
-\code{\link{zero2na,quant_MSImagingExperiment-method}}
+\code{\link{int2SNR,quant_MSImagingExperiment-method}},
+\code{\link{zero2NA,quant_MSImagingExperiment-method}}
 }
 \concept{filtering}

@@ -12,7 +12,7 @@ setGeneric("int2conc", function(MSIobject, ...) standardGeneric("int2conc"))
 #' estimates (pg per pixel, and pg per mm-squared where the pixel size is
 #' known), not volumetric concentrations. They are conditional on the
 #' calibration design, matrix matching, acquisition conditions and the validity
-#' of the fitted model -- see [plot_cal_coverage()] for the coverage check that
+#' of the fitted model -- see [plotCalCoverage()] for the coverage check that
 #' should accompany them.
 #'
 #' @section Areal conversion:
@@ -32,7 +32,7 @@ setGeneric("int2conc", function(MSIobject, ...) standardGeneric("int2conc"))
 #' @include setClasses.R
 #'
 #' @param MSIobject A `quant_MSImagingExperiment` carrying calibration models
-#'   fitted by [create_cal_curve()].
+#'   fitted by [createCalCurve()].
 #' @param pixels Character. Label(s) in `pixel_header` marking the pixels to
 #'   quantify (default `"tissue_pixels"`, the imaging convention). Pass
 #'   `pixels = "Tissue"` for a calibration acquisition.
@@ -45,7 +45,7 @@ setGeneric("int2conc", function(MSIobject, ...) standardGeneric("int2conc"))
 #'   feature's pixels allowed to fall outside the calibrated range, i.e. to be
 #'   extrapolated rather than interpolated (default `0.1`, so at least 90% of
 #'   pixels must be interpolated between real standards). Exceeding it is an
-#'   **error**, naming the features and pointing at [plot_cal_coverage()]:
+#'   **error**, naming the features and pointing at [plotCalCoverage()]:
 #'   either the standards need to bracket the tissue, or the extrapolation has
 #'   to be accepted explicitly by raising this value (`1` accepts any). Any
 #'   extrapolation at all is reported by `message()`; this controls only the
@@ -62,9 +62,9 @@ setGeneric("int2conc", function(MSIobject, ...) standardGeneric("int2conc"))
 #' cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
 #'           "quant_MSImagingExperiment")
 #' cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
-#' cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
+#' cal <- summariseCalLevels(cal, cal_metadata, val_slot = "intensity",
 #'                             cal_label = "Cal", id = "identifier")
-#' cal <- create_cal_curve(cal, cal_type = "cal")
+#' cal <- createCalCurve(cal, cal_type = "cal")
 #'
 #' # A calibration acquisition labels its pixels in `sample_type`, so the
 #' # imaging defaults are overridden here
@@ -112,7 +112,7 @@ setMethod("int2conc", "quant_MSImagingExperiment",
             for(i in seq_len(nrow(fData(MSIobject)))){
 
               # Look up the calibration model by feature name (cal_list is keyed
-              # by name in create_cal_curve). Only fall back to the positional
+              # by name in createCalCurve). Only fall back to the positional
               # entry when cal_list is unnamed (older objects) -- never index a
               # named list positionally, which would silently apply a different
               # analyte's curve. Features with no curve are dropped below, so a
@@ -183,7 +183,7 @@ setMethod("int2conc", "quant_MSImagingExperiment",
                      "\nThese amounts would be extrapolated rather than ",
                      "interpolated, so they are not quantitative. Either build ",
                      "a calibration curve that brackets the tissue -- ",
-                     "plot_cal_coverage() shows where the pixels sit relative ",
+                     "plotCalCoverage() shows where the pixels sit relative ",
                      "to the standards -- or raise max_out_of_range to accept ",
                      "this much extrapolation (max_out_of_range = 1 accepts ",
                      "any).", call. = FALSE)

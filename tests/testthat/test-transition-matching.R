@@ -1,5 +1,5 @@
-# A transition's identity is its precursor/product pair. read_mrm() and
-# build_feature_meta() used to decide that separately -- one rounding m/z to
+# A transition's identity is its precursor/product pair. readMRM() and
+# buildFeatureMeta() used to decide that separately -- one rounding m/z to
 # whole numbers, the other not -- and neither noticed when one measured
 # transition matched several library entries.
 
@@ -119,20 +119,20 @@ test_that("polarity is honoured and duplicate names are made unique", {
   expect_equal(j2$transition_id_name, c("13-HOTE", "2:- 13-HOTE"))
 })
 
-test_that("build_feature_meta uses the same rule as the join", {
+test_that("buildFeatureMeta uses the same rule as the join", {
   p   <- system.file("extdata", "example.raw", "section01.RDS",
                      package = "quantMSImageR")
   obj <- readRDS(p)
   l   <- read.csv(system.file("extdata", "example_ion_library.csv",
                               package = "quantMSImageR"), check.names = FALSE)
 
-  fm <- build_feature_meta(obj, l, verbose = FALSE)
+  fm <- buildFeatureMeta(obj, l, verbose = FALSE)
   expect_equal(nrow(fm), nrow(fData(obj)))
   expect_equal(as.character(fm$transition_id), as.character(fData(obj)$name))
 
   # An ambiguous library must be refused here too when asked to be, not
   # resolved by position.
-  expect_error(build_feature_meta(obj, l, mz_tolerance = 50, verbose = FALSE,
+  expect_error(buildFeatureMeta(obj, l, mz_tolerance = 50, verbose = FALSE,
                                   ambiguity = "error"),
                regexp = "match more than one ion-library entry")
 })

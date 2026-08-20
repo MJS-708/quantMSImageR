@@ -10,8 +10,8 @@
 #' `tissueData()`.
 #'
 #' @details
-#' The calibration accessors follow the workflow. [summarise_cal_levels()]
-#' populates `calibrationLevels()`, [create_cal_curve()] fills
+#' The calibration accessors follow the workflow. [summariseCalLevels()]
+#' populates `calibrationLevels()`, [createCalCurve()] fills
 #' `calibrationModels()` and `calibrationR2()`, and [int2conc()] reads the
 #' models back out. `calibrationData()` moves the whole block at once, which is
 #' what carrying fitted models from a standards acquisition to a study object
@@ -39,9 +39,9 @@
 #'           "quant_MSImagingExperiment")
 #' cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
 #'
-#' cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
+#' cal <- summariseCalLevels(cal, cal_metadata, val_slot = "intensity",
 #'                             cal_label = "Cal", id = "identifier")
-#' cal <- create_cal_curve(cal, cal_type = "cal")
+#' cal <- createCalCurve(cal, cal_type = "cal")
 #'
 #' names(calibrationModels(cal))
 #' calibrationDiagnostics(cal)

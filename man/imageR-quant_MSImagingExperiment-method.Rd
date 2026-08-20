@@ -60,7 +60,7 @@ maximum (\code{TRUE}) rather than raw values (\code{FALSE}, the default).}
 
 \item{palette}{Character. Colour scale for the image: \code{"heatmap0"} (the
 default, matching the YAML \verb{colours: ion_image:} default) or \code{"viridis"}
-(perceptually uniform and colour-blind safe). See \code{\link[=quant_palettes]{quant_palettes()}}.}
+(perceptually uniform and colour-blind safe). See \code{\link[=quantPalettes]{quantPalettes()}}.}
 }
 \value{
 A \code{ggplot} object, or a numeric matrix when \code{text_image = TRUE}.
@@ -80,8 +80,8 @@ gg <- imageR(obj, feat_ind = 1, sample_lab = "run", scale = "suppress")
 }
 \seealso{
 Other visualisation:
-\code{\link[=contribution_hm]{contribution_hm()}},
-\code{\link[=quant_palettes]{quant_palettes()}},
-\code{\link[=quantile_hm]{quantile_hm()}}
+\code{\link[=contributionHm]{contributionHm()}},
+\code{\link[=quantPalettes]{quantPalettes()}},
+\code{\link[=quantileHm]{quantileHm()}}
 }
 \concept{visualisation}

@@ -4,23 +4,20 @@ unlink("C:/R/R-4.5.3/library/quantMSImageR", recursive = TRUE, force = TRUE)
 
 "quantMSImageR" %in% loadedNamespaces()   # must now be FALSE
 
-devtools::document(
-  "C:/Users/matsmi/OneDrive - Karolinska Institutet/Dokument/Bioinformatics/quantMSImageR"
-)
+devtools::document()
+devtools::build(vignettes = TRUE)     # tarball with vignettes built from .Rmd
+devtools::install(build_vignettes = TRUE, upgrade = F)
 
-devtools::test(
-  "C:/Users/matsmi/OneDrive - Karolinska Institutet/Dokument/Bioinformatics/quantMSImageR"
-)
+devtools::check(vignettes = TRUE)
+BiocCheck::BiocCheck()
 
-devtools::install(
-  "C:/Users/matsmi/OneDrive - Karolinska Institutet/Dokument/Bioinformatics/quantMSImageR",
-  upgrade = F,
-  build = TRUE,
-  force = TRUE
-)
+vignette("quantMSImageR", package = "quantMSImageR")   # the installed one
+pkgdown::build_site()                                  # writes docs/, local only
+
+quantMSImageR::runExample()
 
 #remotes::install_github("MJS-708/quantMSImageR", ref = "main")
 
 library(quantMSImageR)
 
-quantMSImageR::run_example()
+quantMSImageR::runExample()

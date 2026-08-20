@@ -13,7 +13,7 @@
 #   pData$sample_type in {"Cal","Tissue","Background"} and pData$identifier per
 #   calibration spot, fData$name matching cal_metadata$lipid, an intensity
 #   slot scaling with amount, and experimentData$pixelSize. It powers the
-#   runnable examples/tests for summarise_cal_levels -> create_cal_curve ->
+#   runnable examples/tests for summariseCalLevels -> createCalCurve ->
 #   int2conc and the vignette's quantification section.
 # =============================================================================
 
@@ -114,7 +114,7 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 saveRDS(obj, file.path(out_dir, "cal_MSI.RDS"))
 
-# one row per (identifier, lipid): summarise_cal_levels joins on identifier and
+# one row per (identifier, lipid): summariseCalLevels joins on identifier and
 # expands to per-lipid rows.
 meta <- do.call(rbind, lapply(seq_along(levels_amt), function(i)
   do.call(rbind, lapply(reps, function(j)

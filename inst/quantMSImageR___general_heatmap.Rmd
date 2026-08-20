@@ -18,8 +18,8 @@ knitr::opts_chunk$set(echo = FALSE)
 
 # Attach the analysis packages this report calls with unqualified names
 # (%>% + dplyr verbs, ggplot2 geoms, viridis) so it renders
-# self-contained -- both from run_example() (which renders inside the package
-# namespace) and from run_study.R (global env). All are quantMSImageR Imports,
+# self-contained -- both from runExample() (which renders inside the package
+# namespace) and from runStudy.R (global env). All are quantMSImageR Imports,
 # so they are guaranteed installed alongside the package. Other packages the
 # report uses (DT, patchwork, openxlsx, grid, matter, Cardinal) are called
 # pkg::-qualified and only need to be installed, not attached.
@@ -244,7 +244,7 @@ if (exists("sample_map")) {
   DT::datatable(sm_show, rownames = FALSE,
                 options = list(pageLength = 25, scrollX = TRUE))
 } else {
-  cat("*(sample_map not available — run via run_study.R to populate)*")
+  cat("*(sample_map not available — run via runStudy.R to populate)*")
 }
 ```
 
@@ -340,7 +340,7 @@ cat(.style_note, "\n\n")
 ```
 
 ```{r palettes, echo=FALSE, include=FALSE}
-# Palettes come from the YAML `colours:` block via run_study(); run_example()
+# Palettes come from the YAML `colours:` block via runStudy(); runExample()
 # sets the same names. Fall back to the package defaults when absent so the
 # report still renders if a config predates the block.
 .pal_ion     <- if (exists("pal_ion"))     pal_ion     else "heatmap0"
@@ -362,16 +362,16 @@ if (length(.cell_border) != 1L || is.na(.cell_border) ||
 .ion_cols <- if (identical(.pal_ion, "viridis")) {
   viridis::viridis(256)
 } else {
-  grDevices::colorRampPalette(quantMSImageR::quant_palettes(.pal_ion))(256)
+  grDevices::colorRampPalette(quantMSImageR::quantPalettes(.pal_ion))(256)
 }
 
 # Named colour vector for a categorical variable. Mirrors the package-internal
-# .anno_cols() that quantile_hm() uses, so the group colours in the box/violin
+# .anno_cols() that quantileHm() uses, so the group colours in the box/violin
 # plots are the same ones as the heatmap's group bar.
 .cat_cols <- function(levels, palette) {
   n <- max(length(levels), 2)
-  cols <- if (palette %in% names(quantMSImageR::quant_palettes()))
-            quantMSImageR::quant_palettes(palette, n = n)
+  cols <- if (palette %in% names(quantMSImageR::quantPalettes()))
+            quantMSImageR::quantPalettes(palette, n = n)
           else
             grDevices::hcl.colors(n, palette = palette)
   stats::setNames(cols[seq_along(levels)], levels)
@@ -414,15 +414,27 @@ if (exists("heatmap_labs") && exists("heatmap_order"))
     w  <- grid::convertWidth(.w_fun(ht),  "in", valueOnly = TRUE)
     h  <- grid::convertHeight(.h_fun(ht), "in", valueOnly = TRUE)
     if (!is.finite(w) || !is.finite(h) || w <= 0 || h <= 0) return(fallback)
-    # A small margin, then clamp so a huge study cannot produce an unusable file.
-    c(min(max(w + 0.4, 4), 25), min(max(h + 0.4, 2.5), 40))
+    # A small margin, then clamp so a huge study cannot produce an unusable
+    # file. The cap CROPS rather than scales -- ComplexHeatmap draws at its
+    # measured size regardless -- so anything wider than this loses its
+    # right-hand legends off the edge. 25 in was too tight once a study had
+    # long feature-class names; the labels are wrapped at source now, and the
+    # cap is raised so wrapping is the thing that keeps it narrow, not the
+    # crop. A message rather than silence, because the failure is invisible in
+    # the output.
+    .wmax <- 36
+    if (w + 0.4 > .wmax)
+      message("heatmap is ", round(w + 0.4, 1), " in wide but the device is ",
+              "capped at ", .wmax, " in -- the right-hand legends will be ",
+              "cropped. Shorten the feature-class names or lower `fontsize`.")
+    c(min(max(w + 0.4, 4), .wmax), min(max(h + 0.4, 2.5), 40))
   }, error = function(e) fallback)
 }
 ```
 
 ```{r hm, results="asis", echo = FALSE, include=T, warning=FALSE}
 
-# Build feature split vector from per-feature metadata (joined by m/z in run_study.R)
+# Build feature split vector from per-feature metadata (joined by m/z in runStudy.R)
 .row_split <- NULL
 if (exists("feature_meta") && !is.null(feature_meta) &&
     exists("heatmap_row_split") && !is.null(heatmap_row_split) &&
@@ -462,12 +474,12 @@ for (quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)) {
                 cell_border      = .cell_border)
 
   p <- if (identical(.hm_style, "contribution")) {
-    do.call(quantMSImageR::contribution_hm, .args)
+    do.call(quantMSImageR::contributionHm, .args)
   } else {
-    do.call(quantMSImageR::quantile_hm, .args)
+    do.call(quantMSImageR::quantileHm, .args)
   }
 
-  # The opacity channel has no colour mapping, so contribution_hm() attaches
+  # The opacity channel has no colour mapping, so contributionHm() attaches
   # its key for draw() to place alongside the others.
   .extra <- attr(p, "contribution_legend")
 
@@ -495,10 +507,27 @@ for (quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)) {
     # Display at the physical size it was drawn at (96 CSS px per inch), so the
     # render stays crisp without the browser blowing it up or shrinking it;
     # max-width keeps a wide study inside the page.
-    cat(sprintf(
-      '<p><img src="%s" alt="quantile %g heatmap" style="width:%.0fpx;max-width:100%%;height:auto;"/></p>\n',
-      knitr::image_uri(.tmp), quant_value, .sz[1] * 96
-    ))
+    # Built with paste0, NOT sprintf, and deliberately so.
+    #
+    # rmarkdown's resource discovery renders this document WITHOUT evaluating
+    # its chunks, then scans the result for image tags and feeds each source
+    # attribute to utils::URLdecode(). An unevaluated sprintf placeholder in
+    # the source therefore reaches it as a literal, and URLdecode reads the
+    # letter after the percent sign as a hex escape, finds it is not one, and
+    # warns "out-of-range values treated as 0 in coercion to raw" -- twice,
+    # once per discovery pass. That warning was reported in Bioconductor
+    # review and traced here.
+    #
+    # With paste0 the character after the opening attribute quote is itself a
+    # quote, which the scanner's character class cannot match, so no
+    # placeholder is ever seen. Do not convert this back to sprintf.
+    #
+    # NOTE the same applies to this comment: keep example markup out of it,
+    # or the scanner finds the placeholder here instead.
+    cat(paste0('<p><img src="', knitr::image_uri(.tmp),
+               '" alt="quantile ', format(quant_value),
+               ' heatmap" style="width:', round(.sz[1] * 96),
+               'px;max-width:100%;height:auto;"/></p>\n'))
   } else {
     cat("*(heatmap could not be drawn on this ComplexHeatmap version)*\n\n")
   }
@@ -718,9 +747,10 @@ if (length(detected_mets) > 0) {
       patchwork::plot_annotation(title = met)
     
     display_style <- if (i == 1) "block" else "none"
-    cat(sprintf('<div class="cmp_block" id="cmp_%s" style="display:%s;">\n', mid, display_style))
-    print(p_both)
-    cat("</div>\n")
+    cat(sprintf('\n<div class="cmp_block" id="cmp_%s" style="display:%s;">\n\n', mid, display_style))
+    tryCatch(print(p_both), error = function(e)
+      cat("<p><em>plot failed: ", conditionMessage(e), "</em></p>\n"))
+    cat("\n\n</div>\n\n")
   }
 }
 
@@ -849,7 +879,7 @@ cor_datasets <- cor_datasets[!vapply(cor_datasets, is.null, logical(1))]
 ```{r cor-hm, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=10, fig.height=8}
 
 # Per-feature -> Met-1 mapping for grouping/colouring the triangular heatmaps.
-# Reuses feature_meta built in run_study.R; falls back to no grouping if absent.
+# Reuses feature_meta built in runStudy.R; falls back to no grouping if absent.
 .feat_groups <- NULL
 .met_palette <- NULL
 if (exists("feature_meta") && !is.null(feature_meta) &&
@@ -1012,13 +1042,15 @@ for (i in seq_along(ord)) {
   mz_val  <- fData(combined)$mz[idx]
 
   display_style <- if (i == 1) "block" else "none"
-  cat(sprintf('<div class="ion_feature_block" id="ion_%s" style="display:%s;">\n',
+  cat(sprintf('\n<div class="ion_feature_block" id="ion_%s" style="display:%s;">\n\n',
               fid, display_style))
   # Use a styled <p> instead of <h3> so the feature name does not populate the TOC
   cat(sprintf("<p style='margin-top:10px;font-size:1.17em;font-weight:600;'>%s</p>\n", feature))
 
   # q95 from non-NA pixels only; as.numeric() forces out of matter-array to plain R vector
-  all_ints <- as.numeric(spectraData(combined[idx, ])[["intensity"]])
+  all_ints <- tryCatch(
+    as.numeric(spectraData(combined[idx, ])[["intensity"]]),
+    error = function(e) numeric(0))   # empty -> has_signal FALSE, handled below
   q95      <- suppressWarnings(quantile(all_ints, 0.95, na.rm = TRUE))
   has_signal <- any(is.finite(all_ints))   # FALSE when feature absent in every sample
 
@@ -1081,13 +1113,13 @@ for (i in seq_along(ord)) {
     })
   }
 
-  cat("</div>\n")
+  cat("\n\n</div>\n\n")
 }
 ```
 
 ```{r cal-detect, echo=FALSE, include=FALSE}
-# The calibration section only appears when the caller (run_example() or
-# run_study.R with `calibration: enabled: true`) put a calibrated object in the
+# The calibration section only appears when the caller (runExample() or
+# runStudy.R with `calibration: enabled: true`) put a calibrated object in the
 # render environment. Everything below is gated on this flag.
 .cal_obj <- if (exists("calibrated", inherits = TRUE)) get("calibrated") else NULL
 .has_cal <- !is.null(.cal_obj) &&
@@ -1101,7 +1133,7 @@ for (i in seq_along(ord)) {
 cat("# 6. Quantification\n\n",
     "Tissue intensities were converted to absolute amounts using the ",
     "calibration standards acquisition. Each analyte's response-versus-amount ",
-    "curve was fitted with `create_cal_curve()` and inverted by `int2conc()` ",
+    "curve was fitted with `createCalCurve()` and inverted by `int2conc()` ",
     "to give `pg_pixel` and `pg_mm2` layers. These are calibrated amount ",
     "estimates, not volumetric concentrations, and are conditional on the ",
     "calibration design, matrix matching and acquisition conditions.\n\n",
@@ -1150,7 +1182,7 @@ cat("A low R-squared flags a standard that misbehaved, and a high ",
 
 ```{r cal-coverage, echo=FALSE, eval=.has_cal, warning=FALSE, message=FALSE, fig.width=10, fig.height=6}
 tryCatch(
-  print(quantMSImageR::plot_cal_coverage(.cal_obj, val_slot = "intensity")),
+  print(quantMSImageR::plotCalCoverage(.cal_obj, val_slot = "intensity")),
   error = function(e) {
     message("Calibration coverage plot failed: ", e$message)
     plot.new(); title("Calibration coverage unavailable")
@@ -1215,7 +1247,7 @@ for (.i in seq_along(.cal_ord)) {
   .idx   <- .cal_ord[.i]                      # row index in .cal_obj
   .style <- if (.i == 1) "block" else "none"
 
-  cat(sprintf('<div class="conc_feature_block" id="conc_%s" style="display:%s;">\n',
+  cat(sprintf('\n<div class="conc_feature_block" id="conc_%s" style="display:%s;">\n\n',
               .cal_ids[.i], .style))
   cat(sprintf("<p style='margin-top:10px;font-size:1.17em;font-weight:600;'>%s</p>\n",
               .cal_sorted[.i]))
@@ -1238,7 +1270,7 @@ for (.i in seq_along(.cal_ord)) {
                     gp = grid::gpar(fontsize = 11, col = "grey40"))
   })
 
-  cat("</div>\n")
+  cat("\n\n</div>\n\n")
 }
 ```
 

@@ -131,7 +131,7 @@ setMethod("int2response", "quant_MSImagingExperiment",
                 stop("int2response: fData(MSIobject) has no feature-type column, ",
                      "so IS_name = '", IS_name, "' cannot be matched. This ",
                      "column comes from the ion library's `Type` column via ",
-                     "read_mrm(type_header = ).", call. = FALSE)
+                     "readMRM(type_header = ).", call. = FALSE)
 
               IS_ind <- which(type_col == IS_name)
 

@@ -1,6 +1,6 @@
 # ============================================================
 # quantMSImageR - DESI-MRM study config
-# Run:  quantMSImageR::run_study("path/to/this.yaml")
+# Run:  quantMSImageR::runStudy("path/to/this.yaml")
 # ============================================================
 
 study: "my_study_name"                  # fallback report filename prefix
@@ -58,7 +58,7 @@ parameters:
   baseline_label: "Ctrl"                # group used as fold-change denominator
 
 # =========================== COLOURS ===========================
-# Palettes used in the HTML report. See quant_palettes() for the hex values.
+# Palettes used in the HTML report. See quantPalettes() for the hex values.
 #   viridis   sequential, perceptually uniform, colour-blind safe
 #   heatmap0  sequential, dark blue -> teal -> sand -> red (9 colours)
 #   heatmap2  diverging,  blue -> white -> red (5 colours)

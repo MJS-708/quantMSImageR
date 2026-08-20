@@ -81,34 +81,34 @@ family it belongs to. The whole workflow is:
 ```
   .raw acquisition            ion library CSV
          |                          |
-         +--------> read_mrm() <----+
+         +--------> readMRM() <----+
                         |  MSImagingExperiment, fData joined to library
                         v
-        select_tissue_pixels() --> tissue_pixels.csv  (x, y, tissue/background)
+        selectTissuePixels() --> tissue_pixels.csv  (x, y, tissue/background)
                         |
     +-------------------+-------------------+
-    |  ASSEMBLE   align_features -> combine_MSIs / bind_panels   |
-    |             trim_MSI                                       |
+    |  ASSEMBLE   alignFeatures -> combineMSIs / bindPanels   |
+    |             trimMSI                                       |
     +-------------------+-------------------+
                         v   quant_MSImagingExperiment
     +-------------------+-------------------+
     |  FILTER     int2response  (IS-normalise)   |
-    |             zero2na, remove_blank_mzs      |
-    |             int2snr -> applySNR, back2NA   |
+    |             zero2NA, removeBlankMzs      |
+    |             int2SNR -> applySNR, back2NA   |
     +-------------------+-------------------+
                         v
          +--------------+--------------+
          v                             v
    VISUALISE                     QUANTIFY  (needs a standards acquisition)
-   imageR                        summarise_cal_levels
-   quantile_hm                          v
-                                 create_cal_curve
+   imageR                        summariseCalLevels
+   quantileHm                          v
+                                 createCalCurve
                                         v
                                  int2conc -> "pg_pixel", "pg_mm2"
                                         v
-                                 plot_cal_coverage   (does calibration cover the data?)
+                                 plotCalCoverage   (does calibration cover the data?)
 
-  WHOLE STUDY:  run_study() (YAML)  .  generate_txt_images()  .  run_example()
+  WHOLE STUDY:  runStudy() (YAML)  .  generateTxtImages()  .  runExample()
 ```
 
 Per-feature images can also be exported as plain `.txt` intensity matrices,
@@ -133,14 +133,14 @@ BiocManager::install("quantMSImageR")
 
 # Quick start
 
-The fastest way to see the whole workflow is `run_example()`, which runs the
+The fastest way to see the whole workflow is `runExample()`, which runs the
 imaging workflow on two synthetic groups (A, circular tissue, n = 3;
 B, square tissue, n = 3), renders the HTML report, and also demonstrates
 quantification on the bundled calibration standards:
 
 ```{r quickstart, eval = FALSE}
 library(quantMSImageR)
-res <- run_example()          # both groups; imaging report + calibration demo
+res <- runExample()          # both groups; imaging report + calibration demo
 res$calibrated                # the calibrated object
 ```
 
@@ -155,7 +155,7 @@ calibration and tissue metadata, so most functions coerce with `as()` first.
 The object is features x pixels: one row per MRM transition, one column per
 pixel. Calculated quantities -- `response`, `snr`, calibrated amount -- are
 stored as *additional* spectra layers. Masking functions are the exception:
-`applySNR()`, `back2NA()` and `zero2na()` modify the selected `val_slot` in
+`applySNR()`, `back2NA()` and `zero2NA()` modify the selected `val_slot` in
 place, so keep a copy of the object when the unmodified values are needed
 afterwards.
 
@@ -168,7 +168,7 @@ afterwards.
 | tissue summaries | pixel and ROI matrices | `tissueMatrix(x)`, `tissueData(x)` |
 
 Multiple acquisitions are held in one object, distinguished by the `run`
-column of `pData()` -- that is what `combine_MSIs()` produces and what every
+column of `pData()` -- that is what `combineMSIs()` produces and what every
 per-sample summary groups on.
 
 Pixel metadata uses consistent vocabulary: `run` identifies the acquisition,
@@ -204,11 +204,11 @@ DT::datatable(head(as.data.frame(pData(obj)), 100), rownames = FALSE,
 # Reading your own data
 
 The bundled example ships as `.RDS` so the vignette is reproducible, but real
-acquisitions enter through `read_mrm()`, which reads a Waters DESI-MRM `.raw`
+acquisitions enter through `readMRM()`, which reads a Waters DESI-MRM `.raw`
 folder and joins the ion library to the features:
 
 ```{r read-mrm, eval = FALSE}
-obj <- read_mrm(
+obj <- readMRM(
   name         = "my_acquisition",        # .raw folder name, without the suffix
   folder       = "path/to/raw",           # directory containing my_acquisition.raw
   lib_ion_path = "path/to/ion_library.csv"
@@ -224,7 +224,7 @@ polarity, collision energy -- are carried through to `fData()` and become
 available for grouping, as shown in *Joining ion-library metadata* below.
 
 The result is a features x pixels object exactly like the one inspected above,
-ready for `select_tissue_pixels()` and the rest of the workflow.
+ready for `selectTissuePixels()` and the rest of the workflow.
 
 # Loading the acquisitions
 
@@ -232,33 +232,33 @@ ready for `select_tissue_pixels()` and the rest of the workflow.
 
 | Function | Takes | Produces |
 |---|---|---|
-| `read_mrm()` | `.raw` folder + ion-library CSV | `MSImagingExperiment`, `fData` joined to the library |
-| `trim_MSI()` | object with a tissue mask | object with pure-background border rows/columns dropped |
-| `remove_blank_mzs()` | object | object with features that have no data removed |
-| `align_features()` | two objects | both reduced to common features, m/z-keyed |
-| `combine_MSIs()` | two or more aligned objects | one object, each acquisition its own `run` |
-| `bind_panels()` | two objects on a shared `(x, y)` grid | features of both on the pixel-grid intersection |
+| `readMRM()` | `.raw` folder + ion-library CSV | `MSImagingExperiment`, `fData` joined to the library |
+| `trimMSI()` | object with a tissue mask | object with pure-background border rows/columns dropped |
+| `removeBlankMzs()` | object | object with features that have no data removed |
+| `alignFeatures()` | two objects | both reduced to common features, m/z-keyed |
+| `combineMSIs()` | two or more aligned objects | one object, each acquisition its own `run` |
+| `bindPanels()` | two objects on a shared `(x, y)` grid | features of both on the pixel-grid intersection |
 
-Note the difference between the last two. `combine_MSIs()` stacks different
-sections side by side, adding pixels. `bind_panels()` merges two
+Note the difference between the last two. `combineMSIs()` stacks different
+sections side by side, adding pixels. `bindPanels()` merges two
 acquisitions of the same physical area -- typically a positive- and a
 negative-mode run of one section, or two MRM panels -- adding features to the
 same pixels:
 
 ```{r bind-panels, eval = FALSE}
-pos <- read_mrm("acq_section1_pos", folder = "path/to/raw",
+pos <- readMRM("acq_section1_pos", folder = "path/to/raw",
                 lib_ion_path = "path/to/ion_library.csv")
-neg <- read_mrm("acq_section1_neg", folder = "path/to/raw",
+neg <- readMRM("acq_section1_neg", folder = "path/to/raw",
                 lib_ion_path = "path/to/ion_library.csv")
 
 # Pixels are matched on (x, y), so the two runs need not have identical grids;
 # pixels present in only one are dropped.
-both <- bind_panels(pos, neg, label = "S1")
+both <- bindPanels(pos, neg, label = "S1")
 ```
 
 The bundled example is six sections: three of group A (circular tissue) and
-three of group B (square tissue). They ship as RDS, so `read_mrm()` is not
-needed here. `combine_MSIs()` binds them into a single object, keeping each
+three of group B (square tissue). They ship as RDS, so `readMRM()` is not
+needed here. `combineMSIs()` binds them into a single object, keeping each
 section as its own `run`:
 
 ```{r load}
@@ -269,7 +269,7 @@ sections <- sprintf("section%02d", 1:6)
 objs <- lapply(sections, function(s)
   readRDS(system.file("extdata", "example.raw", paste0(s, ".RDS"),
                       package = "quantMSImageR")))
-combined <- do.call(combine_MSIs, objs)
+combined <- do.call(combineMSIs, objs)
 
 groups <- c("A", "A", "A", "B", "B", "B")   # sections 01-03 = A, 04-06 = B
 combined
@@ -291,14 +291,14 @@ Everything below operates on this one `combined` object.
 
 | Function | Takes | Produces |
 |---|---|---|
-| `select_tissue_pixels()` | acquisition name, data path, ion library | `tissue_pixels.csv` (`x`, `y`, `tissue_pixels`, `background_pixels`) plus a preview of the saved mask |
+| `selectTissuePixels()` | acquisition name, data path, ion library | `tissue_pixels.csv` (`x`, `y`, `tissue_pixels`, `background_pixels`) plus a preview of the saved mask |
 
-Before SNR filtering, each acquisition needs a tissue mask. `select_tissue_pixels()`
+Before SNR filtering, each acquisition needs a tissue mask. `selectTissuePixels()`
 displays every feature's ion image so you can pick the one that best separates
 tissue from background, then opens an interactive ROI selector:
 
 ```{r select, eval = FALSE}
-select_tissue_pixels(
+selectTissuePixels(
   name         = "my_acquisition",          # .raw folder name (no suffix)
   data_path    = "path/to/raw",
   lib_ion_path = "path/to/ion_library.csv"
@@ -306,7 +306,7 @@ select_tissue_pixels(
 ```
 
 It writes the resulting mask as `tissue_pixels.csv` inside the acquisition's
-`.raw` folder, where `int2snr()` and `generate_txt_images()` read it. The mask
+`.raw` folder, where `int2SNR()` and `generateTxtImages()` read it. The mask
 is simply a per-pixel label -- tissue versus background -- which the bundled
 sections already carry in their `sample_name` column:
 
@@ -317,7 +317,7 @@ DT::datatable(head(mask_tbl, 500), rownames = FALSE,
               options = list(pageLength = 5, scrollX = TRUE))
 ```
 
-**Table 3.** Per-pixel tissue/background labelling used by `int2snr()` (first 500
+**Table 3.** Per-pixel tissue/background labelling used by `int2SNR()` (first 500
 pixels).
 
 Plotting that column over the pixel coordinates shows the mask itself, which is
@@ -325,7 +325,7 @@ the quickest way to confirm a selection before running the workflow -- the
 circular group A and square group B tissue should stand out cleanly from the
 surrounding background:
 
-```{r mask-plot, fig.wide = TRUE, fig.cap = "Tissue masks for all six sections. Green pixels are labelled tissue_pixels and contribute to every downstream summary; grey pixels are background_pixels and are used to estimate the noise level in int2snr()."}
+```{r mask-plot, fig.wide = TRUE, fig.cap = "Tissue masks for all six sections. Green pixels are labelled tissue_pixels and contribute to every downstream summary; grey pixels are background_pixels and are used to estimate the noise level in int2SNR()."}
 ggplot(mask_tbl, aes(x, -y, fill = sample_name)) +
   geom_tile() +
   facet_wrap(~ run, ncol = 3) +
@@ -346,12 +346,12 @@ ggplot(mask_tbl, aes(x, -y, fill = sample_name)) +
 | Function | Takes | Produces |
 |---|---|---|
 | `imageR()` | object, `feat_ind`, `val_slot`, `sample_lab`, `scale` | a `ggplot` ion image |
-| `quantile_hm()` | object, `quant_val`, sample order/labels, `feature_split` | a `ComplexHeatmap::Heatmap` (rows = samples, columns = features) |
-| `contribution_hm()` | the same arguments | the same `ComplexHeatmap::Heatmap`, with group mean as hue and per-sample contribution as opacity |
-| `quant_palettes()` | palette name, optional `n` | the hex colours used by both, for reuse in your own plots |
+| `quantileHm()` | object, `quant_val`, sample order/labels, `feature_split` | a `ComplexHeatmap::Heatmap` (rows = samples, columns = features) |
+| `contributionHm()` | the same arguments | the same `ComplexHeatmap::Heatmap`, with group mean as hue and per-sample contribution as opacity |
+| `quantPalettes()` | palette name, optional `n` | the hex colours used by both, for reuse in your own plots |
 
 Colours are consistent across the package and selectable per plot. `imageR()`
-takes `palette = "heatmap0"` (the default) or `"viridis"`; `quantile_hm()` takes a diverging
+takes `palette = "heatmap0"` (the default) or `"viridis"`; `quantileHm()` takes a diverging
 `palette` plus `group_palette` / `feature_palette` for the metadata bars, and
 `cell_border` for the hairline that keeps neighbouring cells of the same colour
 from merging into one block. In a YAML-driven study these are set once in the
@@ -367,8 +367,8 @@ colours:
 ```
 
 ```{r palettes}
-names(quant_palettes())
-quant_palettes("heatmap0")
+names(quantPalettes())
+quantPalettes("heatmap0")
 ```
 
 `imageR()` returns a `ggplot` ion image for a chosen feature. Because it is a
@@ -412,18 +412,18 @@ patchwork::wrap_plots(.p, nrow = 1)
 image's maximum, which is useful when the absolute numbers are not comparable
 anyway.
 
-The HTML report produced by `run_study()` shows a related set of three views per
+The HTML report produced by `runStudy()` shows a related set of three views per
 feature, built with Cardinal's own `image()` rather than `imageR()`: capped at
 the 95th quantile, histogram-normalised, and unscaled.
 
 The same per-feature images can be written to disk as `.txt` intensity matrices
-(`generate_txt_images(output_txt = TRUE)`, or `output_txt: true` in the YAML
+(`generateTxtImages(output_txt = TRUE)`, or `output_txt: true` in the YAML
 config). Those files open directly in ImageJ, which is the usual route into
 multimodal workflows.
 
 # Joining ion-library metadata
 
-`build_feature_meta()` joins ion-library annotation to features by rounded
+`buildFeatureMeta()` joins ion-library annotation to features by rounded
 `(precursor, product)` m/z, so extra columns -- such as the pathway class
 `Met-1` -- become available for grouping. We do this before the heatmap because
 the heatmap uses `Met-1` to split its rows.
@@ -446,7 +446,7 @@ DT::datatable(lib, rownames = FALSE,
 **Table 4.** The example ion library, as supplied on disk.
 
 ```{r meta}
-fm <- build_feature_meta(combined, lib)
+fm <- buildFeatureMeta(combined, lib)
 
 DT::datatable(fm[, c("name", "precursor_mz", "product_mz", "Type", "Met-1",
                      "IS_norm")],
@@ -454,12 +454,12 @@ DT::datatable(fm[, c("name", "precursor_mz", "product_mz", "Type", "Met-1",
               options = list(pageLength = 10, scrollX = TRUE))
 ```
 
-**Table 5.** The same metadata after `build_feature_meta()` has joined it to
+**Table 5.** The same metadata after `buildFeatureMeta()` has joined it to
 each measured feature by m/z.
 
 # Quantile heatmaps across samples
 
-`quantile_hm()` summarises each feature to a per-sample quantile and returns a
+`quantileHm()` summarises each feature to a per-sample quantile and returns a
 `ComplexHeatmap::Heatmap`. Rows are samples, grouped by study group; columns
 are features, split by the `Met-1` class joined above -- studies usually have
 more samples than features, so the long dimension runs vertically. Cells are
@@ -477,14 +477,14 @@ emphasises hot-spots:
 ```{r heatmap-median, fig.wide = TRUE, fig.cap = "Median (50th percentile) feature intensity per section. Rows are sections grouped by study group; columns are features split by Met-1 class."}
 feature_split <- fm[["Met-1"]]
 
-quantile_hm(combined, quant_val = 0.5,
+quantileHm(combined, quant_val = 0.5,
             heatmap_order = sections, heatmap_labs = groups,
             feature_split = feature_split, feature_split_name = "Met-1",
             cell_size = 10, fontsize = 7)
 ```
 
 ```{r heatmap-95, fig.wide = TRUE, fig.cap = "The same summary at the 95th percentile, which emphasises hot-spots rather than the bulk of the tissue."}
-quantile_hm(combined, quant_val = 0.95,
+quantileHm(combined, quant_val = 0.95,
             heatmap_order = sections, heatmap_labs = groups,
             feature_split = feature_split, feature_split_name = "Met-1",
             cell_size = 10, fontsize = 7)
@@ -492,13 +492,13 @@ quantile_hm(combined, quant_val = 0.95,
 
 ## Seeing which sample carried a group effect
 
-`contribution_hm()` draws the same matrix but encodes two things per cell: the
+`contributionHm()` draws the same matrix but encodes two things per cell: the
 **hue** is the sample's *group* mean for that feature, and the **opacity** is
 that *sample's* contribution to it. A uniformly solid block is a real group
 effect; one opaque tile among faded ones is a group mean resting on a single
 replicate, which a plain group-mean heatmap cannot show.
 
-It takes the same arguments as `quantile_hm()` and returns the same kind of
+It takes the same arguments as `quantileHm()` and returns the same kind of
 object, laid out identically -- same group and feature colour bars, same
 splits, same square cells. Only the cell fill differs, so the two can be read
 against each other directly. The HTML report draws one or the other, never
@@ -514,7 +514,7 @@ feature". And the two channels get separate colour limits: a group mean of
 z-score, so reusing one limit for both washes the panel out.
 
 ```{r heatmap-contribution, fig.wide = TRUE, fig.cap = "The same median summary as a group mean, with each sample's contribution to that mean drawn as opacity. A solid block is a group effect; a lone opaque tile is a mean resting on one section."}
-contribution_hm(combined, quant_val = 0.5,
+contributionHm(combined, quant_val = 0.5,
                 heatmap_order = sections, heatmap_labs = groups,
                 feature_split = feature_split, feature_split_name = "Met-1",
                 cell_size = 10, fontsize = 7)
@@ -528,21 +528,21 @@ contribution_hm(combined, quant_val = 0.5,
 | Function | Takes | Produces |
 |---|---|---|
 | `int2response()` | object + internal-standard name | intensities normalised to the IS (`response`) |
-| `int2snr()` | object, `background`/`tissue` labels, `snr_thresh`, optional `snr_overrides` | adds an `snr` slot; below threshold and non-tissue become `NA` |
+| `int2SNR()` | object, `background`/`tissue` labels, `snr_thresh`, optional `snr_overrides` | adds an `snr` slot; below threshold and non-tissue become `NA` |
 | `applySNR()` | object carrying an `snr` slot | sub-threshold pixels set to `NA` in `val_slot` |
 | `back2NA()` | object + background label | background pixels set to `NA` |
-| `zero2na()` | object, `val_slot` | zeros replaced with `NA` |
+| `zero2NA()` | object, `val_slot` | zeros replaced with `NA` |
 
-`int2snr()` computes a per-pixel signal-to-noise ratio for each feature against
+`int2SNR()` computes a per-pixel signal-to-noise ratio for each feature against
 the background pixels, and `applySNR()` then sets every sub-threshold pixel to
 `NA` in the intensity slot.
 
 ```{r snr-apply}
-combined <- int2snr(combined, val_slot = "intensity", snr_thresh = 3)
+combined <- int2SNR(combined, val_slot = "intensity", snr_thresh = 3)
 combined <- applySNR(combined, val_slot = "intensity")
 ```
 
-`int2snr()` added an `snr` layer rather than replacing anything, and
+`int2SNR()` added an `snr` layer rather than replacing anything, and
 `applySNR()` then set the sub-threshold pixels of `intensity` to `NA`:
 
 ```{r snr-check}
@@ -568,12 +568,12 @@ imageR(combined, feat_ind = 1, sample_lab = "run", val_slot = "intensity",
 
 | Function | Takes | Produces |
 |---|---|---|
-| `run_study()` | a YAML configuration file | runs the whole study: `.txt` images, optional calibration, one HTML report per SNR threshold |
-| `validate_config()` | the same file | a report of every problem found in it, before anything is read or written |
-| `generate_txt_images()` | acquisition names, paths, ion library, SNR settings | list of combined/SNR-filtered objects; optional per-feature `.txt` images |
-| `run_example()` | nothing (all paths resolved internally) | the same list plus `calibrated` and `report`, having rendered the HTML report |
+| `runStudy()` | a YAML configuration file | runs the whole study: `.txt` images, optional calibration, one HTML report per SNR threshold |
+| `validateConfig()` | the same file | a report of every problem found in it, before anything is read or written |
+| `generateTxtImages()` | acquisition names, paths, ion library, SNR settings | list of combined/SNR-filtered objects; optional per-feature `.txt` images |
+| `runExample()` | nothing (all paths resolved internally) | the same list plus `calibrated` and `report`, having rendered the HTML report |
 
-Everything above runs inside `generate_txt_images()`, which `run_study()` drives
+Everything above runs inside `generateTxtImages()`, which `runStudy()` drives
 from a YAML file. In practice a whole study -- multiple acquisitions, SNR
 sweeps, ion ratios and optional calibration -- is configured in one place. A
 minimal config looks like:
@@ -606,17 +606,17 @@ calibration, ...) -- open it to use as a starting point:
 file.show(system.file("config_template.yaml", package = "quantMSImageR"))
 ```
 
-Then point `run_study()` at your filled-in config:
+Then point `runStudy()` at your filled-in config:
 
 ```{r run-study, eval = FALSE}
-run_study("path/to/study_config.yaml")
+runStudy("path/to/study_config.yaml")
 ```
 
 The same runner is available from the command line, which is the usual way to
 run a large study unattended:
 
 ```sh
-Rscript -e 'quantMSImageR::run_study("study_config.yaml")'
+Rscript -e 'quantMSImageR::runStudy("study_config.yaml")'
 ```
 
 ## The configuration as a record of the analysis
@@ -632,12 +632,12 @@ The file is small enough to deposit alongside the data, cite in a methods
 section, or track in version control in line with FAIR principles
 (Wilkinson *et al.*, 2016).
 
-To ensure accuracy of this documentation `validate_config()` runs every check
+To ensure accuracy of this documentation `validateConfig()` runs every check
 rather than stopping at the first failure, so one call reports every problem in
 the file:
 
 ```{r validate, eval = FALSE}
-validate_config("path/to/study_config.yaml")
+validateConfig("path/to/study_config.yaml")
 ```
 
 ```
@@ -650,7 +650,7 @@ Errors:
     transition name.
 ```
 
-`run_study()` calls it first and stops if there are errors, so a configuration
+`runStudy()` calls it first and stops if there are errors, so a configuration
 that cannot be trusted never produces an output. The checks are deliberately
 cross-file for every enabled functionality (the ion library, the calibration
 metadata and the config have to agree with each other, not merely be

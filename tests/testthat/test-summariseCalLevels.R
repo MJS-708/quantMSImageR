@@ -1,0 +1,23 @@
+test_that("summariseCalLevels summarises calibration ROIs", {
+
+  cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
+  skip_if_not(file.exists(file.path(cal_dir, "cal_MSI.RDS")),
+              "synthetic cal data not generated (run inst/scripts/generate_cal_data.R)")
+
+  cal  <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
+             "quant_MSImagingExperiment")
+  meta <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
+
+  out <- summariseCalLevels(cal, meta, val_slot = "intensity",
+                              cal_label = "Cal", id = "identifier")
+
+  rd <- out@calibrationInfo@cal_response_data
+
+  # cal_spot, level, analyte, amount_pg, the four response summaries,
+  # pixels, n_nonmissing and pg_perpixel.
+  expect_equal(ncol(rd), 11L)
+  expect_equal(nrow(rd), 45L)              # 15 spots x 3 analytes
+  expect_true(all(rd$pixels == 4))         # 2x2 calibration spots
+  expect_true(all(is.finite(rd$response_perpixel)))
+  expect_true(all(rd$pg_perpixel > 0))
+})

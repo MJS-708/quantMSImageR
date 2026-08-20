@@ -24,7 +24,7 @@ overwriting \code{intensity}, so the raw values survive the whole workflow:
 \describe{
 \item{\code{intensity}}{Raw measured response, as read from the acquisition.}
 \item{\code{response}}{Internal-standard-normalised, added by \code{\link[=int2response]{int2response()}}.}
-\item{\code{snr}}{Background-referenced signal-to-noise, added by \code{\link[=int2snr]{int2snr()}}.}
+\item{\code{snr}}{Background-referenced signal-to-noise, added by \code{\link[=int2SNR]{int2SNR()}}.}
 \item{\code{pg_pixel}, \code{pg_mm2}}{Calibrated amount estimates, added by
 \code{\link[=int2conc]{int2conc()}}.}
 }
@@ -36,7 +36,7 @@ metadata (\code{x}, \code{y}, \code{run}, and the tissue mask in \code{sample_na
 without which \code{\link[=int2conc]{int2conc()}} cannot produce \code{pg_mm2}.
 
 Several acquisitions are held in a single object, distinguished by the \code{run}
-column of \code{pData()}; this is what \code{\link[=combine_MSIs]{combine_MSIs()}} produces and what the
+column of \code{pData()}; this is what \code{\link[=combineMSIs]{combineMSIs()}} produces and what the
 per-sample summaries group on.
 }
 \section{Slots}{
@@ -59,11 +59,11 @@ names(spectraData(obj))       # available layers
 head(as.data.frame(pData(obj)), 3)
 
 # Derived layers accumulate alongside intensity
-obj <- int2snr(obj, snr_thresh = 3)
+obj <- int2SNR(obj, snr_thresh = 3)
 names(spectraData(obj))
 
 }
 \seealso{
 \link[=calibrationInfo-class]{calibrationInfo}, \link[=tissueInfo-class]{tissueInfo},
-\link{quantMSImageR-accessors}, \code{\link[=combine_MSIs]{combine_MSIs()}}
+\link{quantMSImageR-accessors}, \code{\link[=combineMSIs]{combineMSIs()}}
 }

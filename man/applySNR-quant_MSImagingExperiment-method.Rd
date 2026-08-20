@@ -9,7 +9,7 @@
 }
 \arguments{
 \item{MSIobject}{A \code{quant_MSImagingExperiment} object containing both
-\code{val_slot} and an \code{snr} spectra slot (populated by \code{int2snr()}).}
+\code{val_slot} and an \code{snr} spectra slot (populated by \code{int2SNR()}).}
 
 \item{val_slot}{Character. Name of the intensity slot to mask (default
 \code{"intensity"}).}
@@ -21,7 +21,7 @@ The input object with sub-threshold pixels set to \code{NA} in \code{val_slot}.
 }
 \description{
 Sets pixels to \code{NA} in \code{val_slot} wherever the \code{snr} spectra slot is \code{NA}.
-Typically called after \code{int2snr()}: pixels that did not pass the SNR threshold
+Typically called after \code{int2SNR()}: pixels that did not pass the SNR threshold
 (stored as \code{NA} in the \code{snr} slot) are suppressed in the intensity slot so
 they are excluded from downstream analysis and visualisation.
 }
@@ -35,17 +35,17 @@ of the object if the pre-masking values are needed afterwards.
 p <- system.file("extdata", "example.raw", "section01.RDS",
                  package = "quantMSImageR")
 obj <- as(readRDS(p), "quant_MSImagingExperiment")
-obj <- int2snr(obj, snr_thresh = 3)
+obj <- int2SNR(obj, snr_thresh = 3)
 obj <- applySNR(obj, val_slot = "intensity")
 
 }
 \seealso{
-\code{\link[=int2snr]{int2snr()}}
+\code{\link[=int2SNR]{int2SNR()}}
 
 Other filtering:
 \code{\link{back2NA,quant_MSImagingExperiment-method}},
+\code{\link{int2SNR,quant_MSImagingExperiment-method}},
 \code{\link{int2response,quant_MSImagingExperiment-method}},
-\code{\link{int2snr,quant_MSImagingExperiment-method}},
-\code{\link{zero2na,quant_MSImagingExperiment-method}}
+\code{\link{zero2NA,quant_MSImagingExperiment-method}}
 }
 \concept{filtering}

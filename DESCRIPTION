@@ -1,7 +1,7 @@
 Package: quantMSImageR
 Title: Processing and Quantification of Targeted Mass Spectrometry Imaging
     Data
-Version: 0.99.5
+Version: 0.99.6
 Authors@R:
     person("Matthew J.", "Smith", , "mattyjsmith123@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-7357-2670"))
@@ -59,33 +59,33 @@ Config/testthat/edition: 3
 Collate:
     'setClasses.R'
     'accessors.R'
-    'align_features.R'
+    'alignFeatures.R'
     'applySNR.R'
     'back2NA.R'
-    'bind_panels.R'
-    'build_feature_meta.R'
-    'combine_MSIs.R'
-    'contribution_hm.R'
-    'createMSIDatamatrix.R'
-    'create_cal_curve.R'
-    'generate_txt_images.R'
+    'bindPanels.R'
+    'buildFeatureMeta.R'
+    'combineMSIs.R'
+    'contributionHm.R'
+    'createCalCurve.R'
+    'createMSIDataMatrix.R'
+    'generateTxtImages.R'
     'imageR.R'
+    'int2SNR.R'
     'int2conc.R'
     'int2response.R'
-    'int2snr.R'
     'join_ion_library.R'
     'palettes.R'
-    'plot_cal_coverage.R'
+    'plotCalCoverage.R'
     'quantMSImageR-package.R'
-    'quantile_hm.R'
-    'read_mrm.R'
-    'remove_blank_mzs.R'
-    'run_example.R'
-    'run_study.R'
-    'select_tissue_pixels.R'
-    'stitch_acquisitions.R'
-    'summarise_cal_levels.R'
-    'trim_MSI.R'
+    'quantileHm.R'
+    'readMRM.R'
+    'removeBlankMzs.R'
+    'runExample.R'
+    'runStudy.R'
+    'selectTissuePixels.R'
+    'stitchAcquisitions.R'
+    'summariseCalLevels.R'
+    'trimMSI.R'
     'validate.R'
-    'zero2na.R'
+    'zero2NA.R'
 Config/roxygen2/version: 8.0.0

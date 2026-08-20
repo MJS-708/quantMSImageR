@@ -28,18 +28,18 @@ empty list) until the corresponding step has run:
 \describe{
 \item{\code{cal_metadata}}{\code{data.frame}. The calibration design supplied by the
 user: one row per (spot, analyte), with columns \code{identifier}, \code{analyte},
-\code{amount_pg} and \code{level}. Set by \code{\link[=summarise_cal_levels]{summarise_cal_levels()}}.}
+\code{amount_pg} and \code{level}. Set by \code{\link[=summariseCalLevels]{summariseCalLevels()}}.}
 \item{\code{cal_response_data}}{\code{data.frame}. Summarised response per
 calibration level, with columns \code{analyte}, \code{pg_perpixel},
-\code{response_perpixel} and \code{level}. Set by \code{\link[=summarise_cal_levels]{summarise_cal_levels()}}.}
+\code{response_perpixel} and \code{level}. Set by \code{\link[=summariseCalLevels]{summariseCalLevels()}}.}
 \item{\code{cal_list}}{\code{list}. One \code{stats::lm} per analyte, of
 \code{response_perpixel ~ pg_perpixel}, \strong{named by analyte} so that
 \code{\link[=int2conc]{int2conc()}} can match models to features by \code{fData(x)$name}. Set by
-\code{\link[=create_cal_curve]{create_cal_curve()}}.}
+\code{\link[=createCalCurve]{createCalCurve()}}.}
 \item{\code{r2_df}}{\code{data.frame}. One row per analyte, with \code{feature} and \code{r2};
 \code{\link[=int2conc]{int2conc()}} adds an \code{out_of_range} column giving the proportion of
 pixels extrapolated beyond the calibrated range. Set by
-\code{\link[=create_cal_curve]{create_cal_curve()}}.}
+\code{\link[=createCalCurve]{createCalCurve()}}.}
 }
 
 Invariants checked by the validity method: \code{cal_list} must be named if it is
@@ -73,20 +73,20 @@ cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
 cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
           "quant_MSImagingExperiment")
 cal_metadata <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
-cal <- summarise_cal_levels(cal, cal_metadata, val_slot = "intensity",
+cal <- summariseCalLevels(cal, cal_metadata, val_slot = "intensity",
                             cal_label = "Cal", id = "identifier")
-cal <- create_cal_curve(cal, cal_type = "cal")
+cal <- createCalCurve(cal, cal_type = "cal")
 calibrationDiagnostics(cal)
 
 }
 \seealso{
-\link{quant_MSImagingExperiment}, \code{\link[=create_cal_curve]{create_cal_curve()}},
+\link{quant_MSImagingExperiment}, \code{\link[=createCalCurve]{createCalCurve()}},
 \link{quantMSImageR-accessors}
 
 Other calibration:
-\code{\link{create_cal_curve,quant_MSImagingExperiment-method}},
+\code{\link{createCalCurve,quant_MSImagingExperiment-method}},
 \code{\link{int2conc,quant_MSImagingExperiment-method}},
-\code{\link{plot_cal_coverage,quant_MSImagingExperiment-method}},
-\code{\link{summarise_cal_levels,quant_MSImagingExperiment-method}}
+\code{\link{plotCalCoverage,quant_MSImagingExperiment-method}},
+\code{\link{summariseCalLevels,quant_MSImagingExperiment-method}}
 }
 \concept{calibration}

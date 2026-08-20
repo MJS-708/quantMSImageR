@@ -35,7 +35,7 @@ BiocManager::install(c("Cardinal", "ComplexHeatmap"))
   brew install imagemagick
   ```
 
-- In `select_tissue_pixels()`, finish ROI point selection with **Esc**
+- In `selectTissuePixels()`, finish ROI point selection with **Esc**
   (not right-click — that is the Windows convention). Make sure the plot
   opens in an external Quartz window, not the RStudio Plots pane, or
   clicks will not register.
@@ -68,7 +68,7 @@ synthetic dataset of two samples × three 20×20-pixel sections, with seven
 oxylipins (negative-ion mode) and one internal standard:
 
 ```r
-quantMSImageR::run_example()
+quantMSImageR::runExample()
 ```
 
 This renders an HTML report and opens it directly in the RStudio viewer (or
@@ -80,12 +80,12 @@ your default browser). No file paths to configure.
 
 Before running the YAML workflow, each acquisition needs a `tissue_pixels.csv`
 saved inside its `.raw` folder.  This is generated interactively by
-`select_tissue_pixels()`, which displays all ion images so you can choose the
+`selectTissuePixels()`, which displays all ion images so you can choose the
 feature that best separates tissue from background, then opens an ROI-selection
 window:
 
 ```r
-select_tissue_pixels(
+selectTissuePixels(
   name         = "sample_1",
   data_path    = "path/to/raw",
   lib_ion_path = "path/to/ion_library.csv"
@@ -109,15 +109,15 @@ Analysis is configured via a YAML file and run with a single command:
 library(quantMSImageR)
 
 # Check the configuration before anything is read or written
-validate_config("path/to/config.yaml")
+validateConfig("path/to/config.yaml")
 
-run_study("path/to/config.yaml")
+runStudy("path/to/config.yaml")
 ```
 
 or from a shell:
 
 ```bash
-Rscript -e 'quantMSImageR::run_study("path/to/config.yaml")'
+Rscript -e 'quantMSImageR::runStudy("path/to/config.yaml")'
 ```
 
 This will:

@@ -8,9 +8,9 @@ test_that("int2conc converts intensities to calibrated amount layers", {
              "quant_MSImagingExperiment")
   meta <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
 
-  cal <- summarise_cal_levels(cal, meta, val_slot = "intensity",
+  cal <- summariseCalLevels(cal, meta, val_slot = "intensity",
                               cal_label = "Cal", id = "identifier")
-  cal <- create_cal_curve(cal, cal_type = "cal")
+  cal <- createCalCurve(cal, cal_type = "cal")
 
   out <- int2conc(cal, pixel_header = "sample_type", pixels = "Tissue")
 

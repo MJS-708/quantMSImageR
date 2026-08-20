@@ -62,16 +62,16 @@ test_that("the blank no longer decides the fit", {
   expect_gt(w_old[1] / sum(w_old), 0.99)
 })
 
-test_that("create_cal_curve exposes weighting and defaults to 1/x", {
+test_that("createCalCurve exposes weighting and defaults to 1/x", {
   cal_dir <- system.file("extdata", "cal_example.raw", package = "quantMSImageR")
   cal <- as(readRDS(file.path(cal_dir, "cal_MSI.RDS")),
             "quant_MSImagingExperiment")
   cm  <- read.csv(file.path(cal_dir, "calibration_metadata.csv"))
-  cal <- summarise_cal_levels(cal, cm, val_slot = "intensity",
+  cal <- summariseCalLevels(cal, cm, val_slot = "intensity",
                               cal_label = "Cal", id = "identifier")
 
-  w1 <- create_cal_curve(cal, cal_type = "cal")
-  w0 <- create_cal_curve(cal, cal_type = "cal", weighting = "none")
+  w1 <- createCalCurve(cal, cal_type = "cal")
+  w0 <- createCalCurve(cal, cal_type = "cal", weighting = "none")
 
   expect_s4_class(w1, "quant_MSImagingExperiment")
   expect_equal(length(calibrationModels(w1)), length(calibrationModels(w0)))
@@ -79,5 +79,5 @@ test_that("create_cal_curve exposes weighting and defaults to 1/x", {
   expect_false(isTRUE(all.equal(coef(calibrationModels(w1)[[1]]),
                                 coef(calibrationModels(w0)[[1]]))))
 
-  expect_error(create_cal_curve(cal, cal_type = "cal", weighting = "1/sqrt(x)"))
+  expect_error(createCalCurve(cal, cal_type = "cal", weighting = "1/sqrt(x)"))
 })
