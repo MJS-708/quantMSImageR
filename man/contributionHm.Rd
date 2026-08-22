@@ -7,6 +7,7 @@
 contributionHm(
   MSIobject,
   quant_val = 0.5,
+  scale = c("shared", "feature"),
   heatmap_order = NA,
   heatmap_labs = NA,
   feature_split = NULL,
@@ -29,6 +30,18 @@ contributionHm(
 
 \item{quant_val}{Numeric in (0, 1). Quantile of pixel intensities summarised
 per feature per sample (default \code{0.5}, the median).}
+
+\item{scale}{Character. How the colour scale is set.
+\code{"shared"} (default) puts every feature on ONE scale, capped at a
+quantile of all the group means, so a strongly separating feature is
+vivid and a flat one is pale -- colours mean the same thing in every
+column and features can be compared with each other.
+\code{"feature"} normalises each feature by its own extreme, so every column
+fills the ramp regardless of how far it actually moved. That shows the
+pattern within a feature and makes comparison BETWEEN features
+meaningless -- a feature varying by a few percent looks exactly like one
+that doubles. Use \code{"shared"} to ask which features changed most, and
+\code{"feature"} to read each feature's own profile.}
 
 \item{heatmap_order}{Character vector of run names in the desired column order.
 Must match values in \code{pData(MSIobject)$run}. Defaults to \code{NA} (use
@@ -138,6 +151,13 @@ Both limits are computed from the quantity actually drawn, each as the
 fraction of cells saturates on each channel and the bulk of the data gets
 the full ramp. Expect the two to differ by a factor of two or more. Note
 this differs from \code{\link[=quantileHm]{quantileHm()}}, which clips to a fixed [-1, 1].
+
+Both limits above are single numbers covering the whole panel, which is what
+lets one column be compared with another. \code{scale = "feature"} replaces them
+with a limit per feature, so each column is normalised by its own extreme
+and fills the ramp whatever its actual spread. That is the same reading
+\code{\link[=quantileHm]{quantileHm()}} gives, but keeping the group-mean hue and the contribution
+opacity: use it to look along a single feature, never across features.
 }
 
 \examples{

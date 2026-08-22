@@ -36,6 +36,31 @@
 #' perfectly flat feature reads as uniformly low; treat an entirely
 #' single-coloured column with suspicion and check the underlying values.
 #'
+#' @section Why there is no scale argument here:
+#'
+#' [contributionHm()] takes `scale = "shared"` or `"feature"`, choosing whether
+#' features can be compared with each other. This function has no such option,
+#' and the reason is structural rather than an omission.
+#'
+#' Comparability needs the coloured quantity to still carry cross-feature
+#' information when the colour scale is applied. Here it does not. Every column
+#' is z-scored to mean 0 and standard deviation 1 *before* anything is drawn, so
+#' a feature whose samples differ by two percent and one that doubles arrive at
+#' the ramp with the same spread. The fixed \[-1, 1\] limits are shared by
+#' every column, but sharing limits cannot restore what standardising already
+#' removed -- the flattening happens first.
+#'
+#' [contributionHm()] escapes this because it colours the group **mean** of
+#' those z-scores, which is not renormalised per feature: it sits near 0 when
+#' the groups do not separate and approaches 1 when they separate cleanly, and
+#' that range survives to the colour scale. A shared cap on it therefore means
+#' something.
+#'
+#' So: this heatmap for one feature's profile across samples, and
+#' `contributionHm(scale = "shared")` when the question is which features
+#' separate the groups. Adding `scale` here would offer a comparison the
+#' arithmetic cannot support.
+#'
 #' @import Cardinal
 #' @include setClasses.R
 #'

@@ -12,6 +12,18 @@
   mentioned only that z-scores are "clipped to [-1, 1]" and never said the
   z-scoring is per feature, so nothing warned a reader that its colours are not
   comparable between features.
+* `?contributionHm` gains a section on comparing features with each other: one
+  cap for the panel versus one per column, that `"shared"` ranks by effect size
+  rather than fold change, that the group-mean z-score is bounded at +/- 1 for a
+  balanced design so the cap can be read as a fraction of the separation the
+  design can show, and the two limits on that comparison (the deviation is
+  estimated from few samples, and is pooled across groups so the scale
+  compresses at the top).
+* `?quantileHm` gains a section explaining why it has no `scale` argument: it
+  colours the per-sample z-score, which is standardised per feature before
+  anything is drawn, so no choice of colour limits can restore a comparison
+  between features. `contributionHm()` escapes this by colouring the group mean
+  of those z-scores, which is not renormalised per feature.
 * `?quantileHm` now records that a feature with no variance across samples is
   drawn at the bottom of the ramp rather than as missing, so an entirely
   single-coloured column should be checked against the values. (The behaviour
