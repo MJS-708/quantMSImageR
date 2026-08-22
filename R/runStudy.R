@@ -238,6 +238,10 @@ runStudy <- function(config_file) {
   # against each other; "feature" gives each its own scale and deliberately
   # forfeits that comparison. See contributionHm().
   heatmap_scale <- cfg$parameters$heatmap_scale %||% "shared"
+  # Quantiles the report draws a heatmap section for. Kept as the historical
+  # five when absent, so an existing config renders exactly as before.
+  heatmap_quantiles <- cfg$parameters$heatmap_quantiles %||%
+                         c(0.25, 0.5, 0.75, 0.95, 0.98)
 
   # Report palettes (see the `colours:` block of config_template.yaml). Read
   # here so the report picks them up from this frame at render time.

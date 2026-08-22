@@ -171,6 +171,15 @@ validateConfig = function(config, check_paths = TRUE){
           as.character(hsc)))
       else .chk_add(chk, "heatmap_scale", "ok")
 
+      hq = par$heatmap_quantiles
+      if(!is.null(hq)) {
+        .q = suppressWarnings(as.numeric(unlist(hq)))
+        if(!length(.q) || anyNA(.q) || any(.q <= 0) || any(.q >= 1))
+          .chk_add(chk, "heatmap quantiles", "error",
+            "parameters$heatmap_quantiles must be one or more numbers strictly between 0 and 1, e.g. [0.5, 0.95].")
+        else .chk_add(chk, "heatmap quantiles", "ok")
+      } else .chk_add(chk, "heatmap quantiles", "ok")
+
       hrs = par$heatmap_row_split
       if(!is.null(hrs) && nzchar(hrs) && !hrs %in% colnames(ion_lib))
         .chk_add(chk, "heatmap_row_split column", "warning", sprintf(

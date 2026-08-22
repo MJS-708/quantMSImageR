@@ -458,7 +458,17 @@ if (length(heatmap_order) < 2) {
       "show their distribution.*\n\n", sep = "")
 } else {
 
-for (quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)) {
+# Which quantiles get a section. Configurable because the useful set depends
+# on the chemistry: a feature confined to a few pixels shows up at 0.95 and
+# not at 0.5, while a diffuse one is the other way round. Braced on both arms
+# -- a bare else opening a line is a parse error at chunk top level.
+.hm_quantiles <- if (exists("heatmap_quantiles") && !is.null(heatmap_quantiles)) {
+  sort(unique(as.numeric(heatmap_quantiles)))
+} else {
+  c(0.25, 0.5, 0.75, 0.95, 0.98)
+}
+
+for (quant_value in .hm_quantiles) {
 
   cat(paste('## ', as.character(quant_value * 100), "th quantile heatmap",
             '\n\n'))

@@ -1,5 +1,13 @@
 # quantMSImageR 0.99.7
 
+* `parameters$heatmap_quantiles` sets which pixel quantiles get a heatmap
+  section, defaulting to the `0.25, 0.5, 0.75, 0.95, 0.98` that were previously
+  hard-coded, so an existing config renders exactly as before. The useful set
+  depends on the chemistry -- a feature confined to a few pixels shows at the
+  95th and not at the median, a diffuse one the other way round -- and it is
+  also the lever to pull if `heatmap_scale: "both"` makes a report longer than
+  you want, since two quantiles on two scales is usually more informative than
+  five on one.
 * `parameters$heatmap_scale` also accepts `"both"`, which draws each quantile
   section twice -- once on the shared scale and once per-feature -- under
   sub-headings that say what each one can and cannot be used for. The two
