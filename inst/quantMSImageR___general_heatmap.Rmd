@@ -321,6 +321,15 @@ rather than distorting to fill a fixed area.
 }
 .hm_style <- quantMSImageR:::.heatmap_style(.style_cfg, heatmap_labs)
 
+# Read here rather than inside the quantile loop: it does not vary by
+# quantile, and the loop consults it on its first line to decide how many
+# panels to draw -- defining it further down left it undefined at that point.
+.hm_scale <- if (exists("heatmap_scale") && !is.null(heatmap_scale)) {
+  as.character(heatmap_scale)
+} else {
+  "shared"
+}
+
 # Which heatmap this is, said in the report rather than left to the config.
 #
 # Braces are required on both arms: a bare `else` starting a new line at top
@@ -522,14 +531,6 @@ Each column normalised by its own extreme, so every',
                 group_palette    = .pal_group,
                 feature_palette  = .pal_feature,
                 cell_border      = .cell_border)
-
-  # scale= only exists on contributionHm; quantileHm is always per-feature by
-  # construction, so passing it there would be an unused-argument error.
-  .hm_scale <- if (exists("heatmap_scale") && !is.null(heatmap_scale)) {
-    as.character(heatmap_scale)
-  } else {
-    "shared"
-  }
 
   p <- if (identical(.hm_style, "contribution")) {
     do.call(quantMSImageR::contributionHm, c(.args, list(scale = .sc)))
