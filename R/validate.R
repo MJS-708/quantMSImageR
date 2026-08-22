@@ -165,9 +165,9 @@ validateConfig = function(config, check_paths = TRUE){
       else .chk_add(chk, "heatmap_style", "ok")
 
       hsc = par$heatmap_scale
-      if(!is.null(hsc) && !as.character(hsc) %in% c("shared", "feature"))
+      if(!is.null(hsc) && !as.character(hsc) %in% c("shared", "feature", "both"))
         .chk_add(chk, "heatmap_scale", "error", sprintf(
-          "parameters$heatmap_scale = '%s'; use 'shared' or 'feature'.",
+          "parameters$heatmap_scale = '%s'; use 'shared', 'feature' or 'both'.",
           as.character(hsc)))
       else .chk_add(chk, "heatmap_scale", "ok")
 

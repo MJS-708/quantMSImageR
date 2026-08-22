@@ -1,5 +1,14 @@
 # quantMSImageR 0.99.7
 
+* `parameters$heatmap_scale` also accepts `"both"`, which draws each quantile
+  section twice -- once on the shared scale and once per-feature -- under
+  sub-headings that say what each one can and cannot be used for. The two
+  answer sequential questions rather than competing ones: the shared panel
+  says which features separate the groups, the per-feature panel says what one
+  feature's profile looks like. Reading them in that order also guards against
+  the per-feature panel's failure mode, where a feature with no group effect is
+  drawn just as vividly as the strongest one. `"both"` is a report setting;
+  `contributionHm()` itself still draws one heatmap.
 * `contributionHm()` gains `scale`. `"shared"` (default, unchanged behaviour)
   keeps every feature on one colour scale so features can be compared with each
   other; `"feature"` normalises each feature by its own extreme, so every

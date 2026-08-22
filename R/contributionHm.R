@@ -101,6 +101,11 @@
 #'   meaningless -- a feature varying by a few percent looks exactly like one
 #'   that doubles. Use `"shared"` to ask which features changed most, and
 #'   `"feature"` to read each feature's own profile.
+#'
+#'   The study report also accepts `"both"` in `parameters$heatmap_scale`,
+#'   which draws each quantile section twice, once on each scale. That is a
+#'   report-level setting; this function draws one heatmap and takes only
+#'   `"shared"` or `"feature"`.
 #' @param quant_val Numeric in (0, 1). Quantile of pixel intensities summarised
 #'   per feature per sample (default `0.5`, the median).
 #' @param alpha_floor Numeric in \[0, 1). Opacity given to a sample that did not

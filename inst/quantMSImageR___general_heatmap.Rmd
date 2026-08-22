@@ -463,6 +463,46 @@ for (quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)) {
   cat(paste('## ', as.character(quant_value * 100), "th quantile heatmap",
             '\n\n'))
 
+  # scale= belongs to contributionHm() only -- quantileHm() is per-feature by
+  # construction, so "both" collapses to a single panel there rather than
+  # drawing the same figure twice.
+  .scales <- if (!identical(.hm_style, "contribution")) {
+    "none"
+  } else if (identical(.hm_scale, "both")) {
+    c("shared", "feature")
+  } else {
+    .hm_scale
+  }
+
+  for (.sc in .scales) {
+
+  # Only sub-head when there is more than one panel to tell apart.
+  if (length(.scales) > 1L) {
+    cat(paste0('### ',
+      if (identical(.sc, "shared")) {
+        paste('Shared scale -- comparable between features',
+              '
+
+One colour limit for the whole panel, so a feature whose',
+              'groups separate strongly saturates and one that barely moves',
+              'stays pale. Read this to ask **which features separate the',
+              'groups**. The hue is a separation in standard deviations of',
+              'that feature, so it ranks by effect size, not fold change.')
+      } else {
+        paste('Per-feature scale -- NOT comparable between features',
+              '
+
+Each column normalised by its own extreme, so every',
+              'feature fills the colour range whatever it actually did. Read',
+              "this to ask **what one feature's profile looks like across",
+              'samples**. A feature with no group effect looks as vivid here',
+              'as the strongest one, so this panel cannot show that a feature',
+              'matters -- the panel above is what shows that.')
+      }, '
+
+'))
+  }
+
   .args <- list(MSIobject = combined, quant_val = quant_value,
                 heatmap_order = heatmap_order, heatmap_labs = heatmap_labs,
                 feature_split = .row_split,
@@ -482,7 +522,7 @@ for (quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)) {
   }
 
   p <- if (identical(.hm_style, "contribution")) {
-    do.call(quantMSImageR::contributionHm, c(.args, list(scale = .hm_scale)))
+    do.call(quantMSImageR::contributionHm, c(.args, list(scale = .sc)))
   } else {
     do.call(quantMSImageR::quantileHm, .args)
   }
@@ -542,6 +582,8 @@ for (quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)) {
   unlink(.tmp)
 
   cat('\n \n')
+
+  }   # end scale loop
 
 }
 
