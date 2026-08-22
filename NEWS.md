@@ -1,3 +1,22 @@
+# quantMSImageR 0.99.7
+
+* `contributionHm()` gains `scale`. `"shared"` (default, unchanged behaviour)
+  keeps every feature on one colour scale so features can be compared with each
+  other; `"feature"` normalises each feature by its own extreme, so every
+  column fills the ramp whatever its actual spread. The second is the reading
+  [quantileHm()] gives, but keeping the group-mean hue and the contribution
+  opacity -- use it to look along one feature, never across features. The
+  legend states which scale is in force. Exposed in the study YAML as
+  `parameters$heatmap_scale`, and checked by `validateConfig()`.
+* Documented the colour system on both heatmaps. `?quantileHm` previously
+  mentioned only that z-scores are "clipped to [-1, 1]" and never said the
+  z-scoring is per feature, so nothing warned a reader that its colours are not
+  comparable between features.
+* `?quantileHm` now records that a feature with no variance across samples is
+  drawn at the bottom of the ramp rather than as missing, so an entirely
+  single-coloured column should be checked against the values. (The behaviour
+  itself is unchanged in this release.)
+
 # quantMSImageR 0.99.6
 
 Changes in response to the Bioconductor package review (Contributions #115).

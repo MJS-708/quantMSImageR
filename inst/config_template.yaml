@@ -43,6 +43,7 @@ parameters:
     #"12-HETE":  1.2
   heatmap_row_split: "Met-1"            # ion-library column to split heatmap columns | omit
   heatmap_style:  "auto"                # auto (contribution if any group has 3+ reps) | per_sample | contribution
+  heatmap_scale:  "shared"              # contribution heatmap only: shared = features comparable | feature = each feature on its own scale, NOT comparable
   thresh:         20                    # cold-spot percentile removed
   perc:           97                    # hot-spot percentile suppressed
   rot_clockwise:  0                     # image rotation: 0/1/2/3 x 90 deg

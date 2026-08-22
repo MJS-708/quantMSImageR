@@ -9,6 +9,33 @@
 #' puts the long dimension vertically where there is room for it and keeps
 #' sample names horizontally readable.
 #'
+#' @section What the colour means:
+#'
+#' Each feature is z-scored **on its own**, across samples: the column is
+#' centred on that feature's mean and divided by its own standard deviation.
+#' The colour therefore says where a sample sits *within that feature's* range,
+#' and the ramp is anchored at 0 so white is the feature's mean.
+#'
+#' **Colours are not comparable between features.** Because every column is
+#' scaled by its own spread, a feature whose samples differ by a few percent
+#' fills the same blue-to-red range as one that doubles. Reading across a row
+#' to compare two features is the one thing this heatmap will not support. Use
+#' it to ask "which samples are high for this feature", not "which feature
+#' changed most" -- for the latter, see the fold-change table, or
+#' [contributionHm()], which puts every feature on one shared scale.
+#'
+#' The z-scores are clipped to `[-1, 1]` and the ramp spans exactly that, so
+#' any sample more than one standard deviation from its feature's mean is drawn
+#' at full intensity. With a handful of samples per group a clear separation
+#' saturates readily, which is deliberate -- the panel is meant to show the
+#' pattern, not the magnitude -- but it does mean two saturated cells can sit
+#' at very different z-scores.
+#'
+#' A feature with no variance across samples has an undefined z-score. It is
+#' currently drawn at the bottom of the ramp rather than as missing, so a
+#' perfectly flat feature reads as uniformly low; treat an entirely
+#' single-coloured column with suspicion and check the underlying values.
+#'
 #' @import Cardinal
 #' @include setClasses.R
 #'

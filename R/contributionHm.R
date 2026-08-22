@@ -41,10 +41,28 @@
 #' the full ramp. Expect the two to differ by a factor of two or more. Note
 #' this differs from [quantileHm()], which clips to a fixed \[-1, 1\].
 #'
+#' Both limits above are single numbers covering the whole panel, which is what
+#' lets one column be compared with another. `scale = "feature"` replaces them
+#' with a limit per feature, so each column is normalised by its own extreme
+#' and fills the ramp whatever its actual spread. That is the same reading
+#' [quantileHm()] gives, but keeping the group-mean hue and the contribution
+#' opacity: use it to look along a single feature, never across features.
+#'
 #' @import Cardinal
 #' @include setClasses.R
 #'
 #' @inheritParams quantileHm
+#' @param scale Character. How the colour scale is set.
+#'   `"shared"` (default) puts every feature on ONE scale, capped at a
+#'   quantile of all the group means, so a strongly separating feature is
+#'   vivid and a flat one is pale -- colours mean the same thing in every
+#'   column and features can be compared with each other.
+#'   `"feature"` normalises each feature by its own extreme, so every column
+#'   fills the ramp regardless of how far it actually moved. That shows the
+#'   pattern within a feature and makes comparison BETWEEN features
+#'   meaningless -- a feature varying by a few percent looks exactly like one
+#'   that doubles. Use `"shared"` to ask which features changed most, and
+#'   `"feature"` to read each feature's own profile.
 #' @param quant_val Numeric in (0, 1). Quantile of pixel intensities summarised
 #'   per feature per sample (default `0.5`, the median).
 #' @param alpha_floor Numeric in \[0, 1). Opacity given to a sample that did not
@@ -71,6 +89,7 @@
 #' @family visualisation
 #' @export
 contributionHm <- function(MSIobject, quant_val = 0.5,
+                            scale = c("shared", "feature"),
                             heatmap_order = NA, heatmap_labs = NA,
                             feature_split = NULL,
                             feature_split_name = "Pathway",
@@ -103,8 +122,9 @@ contributionHm <- function(MSIobject, quant_val = 0.5,
     stop("contributionHm: heatmap_labs has ", length(grp),
          " entries but there are ", length(samples), " samples.", call. = FALSE)
 
+  scale <- match.arg(scale)
   v <- .contribution_values(mat, grp, alpha_floor = alpha_floor,
-                            saturate = saturate)
+                            saturate = saturate, scale = scale)
 
   ## ---- same orientation and layout as quantileHm --------------------------
   fill_t  <- t(v$fill)
@@ -144,7 +164,11 @@ contributionHm <- function(MSIobject, quant_val = 0.5,
   layout$rect_gp <- grid::gpar(type = "none")
 
   hm <- do.call(ComplexHeatmap::Heatmap, c(list(
-    fill_t, name = "Group mean\nz-score", col = col_fn, na_col = na_col,
+    fill_t,
+        # The two scales are different readings; the key must say which.
+        name = if (identical(scale, "feature"))
+                 "Group mean\n(per feature)" else "Group mean\nz-score",
+        col = col_fn, na_col = na_col,
     cell_fun = cell_fun), layout))
 
   # The opacity channel is an encoding, so it needs a key. ComplexHeatmap
@@ -235,7 +259,9 @@ contributionHm <- function(MSIobject, quant_val = 0.5,
 # colour limits -- which are computed from different distributions on purpose;
 # see the function docs.
 .contribution_values <- function(mat, grp, alpha_floor = 0.6,
-                                 saturate = 0.04) {
+                                 saturate = 0.04,
+                                 scale = c("shared", "feature")) {
+  scale <- match.arg(scale)
   # z-score per feature across ALL samples, not within group: within-group
   # scaling would centre every group on itself and erase the difference being
   # drawn.
@@ -269,8 +295,30 @@ contributionHm <- function(MSIobject, quant_val = 0.5,
   contrib[!is.finite(contrib)] <- NA_real_
   contrib_pos <- pmax(contrib, 0)
 
-  cap_fill  <- .saturating_cap(gmean,       saturate)
-  cap_alpha <- .saturating_cap(contrib_pos, saturate)
+  if (identical(scale, "feature")) {
+    # Every feature normalised by its OWN extreme, so each column uses the full
+    # ramp whatever its actual spread. That is the point: it shows the pattern
+    # within a feature and makes comparison BETWEEN features meaningless, which
+    # is the opposite of the shared cap below. A feature that varies by a few
+    # percent then looks exactly like one that doubles.
+    .rowcap <- function(m) {
+      v <- apply(abs(m), 1L, function(r) {
+        r <- r[is.finite(r)]
+        if (!length(r)) return(NA_real_)
+        max(r)
+      })
+      v[!is.finite(v) | v <= 0] <- NA_real_
+      v
+    }
+    # m / v with length(v) == nrow(m) divides each ROW by its own cap.
+    .cf <- .rowcap(gmean);       fill        <- fill        / ifelse(is.na(.cf), 1, .cf)
+    .ca <- .rowcap(contrib_pos); contrib_pos <- contrib_pos / ifelse(is.na(.ca), 1, .ca)
+    cap_fill  <- 1
+    cap_alpha <- 1
+  } else {
+    cap_fill  <- .saturating_cap(gmean,       saturate)
+    cap_alpha <- .saturating_cap(contrib_pos, saturate)
+  }
 
   alpha <- alpha_floor + (1 - alpha_floor) * pmin(contrib_pos / cap_alpha, 1)
   # A cell drawn in na_col must be opaque, or a missing measurement fades and

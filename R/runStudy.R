@@ -234,6 +234,10 @@ runStudy <- function(config_file) {
   # .heatmap_style() for the rule. Never both -- two readings of one matrix
   # stacked together is more to compare, not more information.
   heatmap_style <- cfg$parameters$heatmap_style %||% "auto"
+  # Only consulted by the contribution heatmap. "shared" compares features
+  # against each other; "feature" gives each its own scale and deliberately
+  # forfeits that comparison. See contributionHm().
+  heatmap_scale <- cfg$parameters$heatmap_scale %||% "shared"
 
   # Report palettes (see the `colours:` block of config_template.yaml). Read
   # here so the report picks them up from this frame at render time.

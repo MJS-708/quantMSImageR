@@ -473,8 +473,16 @@ for (quant_value in c(0.25, 0.5, 0.75, 0.95, 0.98)) {
                 feature_palette  = .pal_feature,
                 cell_border      = .cell_border)
 
+  # scale= only exists on contributionHm; quantileHm is always per-feature by
+  # construction, so passing it there would be an unused-argument error.
+  .hm_scale <- if (exists("heatmap_scale") && !is.null(heatmap_scale)) {
+    as.character(heatmap_scale)
+  } else {
+    "shared"
+  }
+
   p <- if (identical(.hm_style, "contribution")) {
-    do.call(quantMSImageR::contributionHm, .args)
+    do.call(quantMSImageR::contributionHm, c(.args, list(scale = .hm_scale)))
   } else {
     do.call(quantMSImageR::quantileHm, .args)
   }

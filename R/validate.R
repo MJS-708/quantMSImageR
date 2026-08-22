@@ -164,6 +164,13 @@ validateConfig = function(config, check_paths = TRUE){
           hs))
       else .chk_add(chk, "heatmap_style", "ok")
 
+      hsc = par$heatmap_scale
+      if(!is.null(hsc) && !as.character(hsc) %in% c("shared", "feature"))
+        .chk_add(chk, "heatmap_scale", "error", sprintf(
+          "parameters$heatmap_scale = '%s'; use 'shared' or 'feature'.",
+          as.character(hsc)))
+      else .chk_add(chk, "heatmap_scale", "ok")
+
       hrs = par$heatmap_row_split
       if(!is.null(hrs) && nzchar(hrs) && !hrs %in% colnames(ion_lib))
         .chk_add(chk, "heatmap_row_split column", "warning", sprintf(
