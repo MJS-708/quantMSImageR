@@ -41,7 +41,12 @@ fills the ramp regardless of how far it actually moved. That shows the
 pattern within a feature and makes comparison BETWEEN features
 meaningless -- a feature varying by a few percent looks exactly like one
 that doubles. Use \code{"shared"} to ask which features changed most, and
-\code{"feature"} to read each feature's own profile.}
+\code{"feature"} to read each feature's own profile.
+
+The study report also accepts \code{"both"} in \code{parameters$heatmap_scale},
+which draws each quantile section twice, once on each scale. That is a
+report-level setting; this function draws one heatmap and takes only
+\code{"shared"} or \code{"feature"}.}
 
 \item{heatmap_order}{Character vector of run names in the desired column order.
 Must match values in \code{pData(MSIobject)$run}. Defaults to \code{NA} (use
@@ -158,6 +163,46 @@ with a limit per feature, so each column is normalised by its own extreme
 and fills the ramp whatever its actual spread. That is the same reading
 \code{\link[=quantileHm]{quantileHm()}} gives, but keeping the group-mean hue and the contribution
 opacity: use it to look along a single feature, never across features.
+}
+
+\section{Comparing features with each other}{
+
+
+One cap or many. That is the whole of it.
+
+\code{scale = "shared"} computes a single limit for the panel and draws every
+column on it, so a feature whose group mean reaches the cap saturates and one
+at a fifth of it stays pale. The pale column is pale because it moved less,
+and that difference is the information: features can be ranked against each
+other by how far their groups separate, in units of each feature's own
+spread.
+
+\code{scale = "feature"} gives every column its own limit, its own extreme, so
+each fills the ramp whatever it actually did. Nothing is pale, so nothing can
+be ranked. A feature with no group effect at all looks exactly as vivid as
+the strongest one in the study -- its largest group mean might be 0.05, and
+it is still drawn at full intensity. Use it to read one feature's profile
+across samples; never to argue that a feature matters.
+
+What is being compared under \code{"shared"} is \strong{effect size, not fold change}.
+The hue is a group separation measured in standard deviations of that
+feature, so a feature that doubles but varies wildly between replicates can
+sit below one that moves 20\% in every sample. For magnitude, read the
+fold-change table instead. The two orderings are both correct and answer
+different questions.
+
+For a balanced two-group design the group-mean z-score is bounded at
+\eqn{\pm 1}: perfectly separated groups with no within-group scatter put
+every sample at \eqn{z = \pm 1}, so the group means land on the bound, and
+identical groups put them on 0. A cap of 0.5 therefore means the strongest
+feature in the panel reaches about half the separation the design can show.
+
+Two limits on the comparison, both worth remembering. The standard deviation
+is estimated from the samples in hand, so with a handful per group those
+estimates are noisy and the ranking is coarse -- read it as "which features
+stand out", not as a precise order. And the deviation is pooled across
+groups, so a large separation inflates its own denominator; the scale
+compresses at the top and is not linear in effect size there.
 }
 
 \examples{
