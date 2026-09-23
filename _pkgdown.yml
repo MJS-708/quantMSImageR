@@ -30,10 +30,11 @@ reference:
 - title: Acquisition
   desc: >
     Reading a `.raw` folder against an ion library, labelling tissue against
-    background, and trimming what is not wanted.
+    background and regions within it, and trimming what is not wanted.
   contents:
   - readMRM
   - selectTissuePixels
+  - labelROIs
   - trimMSI
   - removeBlankMzs
   - buildFeatureMeta

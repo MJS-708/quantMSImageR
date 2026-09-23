@@ -3,7 +3,7 @@ Title: Processing and Quantification of Targeted Mass Spectrometry Imaging
     Data
 Version: 0.99.7
 Authors@R:
-    person("Matthew J.", "Smith", , "mattyjsmith123@gmail.com", role = c("aut", "cre"),
+    person(c("Matthew", "J."), "Smith", , "mattyjsmith123@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-7357-2670"))
 Description: Implements tools for processing and quantifying targeted DESI-MRM
     mass spectrometry imaging (MSI) datasets, extending the Cardinal package.
@@ -74,6 +74,7 @@ Collate:
     'int2conc.R'
     'int2response.R'
     'join_ion_library.R'
+    'labelROIs.R'
     'palettes.R'
     'plotCalCoverage.R'
     'quantMSImageR-package.R'

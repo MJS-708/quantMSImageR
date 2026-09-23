@@ -36,6 +36,33 @@ make_mask <- function(shape) {
 dist_from_centre <- sqrt((x - cx)^2 + (y - cy)^2)
 max_r            <- 7
 
+# Regions of interest, as labelROIs() would write them: two called "a" and two
+# called "b" per section, so the report has both several regions sharing a label
+# and more than one label to compare.
+#
+# Where they sit does the work. Intensities below fall off from the centre, so
+# the two "a" discs (near the middle) are brighter than the two "b" discs (out
+# by the rim) without a single value being adjusted for them -- and SampleB is
+# 0.6x SampleA throughout, so a study built from these sections shows both a
+# region difference and a group difference in the same panel.
+roi_discs <- list(a_01 = c(cx - 2.5, cy,       1.8),
+                  a_02 = c(cx + 2.5, cy,       1.8),
+                  b_01 = c(cx,       cy - 5.0, 1.8),
+                  b_02 = c(cx,       cy + 5.0, 1.8))
+
+make_rois <- function(tissue_mask) {
+  id <- rep(NA_character_, n_pix)
+  for (nm in names(roi_discs)) {
+    d <- roi_discs[[nm]]
+    inside <- tissue_mask & ((x - d[1])^2 + (y - d[2])^2 <= d[3]^2)
+    id[inside] <- nm
+  }
+  # Tissue outside every disc is "unassigned"; background belongs to no region.
+  id[is.na(id) & tissue_mask] <- "unassigned"
+  list(roi_id    = id,
+       roi_label = ifelse(is.na(id) | id == "unassigned", id, sub("_\\d+$", "", id)))
+}
+
 # -----------------------------------------------------------------------------
 # Feature definitions  (match example_ion_library.csv)
 # -----------------------------------------------------------------------------
@@ -92,10 +119,14 @@ make_section <- function(section_name, seed_offset = 0L,
     levels = c("tissue_pixels", "background_pixels")
   )
 
+  rois <- make_rois(tissue_mask)
+
   pdata <- PositionDataFrame(
     run         = factor(rep(section_name, n_pix)),
     coord       = data.frame(x = x, y = y),
-    sample_name = sample_name
+    sample_name = sample_name,
+    roi_label   = rois$roi_label,
+    roi_id      = rois$roi_id
   )
 
   fdata <- MassDataFrame(

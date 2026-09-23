@@ -67,48 +67,10 @@ selectTissuePixels <- function(name,
   message("Loading acquisition: ", name)
   obj <- readMRM(name = name, folder = data_path, lib_ion_path = lib_ion_path)
 
-  n_feat     <- nrow(fData(obj))
-  feat_names <- fData(obj)$name
+  feat_idx <- .choose_feature(obj, feature, enhance,
+                              "best separates tissue from background")
 
-  # ---- Choose feature -------------------------------------------------------
-  if (is.null(feature)) {
-    message("\nDisplaying all ", n_feat, " features -- identify which best",
-            " separates tissue from background, then close the window.")
-    dev.new()
-    print(image(obj, enhance = enhance, i = seq_len(n_feat), free = "xy"))
-
-    message("\nAvailable features:")
-    for (i in seq_len(n_feat))
-      message(sprintf("  [%2d]  %s", i, feat_names[i]))
-
-    raw_input <- readline(
-      prompt = "Enter feature index (or name) for tissue selection: "
-    )
-
-    # Accept numeric index or partial/full name
-    feat_idx <- suppressWarnings(as.integer(raw_input))
-    if (is.na(feat_idx)) {
-      feat_idx <- grep(raw_input, feat_names, ignore.case = TRUE, fixed = FALSE)
-      if (length(feat_idx) == 0)
-        stop("No feature matching '", raw_input, "' found.")
-      if (length(feat_idx) > 1) {
-        message("Multiple matches: ", paste(feat_names[feat_idx], collapse = ", "))
-        stop("Be more specific.")
-      }
-    }
-
-  } else if (is.character(feature)) {
-    feat_idx <- which(feat_names == feature)
-    if (length(feat_idx) == 0)
-      stop("Feature '", feature, "' not found.\n",
-           "  Available: ", paste(feat_names, collapse = ", "))
-  } else {
-    feat_idx <- as.integer(feature)
-    if (feat_idx < 1L || feat_idx > n_feat)
-      stop("feature index ", feat_idx, " out of range (1-", n_feat, ")")
-  }
-
-  message("\nUsing feature [", feat_idx, "]: ", feat_names[feat_idx])
+  message("\nUsing feature [", feat_idx, "]: ", fData(obj)$name[feat_idx])
   message("Draw a region of interest around the TISSUE (not background).",
           " Close the window when done.")
 
@@ -159,4 +121,47 @@ selectTissuePixels <- function(name,
   }
 
   invisible(tpdf)
+}
+
+# Which feature to draw on: shown all together and asked for when `feature` is
+# NULL, otherwise taken as an index or an exact name. `purpose` finishes the
+# sentence "identify which ..." shown above the prompt.
+.choose_feature <- function(obj, feature, enhance, purpose) {
+  n_feat     <- nrow(fData(obj))
+  feat_names <- fData(obj)$name
+
+  if (is.null(feature)) {
+    message("\nDisplaying all ", n_feat, " features -- identify which ",
+            purpose, ", then close the window.")
+    dev.new()
+    print(image(obj, enhance = enhance, i = seq_len(n_feat), free = "xy"))
+
+    message("\nAvailable features:")
+    for (i in seq_len(n_feat))
+      message(sprintf("  [%2d]  %s", i, feat_names[i]))
+
+    raw_input <- readline(prompt = "Enter feature index (or name): ")
+
+    # Accept numeric index or partial/full name
+    feat_idx <- suppressWarnings(as.integer(raw_input))
+    if (is.na(feat_idx)) {
+      feat_idx <- grep(raw_input, feat_names, ignore.case = TRUE, fixed = FALSE)
+      if (length(feat_idx) == 0)
+        stop("No feature matching '", raw_input, "' found.")
+      if (length(feat_idx) > 1) {
+        message("Multiple matches: ", paste(feat_names[feat_idx], collapse = ", "))
+        stop("Be more specific.")
+      }
+    }
+  } else if (is.character(feature)) {
+    feat_idx <- which(feat_names == feature)
+    if (length(feat_idx) == 0)
+      stop("Feature '", feature, "' not found.\n",
+           "  Available: ", paste(feat_names, collapse = ", "))
+  } else {
+    feat_idx <- as.integer(feature)
+  }
+  if (feat_idx < 1L || feat_idx > n_feat)
+    stop("feature index ", feat_idx, " out of range (1-", n_feat, ")")
+  feat_idx
 }
