@@ -15,12 +15,12 @@ the first object's run.}
 }
 \value{
 One object holding the union of the input pixels, with \code{run} set to
-\code{label} throughout.
+\code{label} throughout and \code{x}, \code{y} on the common grid.
 }
 \description{
 A tissue larger than the stage range is sometimes acquired in two passes --
 top then bottom -- producing two \code{.raw} folders that are \emph{one} sample. This
-concatenates their pixels into a single run.
+places their pixels on one grid and makes them a single run.
 }
 \details{
 It is not the same operation as either neighbour, and picking the wrong one
@@ -44,14 +44,43 @@ summary -- the group mean, the box/violin plots, any downstream model -- and
 because the halves agree with each other they look like a reproducible
 effect rather than one measurement.
 }
-\section{Coordinates}{
+\section{Where the pieces go}{
 
 
-No offset is applied. Waters records absolute stage coordinates, so the
-pieces already sit in a common frame and shifting them would move the
-tissue apart. Pixels appearing at the same \verb{(x, y)} in more than one piece
-are therefore an error, not something to silently average: it means the
-acquisitions genuinely overlap, or that they are not pieces of one tissue.
+Each acquisition numbers its pixels from its own first pixel, so every piece
+starts at \verb{(1, 1)} and the indices alone cannot say where one piece lies
+relative to another. \code{\link[=readMRM]{readMRM()}} also keeps the stage position of every
+pixel (\code{x_stage}, \code{y_stage}, in mm), and that is what places the pieces: a
+piece acquired below, above or beside another lands there, whatever order
+the pieces are given in. The origin is the smallest stage position of any
+piece.
+\itemize{
+\item \strong{Same pixel size.} Pieces must share a pixel size on each axis (within
+2\%); otherwise there is no common grid to put them on, and this stops.
+\item \strong{Nearest grid position.} A piece whose origin falls between grid
+positions of the first -- the stage moved a fraction of a pixel -- is
+moved to the nearest one. The largest such shift is reported, and is at
+most half a pixel.
+\item \strong{Gaps stay empty.} Stage space between two pieces is not filled in; no
+pixel is invented.
+\item \strong{Overlap is an error.} Pixels from two pieces landing on the same grid
+position mean the acquisitions overlap, or are not pieces of one tissue.
+Averaging them or keeping one would invent a measurement, so this stops.
+}
+
+Objects without stage positions -- cached by an earlier version of
+\code{\link[=readMRM]{readMRM()}}, or built another way -- keep their own \verb{(x, y)}, and any pixel
+two of them share is the same error. Re-read the acquisitions with
+\code{readMRM(overwrite = TRUE)} to place them by stage position instead.
+}
+
+\section{Regions of interest}{
+
+
+Pieces labelled with \code{\link[=labelROIs]{labelROIs()}} each number their regions from \verb{_01}, so
+\code{airway_01} in the top piece and \code{airway_01} in the bottom piece are
+different airways. They are renumbered across the stitched sample, in piece
+order, so every region keeps an identifier of its own.
 }
 
 \examples{
@@ -66,7 +95,7 @@ ncol(whole) == ncol(obj)
 
 }
 \seealso{
-\code{\link[=bindPanels]{bindPanels()}}, \code{\link[=combineMSIs]{combineMSIs()}}
+\code{\link[=bindPanels]{bindPanels()}}, \code{\link[=combineMSIs]{combineMSIs()}}, \code{\link[=readMRM]{readMRM()}}
 
 Other combining acquisitions:
 \code{\link[=alignFeatures]{alignFeatures()}},

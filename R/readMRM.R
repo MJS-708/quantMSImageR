@@ -71,7 +71,12 @@
 #'
 #' @return An `MSImagingExperiment` with feature metadata joined to the ion
 #'   library, ready to pass into [generateTxtImages()] or
-#'   [selectTissuePixels()].
+#'   [selectTissuePixels()]. `x` and `y` are grid indices counted from the
+#'   acquisition's own first pixel; `pData()` also carries `x_stage` and
+#'   `y_stage`, the stage position of each pixel in mm, which
+#'   [stitchAcquisitions()] uses to place pieces of one tissue. A cached object
+#'   written by an earlier version lacks those two columns until it is re-read
+#'   with `overwrite = TRUE`.
 #'
 #' @examples
 #' # Return a previously parsed acquisition from its cached .rds
@@ -185,9 +190,15 @@ readMRM <- function(name, folder, lib_ion_path, overwrite = TRUE,
   }
 
   # pixel metadata
+  # x and y are this acquisition's own grid indices, 1..n from its first pixel,
+  # so two acquisitions of different areas both start at (1, 1). Where each
+  # pixel actually was on the stage (mm) is kept alongside, which is what lets
+  # stitchAcquisitions() place pieces of one tissue relative to each other.
   coord <- analyte_df |> dplyr::select(x, y)
   run   <- factor(rep(name, nrow(coord)))
-  pdata <- PositionDataFrame(run = run, coord = coord)
+  pdata <- PositionDataFrame(run = run, coord = coord,
+                             x_stage = as.numeric(analyte_df$x_loci),
+                             y_stage = as.numeric(analyte_df$y_loci))
 
   # Annotate the measured transitions from the ion library.
   ion_lib <- .join_ion_library(transitions, ion_lib, polarity = polarity,

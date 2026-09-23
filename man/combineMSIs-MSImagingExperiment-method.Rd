@@ -12,8 +12,8 @@
 \code{fData()} defines the shared feature axis.}
 
 \item{...}{Further \code{MSImagingExperiment} objects to combine. All must share
-the feature axis and the \code{pData()} columns of \code{MSIobject} -- use
-\code{\link[=alignFeatures]{alignFeatures()}} first if they do not.}
+the feature axis of \code{MSIobject} -- use \code{\link[=alignFeatures]{alignFeatures()}} first if they do
+not. A \code{pData()} column missing from some objects is added to them as \code{NA}.}
 }
 \value{
 A single \code{quant_MSImagingExperiment} holding every input's pixels,

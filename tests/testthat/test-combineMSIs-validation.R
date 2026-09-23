@@ -40,3 +40,16 @@ test_that("more than two objects still combine", {
   out <- combineMSIs(mk("s1"), mk("s2"), mk("s3"))
   expect_equal(length(unique(as.character(pData(out)$run))), 3L)
 })
+
+test_that("a pixel-metadata column missing from one object is filled with NA", {
+  # Stage positions are absent from acquisitions cached by an older readMRM(),
+  # region labels from a sample nobody labelled; neither should stop a study.
+  a <- mk("s1")
+  pData(a)$roi_label <- c("airway", "airway", "unassigned", NA)
+  out <- combineMSIs(a, mk("s2"))
+  expect_equal(ncol(out), 8L)
+  lab <- pData(out)$roi_label
+  expect_equal(lab[as.character(pData(out)$run) == "s1"],
+               c("airway", "airway", "unassigned", NA))
+  expect_true(all(is.na(lab[as.character(pData(out)$run) == "s2"])))
+})

@@ -82,7 +82,12 @@ library rather than carried as a joined name forever.}
 \value{
 An \code{MSImagingExperiment} with feature metadata joined to the ion
 library, ready to pass into \code{\link[=generateTxtImages]{generateTxtImages()}} or
-\code{\link[=selectTissuePixels]{selectTissuePixels()}}.
+\code{\link[=selectTissuePixels]{selectTissuePixels()}}. \code{x} and \code{y} are grid indices counted from the
+acquisition's own first pixel; \code{pData()} also carries \code{x_stage} and
+\code{y_stage}, the stage position of each pixel in mm, which
+\code{\link[=stitchAcquisitions]{stitchAcquisitions()}} uses to place pieces of one tissue. A cached object
+written by an earlier version lacks those two columns until it is re-read
+with \code{overwrite = TRUE}.
 }
 \description{
 Reads one or more analyte text files from \verb{<.raw>/imaging/}, matches
@@ -107,6 +112,7 @@ obj <- readMRM("pos04_test", folder = folder, lib_ion_path = lib,
 }
 \seealso{
 Other acquisition:
+\code{\link[=labelROIs]{labelROIs()}},
 \code{\link{removeBlankMzs,quant_MSImagingExperiment-method}},
 \code{\link[=selectTissuePixels]{selectTissuePixels()}},
 \code{\link[=trimMSI]{trimMSI()}}

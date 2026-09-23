@@ -13,8 +13,8 @@ setGeneric("combineMSIs", function(MSIobject, ...) standardGeneric("combineMSIs"
 #' @param MSIobject An `MSImagingExperiment`; the first acquisition, whose
 #'   `fData()` defines the shared feature axis.
 #' @param ... Further `MSImagingExperiment` objects to combine. All must share
-#'   the feature axis and the `pData()` columns of `MSIobject` -- use
-#'   [alignFeatures()] first if they do not.
+#'   the feature axis of `MSIobject` -- use [alignFeatures()] first if they do
+#'   not. A `pData()` column missing from some objects is added to them as `NA`.
 #' @return A single `quant_MSImagingExperiment` holding every input's pixels,
 #'   with the shared `fData()` restored and one `run` level per acquisition.
 #'
@@ -64,6 +64,11 @@ setMethod("combineMSIs", "MSImagingExperiment",
                    "acquisitions, but these repeat: ",
                    paste(unique(.runs[duplicated(.runs)]), collapse = ", "),
                    ".", call. = FALSE)
+
+            # Pixel-metadata columns can legitimately differ between samples
+            # (stage positions, region labels), which cbind() refuses.
+            objects   = .harmonise_pdata(objects)
+            MSIobject = objects[[1]]
 
             for(ind in seq_along(objects)[-1]){
 

@@ -42,7 +42,9 @@ utils::globalVariables(c(
   "transition_id_int",
   "transition_id_name", "x", "x_loci", "y", "y_loci",
   # contributionHm()
-  "alpha", "feature_group", "fill", "group", "sample"
+  "alpha", "feature_group", "fill", "group", "sample",
+  # labelROIs()
+  "roi_id", "roi_label"
 ))
 
 # Background-pixel label aliases.
@@ -263,4 +265,47 @@ utils::globalVariables(c(
 # Display unit for a calibrated-amount slot, either spelling.
 .conc_unit <- function(slot) {
   if (isTRUE(slot %in% .conc_slots(.SLOT_MM2))) "pg/mm2" else "pg/pixel"
+}
+
+# Give every object the same pixel-metadata columns, in the same order, so that
+# Cardinal's cbind() accepts them. A column one object lacks is added as NA of
+# the type it has elsewhere: stage positions are missing from acquisitions
+# cached by an older readMRM(), region labels from a sample nobody labelled.
+# Objects that already agree are returned untouched.
+.harmonise_pdata <- function(objects) {
+  cols <- lapply(objects, function(o) names(pData(o)))
+  all_cols <- unique(unlist(cols, use.names = FALSE))
+  if (all(vapply(cols, identical, logical(1), all_cols))) return(objects)
+
+  templ <- list()
+  for (o in objects) {
+    pd <- pData(o)
+    for (nm in setdiff(names(pd), names(templ))) templ[[nm]] <- pd[[nm]]
+  }
+  core  <- c("run", "x", "y")
+  extra <- setdiff(all_cols, core)
+
+  lapply(objects, function(o) {
+    pd   <- pData(o)
+    n    <- nrow(pd)
+    args <- list(coord = data.frame(x = pd$x, y = pd$y), run = pd$run)
+    for (nm in extra)
+      args[[nm]] <- if (nm %in% names(pd)) pd[[nm]]
+                    else templ[[nm]][rep(NA_integer_, n)]
+    pData(o) <- do.call(PositionDataFrame, args)
+    o
+  })
+}
+
+# Move an object's pixels to new grid positions, keeping every other pixel
+# column. Built through the PositionDataFrame constructor rather than assigned
+# column-wise, since x and y are the frame's coordinates, not ordinary columns.
+.set_coords <- function(obj, x, y) {
+  df   <- as.data.frame(pData(obj))
+  keep <- setdiff(names(df), c("run", "x", "y"))
+  pData(obj) <- do.call(PositionDataFrame, c(
+    list(coord = data.frame(x = as.integer(x), y = as.integer(y)),
+         run   = pData(obj)$run),
+    as.list(df[, keep, drop = FALSE])))
+  obj
 }
