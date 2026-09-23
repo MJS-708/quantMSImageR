@@ -369,7 +369,12 @@ validateConfig = function(config, check_paths = TRUE){
         next
       }
 
-      ok = if(identical(k, "ion_image")) v %in% c(known, "viridis") else v %in% known
+      # The region bar may also use any grDevices qualitative palette, which is
+      # where its default ("Set 2") comes from.
+      ok = if(identical(k, "ion_image")) v %in% c(known, "viridis")
+           else if(identical(k, "region"))
+             v %in% c(known, grDevices::hcl.pals())
+           else v %in% known
       if(!ok)
         .chk_add(chk, sprintf("colours$%s", k), "error", sprintf(
           "colours$%s = '%s' is not a known palette. Available: %s.",
@@ -399,9 +404,13 @@ validateConfig = function(config, check_paths = TRUE){
 
   co = config$output$colocalisation
   if(!is.null(co)){
-    if(!.true_false_auto(co))
+    # One level: off, by sample, or by region. True is read as "sample" so
+    # configs written before the level existed keep the section they had.
+    if(!(.true_false_auto(co) ||
+         (length(co) == 1L &&
+          tolower(as.character(co)) %in% c("sample", "roi", "off"))))
       .chk_add(chk, "output$colocalisation", "error", sprintf(
-        "output$colocalisation = '%s' must be auto, True or False (unquoted).",
+        "output$colocalisation = '%s'; use auto, 'sample' (all pixels of each sample), 'roi' (pixels of each region type), True (= sample) or False.",
         paste(co, collapse = ", ")))
     else .chk_add(chk, "output$colocalisation", "ok")
   }
@@ -438,9 +447,9 @@ validateConfig = function(config, check_paths = TRUE){
     else .chk_add(chk, "roi$compare", "ok")
 
     ru = roi$unit
-    if(!is.null(ru) && !(length(ru) == 1L && ru %in% c("sample", "roi", "both")))
+    if(!is.null(ru) && !(length(ru) == 1L && ru %in% c("sample", "roi")))
       .chk_add(chk, "roi$unit", "error", sprintf(
-        "roi$unit = '%s'; use 'sample' (one point per sample and region), 'roi' (one point per numbered region) or 'both'.",
+        "roi$unit = '%s'; use 'sample' (one point per sample and region type) or 'roi' (one point per numbered region). One or the other: a comparison has a single unit.",
         paste(ru, collapse = ", ")))
     else .chk_add(chk, "roi$unit", "ok")
   }

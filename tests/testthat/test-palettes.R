@@ -63,12 +63,16 @@ test_that("the shipped config template carries a colours block", {
   tpl <- yaml::read_yaml(system.file("config_template.yaml",
                                      package = "quantMSImageR"))
   expect_setequal(names(tpl$colours),
-                  c("ion_image", "heatmap", "group", "feature", "cell_border"))
+                  c("ion_image", "heatmap", "group", "feature", "region",
+                    "cell_border"))
   expect_equal(tpl$colours$ion_image, "heatmap0")
   # Every palette named in the template must be one we actually ship;
-  # cell_border is a plain colour rather than a palette.
-  .pals <- tpl$colours[setdiff(names(tpl$colours), "cell_border")]
+  # cell_border is a plain colour rather than a palette, and the region bar may
+  # also name a grDevices qualitative palette, which its default does.
+  .pals <- tpl$colours[setdiff(names(tpl$colours), c("cell_border", "region"))]
   expect_true(all(unlist(.pals) %in% names(quantPalettes())))
+  expect_true(tpl$colours$region %in% c(names(quantPalettes()),
+                                        grDevices::hcl.pals()))
   expect_false(inherits(try(grDevices::col2rgb(tpl$colours$cell_border),
                             silent = TRUE), "try-error"))
 })

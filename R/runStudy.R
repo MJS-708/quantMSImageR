@@ -262,6 +262,8 @@ runStudy <- function(config_file) {
   pal_heatmap <- cfg$colours$heatmap   %||% "heatmap2"
   pal_group   <- cfg$colours$group     %||% "hat"
   pal_feature <- cfg$colours$feature   %||% "reading"
+  # Regions get their own palette so a region is never mistaken for a group.
+  pal_region  <- cfg$colours$region    %||% "Set 2"
   hm_cell_border <- cfg$colours$cell_border %||% "white"
 
   fig_dpi        <- cfg$output$fig_dpi        %||% 300
@@ -277,13 +279,25 @@ runStudy <- function(config_file) {
     areas <- if (!is.null(f$pieces)) f$pieces else list(f)
     length(unique(unlist(lapply(areas, function(a) c(a$pos, a$neg)))))
   }, integer(1))
-  .coloc_cfg <- cfg$output$colocalisation %||% "auto"
-  colocalisation <- if (identical(tolower(as.character(.coloc_cfg)), "auto")) {
-    !any(.n_acq > 1L)
-  } else isTRUE(as.logical(.coloc_cfg))
-  if (identical(tolower(as.character(.coloc_cfg)), "auto"))
-    message("Colocalisation: ", if (colocalisation) "on" else
-            "off (a sample merges several acquisitions)", " [auto].")
+  # One level only -- "off", "sample" (all pixels of each sample) or "roi" (the
+  # pixels of each region type). A region holds a fraction of a sample's
+  # pixels, so the region level is the cheaper of the two as well as the more
+  # specific question, which is what "auto" prefers when a study has regions.
+  # True is read as "sample", so existing configs keep the section they had.
+  .coloc_cfg <- tolower(as.character(cfg$output$colocalisation %||% "auto"))
+  colocalisation <- if (.coloc_cfg %in% c("sample", "roi")) {
+    .coloc_cfg
+  } else if (.coloc_cfg %in% c("true", "yes", "on")) {
+    "sample"
+  } else if (.coloc_cfg %in% c("false", "no", "off")) {
+    "off"
+  } else if (any(.n_acq > 1L)) {
+    # auto, and a sample merges acquisitions: most pixel pairs would cross them
+    message("Colocalisation: off (a sample merges several acquisitions) [auto].")
+    "off"
+  } else {
+    "auto"          # resolved below, once it is known whether regions exist
+  }
 
   # Regions of interest drawn with labelROIs(). "auto" (the default) switches
   # them on when any acquisition has a roi_labels.csv. The rest is read by the
@@ -358,6 +372,14 @@ runStudy <- function(config_file) {
   )
   # Resolved by generateTxtImages() (for "auto": whether any file was found).
   roi_on <- isTRUE(result$rois)
+
+  # "auto" correlation: within the regions when the study has them, off
+  # otherwise -- it is the slowest section in the report, so it is not drawn
+  # across whole samples unless the config asks for that by name.
+  if (identical(colocalisation, "auto")) {
+    colocalisation <- if (roi_on) "roi" else "off"
+    message("Colocalisation: ", colocalisation, " [auto].")
+  }
 
   # ---------------------------------------------------------------------------
   # Calibration (optional): gated by calibration.enabled. Builds a response-vs-

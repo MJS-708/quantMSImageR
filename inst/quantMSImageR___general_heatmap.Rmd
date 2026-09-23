@@ -41,11 +41,22 @@ suppressPackageStartupMessages({
 .fig_dpi <- if (exists("fig_dpi")) suppressWarnings(as.numeric(fig_dpi)) else 300
 if (length(.fig_dpi) != 1L || is.na(.fig_dpi) || .fig_dpi < 72) .fig_dpi <- 300
 
-# Pixel colocalisation (output$colocalisation in the YAML). By far the slowest
-# section: every feature against every other, over every pixel, repeated for
-# each group. In a study whose samples merge several acquisitions most of those
-# pairs cross acquisitions, which is not a sound pixel-level comparison.
-.coloc <- if (exists("colocalisation")) isTRUE(as.logical(colocalisation)) else TRUE
+# Pixel colocalisation (output$colocalisation in the YAML), at one level only:
+# "off", "sample" (every pixel of each sample) or "roi" (the pixels of each
+# region type). By far the slowest section -- every feature against every
+# other, over every pixel, repeated per group -- and in a study whose samples
+# merge several acquisitions most of those pairs cross acquisitions, which is
+# not a sound pixel-level comparison.
+#
+# A region holds a fraction of a sample's pixels, so the region level is the
+# cheaper one as well as the more specific question. "auto" is resolved once
+# the regions are known, in the roi-setup chunk below.
+.coloc_level <- if (exists("colocalisation")) {
+  if (is.logical(colocalisation))
+    (if (isTRUE(colocalisation)) "sample" else "off")
+  else tolower(as.character(colocalisation))
+} else "auto"
+if (!.coloc_level %in% c("off", "sample", "roi", "auto")) .coloc_level <- "off"
 
 # set default options
 knitr::opts_chunk$set(echo = FALSE,
@@ -325,8 +336,6 @@ rather than distorting to fill a fixed area.
 } else {
   "auto"
 }
-.hm_style <- quantMSImageR:::.heatmap_style(.style_cfg, heatmap_labs)
-
 # Read here rather than inside the quantile loop: it does not vary by
 # quantile, and the loop consults it on its first line to decide how many
 # panels to draw -- defining it further down left it undefined at that point.
@@ -337,21 +346,26 @@ rather than distorting to fill a fixed area.
 }
 
 # Which heatmap this is, said in the report rather than left to the config.
+# Written per view, because "auto" judges the rows it is given: a study with one
+# animal per group takes the per-sample encoding by sample and can still take
+# the contribution one by region, where the rows are sample x region.
 #
 # Braces are required on both arms: a bare `else` starting a new line at top
 # level is a parse error, which is why the [palettes] chunk above brackets its
 # if/else too.
-.style_note <- if (identical(.hm_style, "contribution")) {
-  paste0("Each cell carries two things: the **hue** is that sample's *group* ",
-         "mean for the feature, and the **opacity** is how much that *sample* ",
-         "contributed to it. A uniformly solid block is a real group effect; ",
-         "one opaque tile among faded ones is a group mean resting on a ",
-         "single sample. Features with no variance across samples are grey.")
-} else {
-  paste0("Each cell is that sample's own z-score, clipped to [-1, 1] -- every ",
-         "sample shown directly, with no group summary in between.")
+.style_note <- function(style) {
+  if (identical(style, "contribution")) {
+    paste0("Each cell carries two things: the **hue** is that sample's ",
+           "*group* mean for the feature, and the **opacity** is how much ",
+           "that *sample* contributed to it. A uniformly solid block is a ",
+           "real group effect; one opaque tile among faded ones is a group ",
+           "mean resting on a single sample. Features with no variance ",
+           "across samples are grey.")
+  } else {
+    paste0("Each cell is that sample's own z-score, clipped to [-1, 1] -- ",
+           "every sample shown directly, with no group summary in between.")
+  }
 }
-cat(.style_note, "\n\n")
 ```
 
 ```{r palettes, echo=FALSE, include=FALSE}
@@ -477,6 +491,121 @@ if (exists("heatmap_labs") && exists("heatmap_order"))
 }
 ```
 
+```{r roi-setup, echo=FALSE, include=FALSE}
+# Regions of interest drawn with labelROIs() (the roi: block of the YAML). On
+# when runStudy() attached region labels and the object carries them; the
+# settings default to what the template documents.
+#
+# Every analysis section below is drawn at sample level first and then, where
+# there are regions, at region level -- so a reader compares like with like
+# instead of hunting for the regions in a tab of their own.
+.roi_on <- exists("roi_on") && isTRUE(roi_on) &&
+  all(c("roi_label", "roi_id") %in% names(pData(combined)))
+.roi_map_h <- 1
+.roi_box_h <- 1
+.roi_hm  <- FALSE
+if (.roi_on) {
+  .roi_cmp  <- if (exists("roi_compare")) as.character(roi_compare) else "between_groups"
+  .roi_unit <- if (exists("roi_unit"))    as.character(roi_unit)    else "sample"
+  .roi_unas <- exists("roi_include_unassigned") && isTRUE(roi_include_unassigned)
+  .cmp_sets  <- if (identical(.roi_cmp, "both"))
+                  c("between_groups", "between_rois") else .roi_cmp
+  # One unit per report: a comparison has a single unit, and two views of the
+  # same numbers invite reading whichever looks better.
+  .unit_sets <- if (.roi_unit %in% c("sample", "roi")) .roi_unit else "sample"
+
+  .roi_px <- data.frame(
+    run       = as.character(pData(combined)$run),
+    x         = pData(combined)$x,
+    y         = pData(combined)$y,
+    roi_label = as.character(pData(combined)$roi_label),
+    roi_id    = as.character(pData(combined)$roi_id),
+    stringsAsFactors = FALSE)
+  .roi_px$group <- unname(run_to_lab[.roi_px$run])
+
+  # Region types in a fixed order and colour, the same in every plot. Their
+  # palette differs from the groups', so a region is never mistaken for a group.
+  .roi_levels <- sort(setdiff(unique(stats::na.omit(.roi_px$roi_label)),
+                              "unassigned"))
+  .pal_region <- if (exists("pal_region") && !is.null(pal_region))
+                   pal_region else "Set 2"
+  .roi_cols   <- c(.cat_cols(.roi_levels, .pal_region), unassigned = "grey75")
+  .roi_plot_levels <- c(.roi_levels, if (.roi_unas) "unassigned")
+
+  # Background has no region (NA); unassigned tissue only when asked for.
+  .roi_keep <- !is.na(.roi_px$roi_label) &
+               (.roi_unas | .roi_px$roi_label != "unassigned")
+
+  # Samples in the order the rest of the report uses: by group, then run.
+  .roi_runs <- heatmap_order[order(match(heatmap_labs, unique(heatmap_labs)))]
+  .roi_runs <- .roi_runs[.roi_runs %in% unique(.roi_px$run)]
+
+  .roi_map_h <- 3.2 * ceiling(length(.roi_runs) / 3) + 0.6
+  .roi_box_h <- 4.2 * length(.cmp_sets) + 0.8
+
+  # The region views in sections 2 and 4 (roi: heatmap:, roi: correlation:).
+  # Both need at least two rows to compare, and correlation is pixel-level, so
+  # it also needs colocalisation to be on at all.
+  .roi_hm <- (!exists("roi_heatmap") || isTRUE(as.logical(roi_heatmap))) &&
+    length(.roi_plot_levels) > 0 && length(.roi_runs) > 1
+  .roi_quants <- if (exists("heatmap_quantiles") && !is.null(heatmap_quantiles))
+                   sort(unique(as.numeric(heatmap_quantiles)))
+                 else c(0.25, 0.5, 0.75, 0.95, 0.98)
+
+  # One row per sample and region type ("sample"), or one per region ("roi").
+  .roi_view <- function(unit) {
+    px <- .roi_px[.roi_keep, ]
+    px$key <- if (identical(unit, "sample"))
+                paste(px$run, px$roi_label, sep = " | ")
+              else paste(px$run, px$roi_id, sep = " | ")
+    rows <- unique(px[, c("key", "run", "roi_label", "group")])
+    rows <- rows[order(match(rows$roi_label, .roi_plot_levels),
+                       match(rows$run, .roi_runs), rows$key), ]
+    obj <- combined[, .roi_keep]
+    pData(obj)$run <- factor(px$key, levels = rows$key)
+    list(obj = obj, rows = rows)
+  }
+  .roi_view_name <- function(unit)
+    if (identical(unit, "sample")) "By region (per sample)"
+    else "By region (per region)"
+  .roi_view_note <- function(unit)
+    if (identical(unit, "sample"))
+      "One row per sample and region type: a sample's regions of one type are pooled."
+    else
+      "One row per region: every region drawn is its own row."
+
+  # A region map for one sample, used by section 5 and by the ion images.
+  .map_one <- function(r) {
+    d <- .roi_px[.roi_px$run == r & !is.na(.roi_px$roi_label), ]
+    ggplot(d, aes(x = x, y = -y, fill = roi_label)) +
+      geom_tile() +
+      coord_equal() +
+      scale_fill_manual(values = .roi_cols, limits = names(.roi_cols),
+                        name = "Region", drop = FALSE) +
+      labs(title = sprintf("%s (%s)", r, run_to_lab[[r]]), x = NULL, y = NULL) +
+      theme_void() +
+      theme(plot.title = element_text(size = 10))
+  }
+}
+
+# "auto": off, unless the study has regions -- then correlate within them,
+# which is both the cheaper computation and the more specific question.
+# Sample-level correlation is only drawn when the config asks for it by name.
+if (identical(.coloc_level, "auto"))
+  .coloc_level <- if (.roi_on && length(.roi_plot_levels)) "roi" else "off"
+if (identical(.coloc_level, "roi") && !(.roi_on && length(.roi_plot_levels)))
+  .coloc_level <- "off"                    # asked for regions, study has none
+
+.coloc        <- !identical(.coloc_level, "off")
+.coloc_sample <- identical(.coloc_level, "sample")
+.coloc_roi    <- identical(.coloc_level, "roi")
+
+# Section numbers: the region masks take section 5 when there are regions, and
+# everything after it moves down one.
+.sec_roi <- 5L
+.sec_ion <- if (.roi_on) 6L else 5L
+```
+
 ```{r hm, results="asis", echo = FALSE, include=T, warning=FALSE}
 
 # Build feature split vector from per-feature metadata (joined by m/z in runStudy.R)
@@ -496,7 +625,7 @@ if (exists("feature_meta") && !is.null(feature_meta) &&
 # per-feature sd is undefined, so every cell would be missing -- and the old
 # implementation drew them all at the ramp midpoint, which reads as a real
 # result rather than an absent one. Say so instead of drawing either.
-if (length(heatmap_order) < 2) {
+if (length(heatmap_order) < 2 && !.roi_hm) {
   cat("## Heatmap\n\n",
       "*Not drawn: a single acquisition has nothing to be scored against. ",
       "Per-feature intensities are in section 1.2, and the ion images below ",
@@ -513,9 +642,44 @@ if (length(heatmap_order) < 2) {
   c(0.25, 0.5, 0.75, 0.95, 0.98)
 }
 
+# The views this section draws: the study by sample, then by region at each
+# requested unit. A study without regions has the one view and reads as before.
+.hm_views <- c(if (length(heatmap_order) > 1) list(NULL),
+               if (.roi_hm) lapply(.unit_sets, identity))
+
+for (.view in .hm_views) {
+
+.is_roi_view <- !is.null(.view)
+
+if (length(.hm_views) > 1L) {
+  cat("## ", if (.is_roi_view) .roi_view_name(.view) else "By sample",
+      " {.tabset .tabset-fade}\n\n", sep = "")
+  if (.is_roi_view)
+    cat(.roi_view_note(.view),
+        " Rows are split by region and **each region is scored against ",
+        "itself**, so a colour says where a sample sits among the other ",
+        "samples' regions of the same type rather than restating that one ",
+        "region type is brighter than another.\n\n", sep = "")
+}
+
+# The region view replaces the object and the row identities; everything else
+# about the panel is the same, which is the point of reading them side by side.
+.hm_src <- if (.is_roi_view) .roi_view(.view) else NULL
+.hm_obj   <- if (.is_roi_view) .hm_src$obj  else combined
+.hm_order <- if (.is_roi_view) .hm_src$rows$key   else heatmap_order
+.hm_labs  <- if (.is_roi_view) .hm_src$rows$group else heatmap_labs
+.hm_block <- if (.is_roi_view) .hm_src$rows$roi_label else NULL
+
+# "auto" judged on THIS view's rows: by region there are as many rows per group
+# as the samples have regions, which is often enough for the contribution
+# encoding where the sample view has too few.
+.hm_style <- quantMSImageR:::.heatmap_style(.style_cfg, .hm_labs)
+cat(.style_note(.hm_style), "\n\n")
+
 for (quant_value in .hm_quantiles) {
 
-  cat(paste('## ', as.character(quant_value * 100), "th quantile heatmap",
+  cat(paste(if (length(.hm_views) > 1L) '### ' else '## ',
+            as.character(quant_value * 100), "th quantile heatmap",
             '\n\n'))
 
   # scale= belongs to contributionHm() only -- quantileHm() is per-feature by
@@ -533,7 +697,7 @@ for (quant_value in .hm_quantiles) {
 
   # Only sub-head when there is more than one panel to tell apart.
   if (length(.scales) > 1L) {
-    cat(paste0('### ',
+    cat(paste0(if (length(.hm_views) > 1L) '#### ' else '### ',
       if (identical(.sc, "shared")) {
         paste('Shared scale -- comparable between features',
               '
@@ -558,8 +722,8 @@ Each column normalised by its own extreme, so every',
 '))
   }
 
-  .args <- list(MSIobject = combined, quant_val = quant_value,
-                heatmap_order = heatmap_order, heatmap_labs = heatmap_labs,
+  .args <- list(MSIobject = .hm_obj, quant_val = quant_value,
+                heatmap_order = .hm_order, heatmap_labs = .hm_labs,
                 feature_split = .row_split,
                 feature_split_name = .split_name,
                 group_split_name = "Group",
@@ -567,6 +731,12 @@ Each column normalised by its own extreme, so every',
                 group_palette    = .pal_group,
                 feature_palette  = .pal_feature,
                 cell_border      = .cell_border)
+  # The group bar stays on the left of every panel; the region bar joins it.
+  # Either heatmap scores each region against itself when given the block.
+  if (.is_roi_view)
+    .args <- c(.args, list(sample_block = .hm_block,
+                           sample_block_name = "Region",
+                           block_palette = .pal_region))
 
   p <- if (identical(.hm_style, "contribution")) {
     do.call(quantMSImageR::contributionHm, c(.args, list(scale = .sc)))
@@ -632,66 +802,14 @@ Each column normalised by its own extreme, so every',
 
   }   # end scale loop
 
-}
+}     # end quantile loop
+
+}     # end view loop
 
 }
 
 ```
 
-```{r roi-setup, echo=FALSE, include=FALSE}
-# Regions of interest drawn with labelROIs() (the roi: block of the YAML). On
-# when runStudy() attached region labels and the object carries them; the
-# settings default to what the template documents.
-.roi_on <- exists("roi_on") && isTRUE(roi_on) &&
-  all(c("roi_label", "roi_id") %in% names(pData(combined)))
-.roi_map_h <- 1
-.roi_box_h <- 1
-if (.roi_on) {
-  .roi_cmp  <- if (exists("roi_compare")) as.character(roi_compare) else "between_groups"
-  .roi_unit <- if (exists("roi_unit"))    as.character(roi_unit)    else "sample"
-  .roi_unas <- exists("roi_include_unassigned") && isTRUE(roi_include_unassigned)
-  .cmp_sets  <- if (identical(.roi_cmp, "both"))
-                  c("between_groups", "between_rois") else .roi_cmp
-  .unit_sets <- if (identical(.roi_unit, "both")) c("sample", "roi") else .roi_unit
-
-  .roi_px <- data.frame(
-    run       = as.character(pData(combined)$run),
-    x         = pData(combined)$x,
-    y         = pData(combined)$y,
-    roi_label = as.character(pData(combined)$roi_label),
-    roi_id    = as.character(pData(combined)$roi_id),
-    stringsAsFactors = FALSE)
-  .roi_px$group <- unname(run_to_lab[.roi_px$run])
-
-  # Region types in a fixed order and colour, the same in every plot. Their
-  # palette differs from the groups', so a region is never mistaken for a group.
-  .roi_levels <- sort(setdiff(unique(stats::na.omit(.roi_px$roi_label)),
-                              "unassigned"))
-  .roi_cols   <- c(.cat_cols(.roi_levels, "Set 2"), unassigned = "grey75")
-  .roi_plot_levels <- c(.roi_levels, if (.roi_unas) "unassigned")
-
-  # Background has no region (NA); unassigned tissue only when asked for.
-  .roi_keep <- !is.na(.roi_px$roi_label) &
-               (.roi_unas | .roi_px$roi_label != "unassigned")
-
-  # Samples in the order the rest of the report uses: by group, then run.
-  .roi_runs <- heatmap_order[order(match(heatmap_labs, unique(heatmap_labs)))]
-  .roi_runs <- .roi_runs[.roi_runs %in% unique(.roi_px$run)]
-
-  .roi_map_h <- 3.2 * ceiling(length(.roi_runs) / 3) + 0.6
-  .roi_box_h <- 4.2 * length(.cmp_sets) + 0.8
-
-  # The region heatmap (roi: heatmap: in the YAML). Needs at least two rows to
-  # score against each other, so one sample with one region has nothing to draw.
-  .roi_hm <- (!exists("roi_heatmap") || isTRUE(as.logical(roi_heatmap))) &&
-    length(.roi_plot_levels) > 0 && length(.roi_runs) > 1
-  .roi_quants <- if (exists("heatmap_quantiles") && !is.null(heatmap_quantiles))
-                   sort(unique(as.numeric(heatmap_quantiles)))
-                 else c(0.25, 0.5, 0.75, 0.95, 0.98)
-} else {
-  .roi_hm <- FALSE
-}
-```
 
 ```{r cmp-heading, results="asis", echo=FALSE}
 # Section 3 also holds the region comparison, which a single-sample study can
@@ -699,7 +817,10 @@ if (.roi_on) {
 if (length(heatmap_order) > 1 || .roi_on)
   cat("# 3. Comparison plots {.tabset .tabset-fade}\n\n")
 if (length(heatmap_order) > 1)
-  cat("## Box + violin (side-by-side)\n\n")
+  # The level only earns a heading when there is a second level to tell it
+  # from, so a study without regions reads exactly as it did before.
+  cat(if (.roi_on) "## By sample\n\n### Box + violin (side-by-side)\n\n"
+      else "## Box + violin (side-by-side)\n\n")
 ```
 
 ```{r box_violin_dropdown, results="asis", echo=FALSE, include=TRUE, warning=FALSE, message=FALSE, fig.width=11, fig.height=5.5, eval=length(heatmap_order) > 1}
@@ -944,117 +1065,9 @@ if (nrow(fc_tbl) == 0) {
 
 ```
 
-```{r roi-heading, results="asis", echo=FALSE, eval=.roi_on}
-cat("## Regions of interest\n\n")
-
-.n_tbl <- .roi_px[!is.na(.roi_px$roi_label), ] %>%
-  group_by(`Region type` = roi_label, Group = group) %>%
-  summarise(Samples = n_distinct(run),
-            Regions = n_distinct(paste(run, roi_id)),
-            Pixels  = n(), .groups = "drop") %>%
-  arrange(match(`Region type`, c(.roi_levels, "unassigned")),
-          match(Group, .grp_levels))
-
-cat("Regions drawn with `labelROIs()`, one `roi_labels.csv` per acquisition. ",
-    "Tissue outside every region is `unassigned` and is ",
-    if (.roi_unas) "compared as a region type of its own"
-    else "left out of the comparisons (`roi: include_unassigned`)",
-    "; background belongs to no region.\n\n", sep = "")
-cat(knitr::kable(.n_tbl, format = "markdown"), sep = "\n")
-cat("\n\n")
-
-cat("In the box plots below, each point is ",
-    paste(c(sample = paste0("**one sample and region type** (`unit: sample`): ",
-                            "the median of all that sample's pixels of that ",
-                            "type -- every airway of the sample pooled"),
-            roi    = paste0("**one region** (`unit: roi`): the median of its ",
-                            "pixels -- `airway_01`, `airway_02`, ... each on ",
-                            "its own"))[.unit_sets],
-          collapse = "; or "),
-    ". The points are samples or independent regions, not pixels: the ",
-    "pixels of one region are repeated measurements of the same tissue.\n\n",
-    sep = "")
-cat(paste0("- ", c(
-  between_groups = paste0("**Between groups** -- one panel per region type, ",
-                          "groups side by side (",
-                          paste(utils::head(.roi_levels, 2), collapse = ", "),
-                          if (length(.roi_levels)) ": " else "",
-                          paste(.grp_levels, collapse = " v "), ")."),
-  between_rois   = paste0("**Between regions** -- one panel per group, region ",
-                          "types side by side (",
-                          paste(utils::head(.grp_levels, 2), collapse = ", "),
-                          if (length(.grp_levels)) ": " else "",
-                          paste(.roi_plot_levels, collapse = " v "), ").")
-  )[.cmp_sets], collapse = "\n"), "\n\n", sep = "")
-```
-
-```{r roi-maps, echo=FALSE, eval=.roi_on, fig.width=11, fig.height=.roi_map_h}
-.map_one <- function(r) {
-  d <- .roi_px[.roi_px$run == r & !is.na(.roi_px$roi_label), ]
-  ggplot(d, aes(x = x, y = -y, fill = roi_label)) +
-    geom_tile() +
-    coord_equal() +
-    scale_fill_manual(values = .roi_cols, limits = names(.roi_cols),
-                      name = "Region", drop = FALSE) +
-    labs(title = sprintf("%s (%s)", r, run_to_lab[[r]]), x = NULL, y = NULL) +
-    theme_void() +
-    theme(plot.title = element_text(size = 10))
-}
-if (length(.roi_runs))
-  print(patchwork::wrap_plots(lapply(.roi_runs, .map_one),
-                              ncol = min(3, length(.roi_runs)),
-                              guides = "collect"))
-```
-
-```{r roi-hm, results="asis", echo=FALSE, eval=.roi_hm, warning=FALSE, message=FALSE}
-cat("### Heatmaps by region\n\n",
-    "One row per sample and region type, split by region. **Each region is ",
-    "z-scored against itself**, so a colour says where a sample sits among the ",
-    "other samples' ", if (length(.roi_levels)) paste0(.roi_levels[1], "s")
-                       else "regions of that type",
-    " -- not that one region type is ",
-    "brighter than another, which is mostly what a panel scored across regions ",
-    "would show. The left-hand bars give the region and the group; the colour ",
-    "scale is otherwise read exactly as section 2's.\n\n", sep = "")
-
-# One row per sample and region type: the same unit as `unit: "sample"` in the
-# box plots below, since a row per individual region makes for a very tall
-# panel once a section has a dozen airways.
-.hm_px <- .roi_px[.roi_keep, ]
-.hm_px$key <- paste(.hm_px$run, .hm_px$roi_label, sep = " | ")
-.hm_rows <- unique(.hm_px[, c("key", "run", "roi_label", "group")])
-.hm_rows <- .hm_rows[order(match(.hm_rows$roi_label, .roi_plot_levels),
-                           match(.hm_rows$run, .roi_runs)), ]
-
-.hm_obj <- combined[, .roi_keep]
-pData(.hm_obj)$run <- factor(.hm_px$key, levels = .hm_rows$key)
-
-for (.q in .roi_quants) {
-  cat("#### ", as.character(.q * 100), "th quantile\n\n", sep = "")
-  .p <- tryCatch(
-    quantMSImageR::quantileHm(
-      .hm_obj, quant_val = .q,
-      heatmap_order     = .hm_rows$key,
-      heatmap_labs      = .hm_rows$group,
-      sample_block      = .hm_rows$roi_label,
-      sample_block_name = "Region",
-      feature_split     = if (exists(".row_split")) .row_split else NULL,
-      feature_split_name = if (exists(".split_name")) .split_name else "Pathway",
-      palette           = .pal_heatmap,
-      group_palette     = .pal_group,
-      feature_palette   = .pal_feature,
-      cell_border       = .cell_border),
-    error = function(e) e)
-  if (inherits(.p, "error"))
-    cat("*(not drawn: ", conditionMessage(.p), ")*\n\n", sep = "")
-  else
-    cat(.embed_hm(.p, paste0("region heatmap, quantile ", format(.q))))
-  cat("\n \n")
-}
-```
 
 ```{r roi-box, results="asis", echo=FALSE, eval=.roi_on, warning=FALSE, message=FALSE, fig.width=11, fig.height=.roi_box_h}
-# The same layer as the box/violin tab, so the two can be read together.
+# The same layer as the box/violin view, so the two can be read together.
 .roi_slot <- if (exists("val_slot")) val_slot else "intensity"
 
 .roi_feat <- tryCatch(featureNames(combined), error = function(e) NULL)
@@ -1062,6 +1075,7 @@ if (is.null(.roi_feat)) .roi_feat <- as.character(mz(combined))
 .roi_fid  <- gsub("[^A-Za-z0-9_\\-]", "_", .roi_feat)
 .roi_idx  <- which(.roi_keep)
 .roi_keys <- .roi_px[.roi_idx, c("run", "group", "roi_label", "roi_id")]
+.roi_ord  <- order(tolower(.roi_feat))
 
 # One row per point: a sample and region type, or a single region.
 .roi_points <- function(v, unit) {
@@ -1087,82 +1101,95 @@ if (is.null(.roi_feat)) .roi_feat <- as.character(mz(combined))
   between_groups <- identical(cmp, "between_groups")
   x_var <- if (between_groups) "group" else "roi_label"
   f_var <- if (between_groups) "roi_label" else "group"
+  # The fill carries the key, so the panel says what it is being read by: the
+  # groups when the regions are the facets, the regions when the groups are.
+  # Both palettes are the ones the rest of the report already uses for that
+  # thing -- a group keeps its heatmap colour, a region keeps its map colour.
+  .cols <- if (between_groups) .grp_cols else .roi_cols
   ggplot(pts, aes(x = .data[[x_var]], y = median, fill = .data[[x_var]])) +
-    geom_boxplot(outlier.shape = NA, alpha = 0.55, width = 0.6) +
-    geom_point(shape = 21, size = 2, colour = "black",
+    geom_boxplot(outlier.shape = NA, alpha = 0.65, width = 0.6,
+                 colour = "grey25", linewidth = 0.4) +
+    geom_point(shape = 21, size = 2.2, colour = "grey20", stroke = 0.4,
                position = position_jitter(width = 0.12, height = 0, seed = 1)) +
     facet_wrap(stats::as.formula(paste("~", f_var)), nrow = 1) +
-    scale_fill_manual(values = if (between_groups) .grp_cols else .roi_cols,
-                      drop = FALSE, guide = "none") +
+    scale_fill_manual(values = .cols, drop = FALSE,
+                      name = if (between_groups) "Group" else "Region",
+                      guide = guide_legend(override.aes = list(alpha = 1))) +
     labs(x = NULL, y = paste0("Median ", .roi_slot),
-         title = paste0(if (between_groups) "Between groups" else "Between regions",
-                        " -- one point per ",
-                        if (identical(unit, "sample")) "sample" else "region")) +
+         title = if (between_groups) "Between groups" else "Between regions") +
     theme_classic() +
     theme(strip.background = element_blank(),
           strip.text = element_text(face = "bold"),
           plot.title = element_text(size = 10),
-          axis.text.x = element_text(angle = 45, hjust = 1))
+          legend.position = "right",
+          # The x axis repeats the key exactly, so the key is enough.
+          axis.text.x = element_blank(), axis.ticks.x = element_blank())
 }
 
-cat('
-<label for="roi_select" style="font-weight:600;">Select metabolite:</label>
-<select id="roi_select" style="margin: 0 0 12px 8px; padding: 4px 6px;"
-        onchange="showRoi(this.value)">
-')
-.roi_ord <- order(tolower(.roi_feat))
-for (k in seq_along(.roi_ord)) {
-  i <- .roi_ord[k]
-  cat(sprintf('<option value="%s"%s>%s</option>\n', .roi_fid[i],
-              if (k == 1) " selected" else "", .roi_feat[i]))
-}
-cat('</select>
+roi_summary_rows <- list()
+
+for (.u in .unit_sets) {
+
+  cat("## ", .roi_view_name(.u), "\n\n", .roi_view_note(.u),
+      " The points are samples or independent regions, not pixels: the pixels ",
+      "of one region are repeated measurements of the same tissue.\n\n",
+      sep = "")
+  cat(paste0("- ", c(
+    between_groups = "**Between groups** -- one panel per region type, groups side by side.",
+    between_rois   = "**Between regions** -- one panel per group, region types side by side."
+    )[.cmp_sets], collapse = "\n"), "\n\n", sep = "")
+
+  # Each view needs its own element ids, or the two dropdowns collide.
+  .sel <- paste0("roi_select_", .u)
+  .fun <- paste0("showRoi_", .u)
+  .cls <- paste0("roi_block_", .u)
+  cat(sprintf('
+<label for="%s" style="font-weight:600;">Select metabolite:</label>
+<select id="%s" style="margin: 0 0 12px 8px; padding: 4px 6px;"
+        onchange="%s(this.value)">
+', .sel, .sel, .fun))
+  for (k in seq_along(.roi_ord)) {
+    i <- .roi_ord[k]
+    cat(sprintf('<option value="%s"%s>%s</option>\n', .roi_fid[i],
+                if (k == 1) " selected" else "", .roi_feat[i]))
+  }
+  cat(sprintf('</select>
 
 <script>
-function showRoi(id){
-  var blocks = document.querySelectorAll(".roi_block");
+function %s(id){
+  var blocks = document.querySelectorAll(".%s");
   for (var i=0; i<blocks.length; i++) { blocks[i].style.display = "none"; }
-  var el = document.getElementById("roi_" + id);
+  var el = document.getElementById("%s_" + id);
   if (el) el.style.display = "block";
 }
 </script>
-')
+', .fun, .cls, .cls))
 
-.roi_rows <- list()
-for (k in seq_along(.roi_ord)) {
-  i <- .roi_ord[k]
-  v <- if (length(.roi_idx))
-         as.numeric(spectraData(combined)[[.roi_slot]][i, .roi_idx]) else numeric(0)
+  for (k in seq_along(.roi_ord)) {
+    i <- .roi_ord[k]
+    v <- if (length(.roi_idx))
+           as.numeric(spectraData(combined)[[.roi_slot]][i, .roi_idx]) else numeric(0)
 
-  cat(sprintf('\n<div class="roi_block" id="roi_%s" style="display:%s;">\n\n',
-              .roi_fid[i], if (k == 1) "block" else "none"))
+    cat(sprintf('\n<div class="%s" id="%s_%s" style="display:%s;">\n\n',
+                .cls, .cls, .roi_fid[i], if (k == 1) "block" else "none"))
 
-  plots <- list()
-  for (.u in .unit_sets) {
     pts <- .roi_points(v, .u)
-    if (is.null(pts)) next
-    .roi_rows[[length(.roi_rows) + 1L]] <-
-      mutate(pts, feature = .roi_feat[i], .before = 1)
-    for (.c in .cmp_sets)
-      plots[[paste(.c, .u)]] <- .roi_panel(pts, .c, .u)
+    if (is.null(pts)) {
+      cat("<p><em>No signal in any region.</em></p>\n")
+    } else {
+      roi_summary_rows[[length(roi_summary_rows) + 1L]] <-
+        mutate(pts, feature = .roi_feat[i], .before = 1)
+      plots <- lapply(.cmp_sets, function(.c) .roi_panel(pts, .c, .u))
+      tryCatch(print(patchwork::wrap_plots(plots, nrow = length(.cmp_sets)) +
+                     patchwork::plot_annotation(title = .roi_feat[i])),
+               error = function(e)
+                 cat("<p><em>plot failed: ", conditionMessage(e), "</em></p>\n"))
+    }
+    cat("\n\n</div>\n\n")
   }
-
-  if (!length(plots)) {
-    cat("<p><em>No signal in any region.</em></p>\n")
-  } else {
-    # Rows are the comparisons, columns the units, whichever of each is set.
-    ord <- as.vector(t(outer(.cmp_sets, .unit_sets, paste)))
-    ord <- ord[ord %in% names(plots)]
-    tryCatch(print(patchwork::wrap_plots(plots[ord], nrow = length(.cmp_sets),
-                                         byrow = TRUE) +
-                   patchwork::plot_annotation(title = .roi_feat[i])),
-             error = function(e)
-               cat("<p><em>plot failed: ", conditionMessage(e), "</em></p>\n"))
-  }
-  cat("\n\n</div>\n\n")
 }
 
-roi_summary <- dplyr::bind_rows(.roi_rows)
+roi_summary <- dplyr::bind_rows(roi_summary_rows)
 if (nrow(roi_summary)) {
   # roi_id is empty for unit "sample" rows: those pool every region of a type.
   if (!"roi_id" %in% names(roi_summary)) roi_summary$roi_id <- NA_character_
@@ -1182,8 +1209,21 @@ if (nrow(roi_summary)) {
 # after it describes output that only exists when colocalisation is on.
 cat("# 4. Correlation\n\n")
 if (!.coloc) {
-  cat("Not computed: `output: colocalisation` is `False` in this study's config.\n\n")
+  cat("Not computed: `output: colocalisation` is off in this study's config. ",
+      "It is off by default -- it is the slowest section in the report -- and ",
+      "is switched on with `sample` (all pixels of each sample) or `roi` ",
+      "(the pixels of each region type).\n\n", sep = "")
 } else {
+  cat("Computed **", if (.coloc_roi) "within each region type" else
+      "across all pixels of each sample", "** (`output: colocalisation: ",
+      .coloc_level, "`). ",
+      if (.coloc_roi)
+        paste0("Whether two ions colocalise inside an airway is a different ",
+               "question from whether they colocalise across a whole section, ",
+               "and a region holds fewer pixels, so this is also the quicker ",
+               "of the two.")
+      else "",
+      "\n\n", sep = "")
   cat("Spatial co-localisation metrics computed pairwise across all features.\n\n",
       "- **Pearson's r** — linear relationship between pixel intensities of two ions.\n",
       "- **Manders Overlap Coefficient (MOC)** — degree of pixel-intensity overlap; ",
@@ -1252,33 +1292,47 @@ compute_coloc_table <- function(obj) {
   list(long = raw, pairs = pairs)
 }
 
-# --- Build one correlation dataset per group + one for "All" ---
+# --- The datasets for whichever level was asked for -------------------------
+# One level only: the two answer different questions and computing both doubles
+# the slowest section in the report for no gain.
 cor_datasets <- list()
-cor_datasets[["All"]] <- compute_coloc_table(combined)
+cor_roi_datasets <- list()
 
-unique_groups <- unique(heatmap_labs)
-if (length(unique_groups) > 1) {
-  for (grp in unique_groups) {
-    grp_runs <- heatmap_order[heatmap_labs == grp]
-    grp_obj  <- combined[, pData(combined)$run %in% grp_runs]
-    cor_datasets[[grp]] <- compute_coloc_table(grp_obj)
+if (.coloc_sample) {
+  cor_datasets[["All"]] <- compute_coloc_table(combined)
+  unique_groups <- unique(heatmap_labs)
+  if (length(unique_groups) > 1) {
+    for (grp in unique_groups) {
+      grp_runs <- heatmap_order[heatmap_labs == grp]
+      grp_obj  <- combined[, pData(combined)$run %in% grp_runs]
+      cor_datasets[[grp]] <- compute_coloc_table(grp_obj)
+    }
   }
+  cor_datasets <- cor_datasets[!vapply(cor_datasets, is.null, logical(1))]
 }
-# Drop failed groups
-cor_datasets <- cor_datasets[!vapply(cor_datasets, is.null, logical(1))]
+
+if (.coloc_roi) {
+  for (.lab in .roi_plot_levels) {
+    .px <- !is.na(pData(combined)$roi_label) & pData(combined)$roi_label == .lab
+    if (sum(.px) > 1)
+      cor_roi_datasets[[.lab]] <- compute_coloc_table(combined[, .px])
+  }
+  cor_roi_datasets <- cor_roi_datasets[!vapply(cor_roi_datasets, is.null, logical(1))]
+}
 
 ```
 
-```{r cor-hm-heading, results="asis", echo=FALSE, eval=.coloc}
+```{r cor-hm-heading, results="asis", echo=FALSE, eval=.coloc_sample}
 # A chunk rather than plain markdown, so the heading goes with the section when
 # colocalisation is off; the section introduction above says why.
-cat("## Correlation heat map {.tabset .tabset-fade}\n\n")
+cat(if (.roi_on) "## By sample {.tabset .tabset-fade}\n\n"
+    else "## Correlation heat map {.tabset .tabset-fade}\n\n")
 ```
 
-```{r cor-hm, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=10, fig.height=8, eval=.coloc}
-
+```{r cor-featgroups, echo=FALSE, include=FALSE, eval=.coloc}
 # Per-feature -> Met-1 mapping for grouping/colouring the triangular heatmaps.
 # Reuses feature_meta built in runStudy.R; falls back to no grouping if absent.
+# Its own chunk because either correlation view uses it.
 .feat_groups <- NULL
 .met_palette <- NULL
 if (exists("feature_meta") && !is.null(feature_meta) &&
@@ -1293,6 +1347,9 @@ if (exists("feature_meta") && !is.null(feature_meta) &&
   # heatmap's feature bar.
   .met_palette <- .cat_cols(.lvls, .pal_feature)
 }
+```
+
+```{r cor-hm, results="asis", echo = FALSE, include=T, warning=FALSE, fig.width=10, fig.height=8, eval=.coloc_sample}
 
 for (grp_name in names(cor_datasets)) {
 
@@ -1322,6 +1379,37 @@ for (grp_name in names(cor_datasets)) {
   }
 }
 
+```
+
+```{r cor-roi, results="asis", echo=FALSE, include=T, warning=FALSE, fig.width=10, fig.height=8, eval=.coloc_roi}
+cat("## By region {.tabset .tabset-fade}\n\n",
+    "Pairwise metrics computed within each region type, pixels pooled across ",
+    "samples.\n\n", sep = "")
+
+if (!length(cor_roi_datasets)) {
+  cat("*(no region had enough pixels to correlate)*\n\n")
+} else {
+  for (roi_name in names(cor_roi_datasets)) {
+    cat("### ", roi_name, " {.tabset .tabset-fade}\n\n", sep = "")
+    long_df <- cor_roi_datasets[[roi_name]]$long
+    for (cor_type in c("cor", "MOC", "M1", "M2", "Dice")) {
+      cat("#### ", cor_type, "\n\n", sep = "")
+      sim_mat <- tryCatch(make_sim_mat(long_df, cor_type), error = function(e) NULL)
+      if (is.null(sim_mat) || nrow(sim_mat) < 2) {
+        cat("*(insufficient data)*\n\n"); next
+      }
+      hc  <- cluster_from_sim(sim_mat)
+      ord <- hc$labels[hc$order]
+      print(plot_tri_heatmap(long_df, cor_type, ord,
+                             feature_groups = .feat_groups,
+                             group_colors   = .met_palette,
+                             group_legend_name = if (!is.null(heatmap_row_split) &&
+                                                     nzchar(heatmap_row_split))
+                                                   heatmap_row_split else "Met-1"))
+      cat("\n\n")
+    }
+  }
+}
 ```
 
 ```{r write-xlsx, echo=FALSE, include=FALSE, message=FALSE, warning=FALSE}
@@ -1356,9 +1444,19 @@ if (exists("fc_tbl") && is.data.frame(fc_tbl) && nrow(fc_tbl) > 0) {
 
 # .coloc as well as exists(): with colocalisation off, a cor_datasets left in
 # the calling environment by an earlier render must not reach these tables.
-if (.coloc && exists("cor_datasets") && length(cor_datasets) > 0) {
-  for (.grp in names(cor_datasets)) {
-    .tbl <- cor_datasets[[.grp]]$pairs
+# Whichever level was computed; braced because a bare `else` opening a line is
+# a parse error at chunk top level.
+.cor_out <- list()
+if (.coloc) {
+  if (exists("cor_roi_datasets") && length(cor_roi_datasets)) {
+    .cor_out <- cor_roi_datasets
+  } else if (exists("cor_datasets")) {
+    .cor_out <- cor_datasets
+  }
+}
+if (length(.cor_out) > 0) {
+  for (.grp in names(.cor_out)) {
+    .tbl <- .cor_out[[.grp]]$pairs
     if (is.null(.tbl) || !is.data.frame(.tbl) || nrow(.tbl) == 0) next
     .sname <- substr(paste0("Cor_", gsub("[^A-Za-z0-9_]", "_", .grp)), 1, 31)
     openxlsx::addWorksheet(wb, .sname)
@@ -1389,7 +1487,35 @@ if (length(.sheets_added) > 0) {
 }
 ```
 
-# 5. Ion images {.tabset .tabset-fade}
+```{r roi-masks, results="asis", echo=FALSE, eval=.roi_on}
+cat("# ", .sec_roi, ". Regions of interest\n\n",
+    "Regions drawn with `labelROIs()`, one `roi_labels.csv` per acquisition. ",
+    "Tissue outside every region is `unassigned` and is ",
+    if (.roi_unas) "compared as a region type of its own"
+    else "left out of the comparisons (`roi: include_unassigned`)",
+    "; background belongs to no region.\n\n", sep = "")
+
+.n_tbl <- .roi_px[!is.na(.roi_px$roi_label), ] %>%
+  group_by(`Region type` = roi_label, Group = group) %>%
+  summarise(Samples = n_distinct(run),
+            Regions = n_distinct(paste(run, roi_id)),
+            Pixels  = n(), .groups = "drop") %>%
+  arrange(match(`Region type`, c(.roi_levels, "unassigned")),
+          match(Group, .grp_levels))
+cat(knitr::kable(.n_tbl, format = "markdown"), sep = "\n")
+cat("\n\n")
+```
+
+```{r roi-mask-maps, echo=FALSE, eval=.roi_on, fig.width=11, fig.height=.roi_map_h}
+if (length(.roi_runs))
+  print(patchwork::wrap_plots(lapply(.roi_runs, .map_one),
+                              ncol = min(3, length(.roi_runs)),
+                              guides = "collect"))
+```
+
+```{r ion-heading, results="asis", echo=FALSE}
+cat("# ", .sec_ion, ". Ion images {.tabset .tabset-fade}\n\n", sep = "")
+```
 
 Ion images of all tissue sections. Three rendering modes per feature:
 
@@ -1398,8 +1524,8 @@ Ion images of all tissue sections. Three rendering modes per feature:
 3. **No scaling or normalisation** — raw intensities; dominated by hotspots but preserves absolute differences between sections.
 
 ```{r roi-map-ion, echo=FALSE, eval=.roi_on, fig.width=11, fig.height=.roi_map_h}
-# The same maps as section 3, repeated here because this is where a reader
-# needs to know which blob is which region while scrolling the ion images.
+# The same maps as the section above, repeated here because this is where a
+# reader needs to know which blob is which region while scrolling the images.
 if (length(.roi_runs))
   print(patchwork::wrap_plots(lapply(.roi_runs, .map_one),
                               ncol = min(3, length(.roi_runs)),
@@ -1551,14 +1677,14 @@ for (i in seq_along(ord)) {
 ```{r cal-heading, results="asis", echo=FALSE, eval=.has_cal}
 # Headings are emitted from code, not written as markdown, so the whole section
 # disappears cleanly when no calibration was run.
-cat("# 6. Quantification\n\n",
+cat("# ", .sec_ion + 1L, ". Quantification\n\n",
     "Tissue intensities were converted to absolute amounts using the ",
     "calibration standards acquisition. Each analyte's response-versus-amount ",
     "curve was fitted with `createCalCurve()` and inverted by `int2conc()` ",
     "to give `pg_pixel` and `pg_mm2` layers. These are calibrated amount ",
     "estimates, not volumetric concentrations, and are conditional on the ",
     "calibration design, matrix matching and acquisition conditions.\n\n",
-    "## 6.1 Calibration fits\n\n", sep = "")
+    "## ", .sec_ion + 1L, ".1 Calibration fits\n\n", sep = "")
 ```
 
 ```{r cal-r2, echo=FALSE, eval=.has_cal}
@@ -1592,7 +1718,7 @@ cat("A low R-squared flags a standard that misbehaved, and a high ",
     "out-of-range percentage means those amounts were extrapolated beyond the ",
     "calibrated range rather than interpolated within it. Amounts from such an ",
     "analyte should not be treated as quantitative.\n\n",
-    "## 6.2 Calibration coverage\n\n",
+    "## ", .sec_ion + 1L, ".2 Calibration coverage\n\n",
     "Converting intensities to concentrations is only valid where the ",
     "standards constrain the fit. The lower panel shows the standard spots and ",
     "the fitted model; the upper panel shows where this study's pixels ",
@@ -1617,7 +1743,7 @@ tryCatch(
 .conc_slot <- quantMSImageR:::.pick_conc_slot(.cal_obj, prefer = "mm2")
 .conc_unit <- quantMSImageR:::.conc_unit(.conc_slot)
 
-cat("## 6.3 Calibrated amount ion images\n\n",
+cat("## ", .sec_ion + 1L, ".3 Calibrated amount ion images\n\n",
     "The same sections imaged after `int2conc()`. The colour scale is now an ",
     "estimated amount (", .conc_unit, ") rather than instrument response, ",
     "which is far more interpretable than raw response and transferable ",
@@ -1697,7 +1823,7 @@ for (.i in seq_along(.cal_ord)) {
 
 ```{r session-heading, results="asis", echo=FALSE}
 # Numbered relative to whether the calibration section above was rendered.
-cat("# ", if (.has_cal) 7 else 6, ". Session Information\n\n",
+cat("# ", .sec_ion + if (.has_cal) 2L else 1L, ". Session Information\n\n",
     "Packages used for the creation of this file\n", sep = "")
 ```
 

@@ -228,6 +228,7 @@ runExample <- function(render_report = TRUE,
     pal_heatmap       <- "heatmap2"
     pal_group         <- "hat"
     pal_feature       <- "reading"
+    pal_region        <- "Set 2"
     hm_cell_border    <- "white"
     fig_dpi           <- 300
     out_path          <- tmp_dir
@@ -237,7 +238,7 @@ runExample <- function(render_report = TRUE,
     # job is to show what the section can do; a study usually picks one.
     roi_on                 <- isTRUE(result$rois)
     roi_compare            <- "both"
-    roi_unit               <- "both"
+    roi_unit               <- "sample"
     roi_include_unassigned <- FALSE
 
     html_file <- file.path(tmp_dir,

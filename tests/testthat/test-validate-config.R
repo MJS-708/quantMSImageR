@@ -141,20 +141,18 @@ test_that("print method summarises without erroring", {
   expect_output(print(v), "All checks passed")
 })
 
-test_that("output$colocalisation must be auto, True or False", {
+test_that("output$colocalisation names a level the report can draw", {
   cfg <- good_cfg()
 
-  cfg$output$colocalisation <- FALSE
-  expect_length(validateConfig(cfg)$errors, 0)
+  # One level only: off, by sample, or by region. True means "sample", so a
+  # config written before the level existed keeps the section it had.
+  for (v in list(FALSE, TRUE, "auto", "sample", "roi", "off")) {
+    cfg$output$colocalisation <- v
+    expect_length(validateConfig(cfg)$errors, 0)
+  }
 
-  cfg$output$colocalisation <- TRUE
-  expect_length(validateConfig(cfg)$errors, 0)
-
-  cfg$output$colocalisation <- "auto"
-  expect_length(validateConfig(cfg)$errors, 0)
-
-  # A string would otherwise be read by the report as off, without a word.
-  cfg$output$colocalisation <- "off"
+  # Anything else would otherwise be read as off, without a word.
+  cfg$output$colocalisation <- "pixels"
   expect_true(any(grepl("colocalisation", validateConfig(cfg)$errors)))
 })
 
@@ -182,16 +180,20 @@ test_that("a sample in pieces is checked for shape", {
 test_that("the roi block takes only documented values", {
   cfg <- good_cfg()
   cfg$roi <- list(enabled = "auto", include_unassigned = FALSE,
-                  compare = "between_groups", unit = "both")
+                  compare = "between_groups", unit = "sample")
   expect_length(validateConfig(cfg)$errors, 0)
 
   for (cmp in c("between_rois", "both")) {
     cfg$roi$compare <- cmp
     expect_length(validateConfig(cfg)$errors, 0)
   }
+  cfg$roi$compare <- "between_groups"
+  cfg$roi$unit    <- "roi"
+  expect_length(validateConfig(cfg)$errors, 0)
 
+  # unit takes one of the two, never both: a comparison has a single unit.
   bad <- list(enabled = "yes please", include_unassigned = "no",
-              compare = "groups", unit = "pixel")
+              compare = "groups", unit = "both")
   for (k in names(bad)) {
     cfg2 <- cfg
     cfg2$roi[[k]] <- bad[[k]]

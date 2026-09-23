@@ -71,11 +71,21 @@ parameters:
 #   heatmap2  diverging,  blue -> white -> red (5 colours)
 #   hat       qualitative, 10 well-separated hues
 #   reading   qualitative, 8 softer hues
+#
+# To SEE them, in R:
+#   names(quantPalettes())                       # the package's own
+#   scales::show_col(quantPalettes("hat"))       # draw one
+#   grDevices::hcl.pals("qualitative")           # the rest, for region:
+#   scales::show_col(grDevices::hcl.colors(6, "Dark 3"))
+# and https://colorspace.r-forge.r-project.org/articles/hcl_palettes.html
+# shows every grDevices palette side by side.
 colours:
   ion_image: "heatmap0"                 # ion images:        heatmap0 | viridis
   heatmap:   "heatmap2"                 # z-score heatmap:   heatmap2 | heatmap0
   group:     "hat"                      # sample-group bar:  hat | reading | heatmap0
   feature:   "reading"                  # feature-class bar: reading | hat | heatmap0
+  region:    "Set 2"                    # regions of interest (maps + box plots): any palette above, or a
+                                        # grDevices qualitative one -- hcl.pals("qualitative") lists them
   cell_border: "white"                  # line between heatmap cells: colour | "none"
 
 # ====================== FEATURE CONTROL ======================
@@ -95,9 +105,9 @@ roi:
                                         # between_rois:   Ctrl airway v vessel, HDM airway v vessel
                                         # both:           both sets of plots
   heatmap:            True              # extra heatmap section: one row per sample and region, each region z-scored against itself | False
-  unit:               "sample"          # sample: one point per sample per region type (airways pooled)
-                                        # roi:    one point per region (airway_01, airway_02, ...)
-                                        # both:   both, side by side
+  unit:               "sample"          # what one point/row is, in every region view:
+                                        #   sample = one per sample per region type (a sample's airways pooled)
+                                        #   roi    = one per region (airway_01, airway_02, ...)
 
 # ========================= CALIBRATION =========================
 # Quantification from on-slide / on-tissue standards
@@ -127,4 +137,9 @@ output:
   render_report: True                   # build HTML report
   output_txt:    False                  # write per-feature txt images
   output_ratios: False                  # write ratio txt images (needs ratios.enabled)
-  colocalisation: auto                  # pixel colocalisation heatmaps (slow): auto = off when any sample merges acquisitions | True | False
+  colocalisation: auto                  # pixel colocalisation, ONE level only (slowest section in the report):
+                                        #   auto   = within the regions when the study has them, else off
+                                        #            (and always off when a sample merges acquisitions)
+                                        #   'roi'  = within each region type -- fewer pixels, so quicker
+                                        #   'sample' (or True) = all pixels of each sample
+                                        #   False  = not computed
