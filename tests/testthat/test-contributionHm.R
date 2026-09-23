@@ -150,3 +150,57 @@ test_that("auto picks the heatmap from group size, not group count", {
   expect_equal(.heatmap_style("contribution", c("A", "B")), "contribution")
   expect_error(.heatmap_style("sideways", c("A", "B")))
 })
+
+# ---- Blocks (regions of interest) ------------------------------------------
+
+test_that("a block is scored against itself, not against the panel", {
+  # Two blocks whose levels differ wildly: scored across the panel, block b
+  # would be uniformly high and say nothing about which sample within it is.
+  m <- .quantile_matrix(mk(values = vals()), 0.5, ord)
+  m[, c(3, 4)] <- m[, c(3, 4)] * 100          # block b on a different scale
+
+  blocked <- .contribution_values(m, grp = c("ctrl", "trt", "ctrl", "trt"),
+                                  block = c("a", "a", "b", "b"))
+  # Within each block of two, the two z-scores are mirror images: each block
+  # was centred on its own mean rather than on the panel's. f4 is the feature
+  # that varies inside both blocks.
+  expect_equal(unname(blocked$z["f4", 1] + blocked$z["f4", 2]), 0,
+               tolerance = 1e-8)
+  expect_equal(unname(blocked$z["f4", 3] + blocked$z["f4", 4]), 0,
+               tolerance = 1e-8)
+  # f1 varies across the panel (s4 alone is high) but is flat inside block a,
+  # so it cannot be scored there -- scoring within a block means exactly this.
+  expect_true(all(is.na(blocked$z["f1", 1:2])))
+  expect_false(anyNA(blocked$z["f1", 3:4]))
+  # And multiplying one block by 100 cannot reach the other block's scores.
+  plain <- .contribution_values(m, grp = c("ctrl", "trt", "ctrl", "trt"),
+                                block = c("a", "a", "a", "a"))
+  expect_false(isTRUE(all.equal(blocked$z[, 1], plain$z[, 1])))
+})
+
+test_that("a group mean belongs to its group within its block", {
+  m <- .quantile_matrix(mk(values = vals()), 0.5, ord)
+  v <- .contribution_values(m, grp = c("ctrl", "trt", "ctrl", "trt"),
+                            block = c("a", "a", "b", "b"))
+  # Four block-group combinations, so the fill of column 1 (block a, ctrl) is
+  # that cell's own z -- a mean over one sample -- not a mean over both ctrls.
+  expect_equal(unname(v$fill[, 1]), unname(v$z[, 1]))
+})
+
+test_that("contributionHm draws the region bar beside the group bar", {
+  obj <- mk(values = vals())
+  hm <- contributionHm(obj, quant_val = 0.5, heatmap_order = ord,
+                       heatmap_labs = c("ctrl", "trt", "ctrl", "trt"),
+                       sample_block = c("a", "a", "b", "b"))
+  expect_s4_class(hm, "Heatmap")
+  expect_equal(names(hm@left_annotation@anno_list), c("Region", "Group"))
+  expect_equal(as.character(hm@matrix_param$row_split[[1]]),
+               c("a", "a", "b", "b"))
+})
+
+test_that("sample_block must have one entry per sample", {
+  expect_error(contributionHm(mk(values = vals()), quant_val = 0.5,
+                              heatmap_order = ord, heatmap_labs = lab,
+                              sample_block = c("a", "b")),
+               regexp = "sample_block has")
+})

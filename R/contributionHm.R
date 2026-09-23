@@ -113,6 +113,18 @@
 #'   starts to look like missing data.
 #' @param saturate Numeric in (0, 0.5). Fraction of cells allowed to saturate
 #'   at the colour limit (default `0.04`, i.e. 4%).
+#' @param sample_block Optional character/factor vector, one entry per sample,
+#'   dividing the rows into blocks -- one per region of interest, typically.
+#'   Rows are split by it, and **each block is scored against itself**: both the
+#'   z-score and the group mean are computed within a block, so the hue says how
+#'   a group sits among the other samples' regions of that type rather than
+#'   restating that one region type is brighter than another. A block with one
+#'   sample has nothing to score against and is drawn in `na_col`. Defaults to
+#'   `NULL` (one block, scored across all samples).
+#' @param sample_block_name Display name for the block annotation legend
+#'   (default `"Region"`).
+#' @param block_palette Character. Qualitative palette for the block colour bar
+#'   (default `"Set 2"`), kept distinct from `group_palette`.
 #' @param na_col Colour for features that cannot be scored -- no variance
 #'   across samples, or missing values (default `"grey88"`).
 #'
@@ -143,7 +155,10 @@ contributionHm <- function(MSIobject, quant_val = 0.5,
                             group_palette = "hat",
                             feature_palette = "reading",
                             alpha_floor = 0.6, saturate = 0.04,
-                            na_col = "grey88") {
+                            na_col = "grey88",
+                            sample_block = NULL,
+                            sample_block_name = "Region",
+                            block_palette = "Set 2") {
 
   palette <- match.arg(palette)
   if (!is.numeric(alpha_floor) || length(alpha_floor) != 1L ||
@@ -165,9 +180,16 @@ contributionHm <- function(MSIobject, quant_val = 0.5,
     stop("contributionHm: heatmap_labs has ", length(grp),
          " entries but there are ", length(samples), " samples.", call. = FALSE)
 
+  blk <- if (!is.null(sample_block))
+           factor(sample_block, levels = unique(sample_block)) else NULL
+  if (!is.null(blk) && length(blk) != length(samples))
+    stop("contributionHm: sample_block has ", length(blk), " entries but ",
+         "there are ", length(samples), " samples.", call. = FALSE)
+
   scale <- match.arg(scale)
   v <- .contribution_values(mat, grp, alpha_floor = alpha_floor,
-                            saturate = saturate, scale = scale)
+                            saturate = saturate, scale = scale,
+                            block = if (is.null(blk)) NULL else as.character(blk))
 
   ## ---- same orientation and layout as quantileHm --------------------------
   fill_t  <- t(v$fill)
@@ -179,11 +201,13 @@ contributionHm <- function(MSIobject, quant_val = 0.5,
           factor(feature_split, levels = unique(feature_split)) else NULL
 
   layout <- .hm_layout(n_row = nrow(fill_t), n_col = ncol(fill_t),
-                       gs = gs, fs = fs,
+                       gs = gs, fs = fs, bs = blk,
                        group_split_name = group_split_name,
                        feature_split_name = feature_split_name,
+                       block_split_name = sample_block_name,
                        group_palette = group_palette,
                        feature_palette = feature_palette,
+                       block_palette = block_palette,
                        cell_size = cell_size, max_aspect = max_aspect,
                        cell_border = cell_border, fontsize = fontsize)
 
@@ -303,31 +327,51 @@ contributionHm <- function(MSIobject, quant_val = 0.5,
 # see the function docs.
 .contribution_values <- function(mat, grp, alpha_floor = 0.6,
                                  saturate = 0.04,
-                                 scale = c("shared", "feature")) {
+                                 scale = c("shared", "feature"),
+                                 block = NULL) {
   scale <- match.arg(scale)
-  # z-score per feature across ALL samples, not within group: within-group
-  # scaling would centre every group on itself and erase the difference being
-  # drawn.
-  z <- t(apply(mat, 1L, function(x) {
+
+  # Blocks -- one per region of interest, typically -- are scored against
+  # themselves: both the z-score and the group mean are computed within a
+  # block. Without that the panel would mostly report that one region type is
+  # brighter than another. One block is the ordinary case.
+  blk <- if (is.null(block)) rep("all", ncol(mat)) else as.character(block)
+  if (length(blk) != ncol(mat))
+    stop(".contribution_values: block has ", length(blk), " entries but there ",
+         "are ", ncol(mat), " samples.", call. = FALSE)
+
+  .z1 <- function(x) {
     s <- stats::sd(x, na.rm = TRUE)
     # A feature measured identically everywhere carries no information here.
     # NA says so; 0 would draw it mid-ramp, indistinguishable from a feature
     # that genuinely sits at the mean.
     if (!is.finite(s) || s == 0) return(rep(NA_real_, length(x)))
     (x - mean(x, na.rm = TRUE)) / s
-  }))
-  if (ncol(mat) == 1L) z <- matrix(z, nrow = nrow(mat))
-  dimnames(z) <- dimnames(mat)
+  }
 
-  grp_levels <- unique(grp)
-  gmean <- vapply(grp_levels, function(g)
-    rowMeans(z[, which(grp == g), drop = FALSE], na.rm = TRUE),
+  # z-score per feature across the samples of a block, not within group:
+  # within-group scaling would centre every group on itself and erase the
+  # difference being drawn.
+  z <- matrix(NA_real_, nrow(mat), ncol(mat), dimnames = dimnames(mat))
+  for (b in unique(blk)) {
+    j <- which(blk == b)
+    # One sample in a block has nothing to be scored against.
+    if (length(j) > 1L) z[, j] <- t(apply(mat[, j, drop = FALSE], 1L, .z1))
+  }
+  if (ncol(mat) == 1L) z <- matrix(z, nrow = nrow(mat), dimnames = dimnames(mat))
+
+  # A group mean belongs to a group WITHIN a block: with regions, "the Ctrl
+  # mean" is the Ctrl mean of that region type.
+  key     <- paste(blk, grp, sep = "\r")
+  key_lvl <- unique(key)
+  gmean <- vapply(key_lvl, function(k)
+    rowMeans(z[, which(key == k), drop = FALSE], na.rm = TRUE),
     numeric(nrow(z)))
   gmean <- matrix(gmean, nrow = nrow(z))
   # rowMeans over an all-NA row returns NaN; keep it NA so it draws as missing.
   gmean[!is.finite(gmean)] <- NA_real_
 
-  fill <- gmean[, match(grp, grp_levels), drop = FALSE]
+  fill <- gmean[, match(key, key_lvl), drop = FALSE]
   dimnames(fill) <- dimnames(z)
 
   # Signed towards the group mean, so "high" always means "moved with the

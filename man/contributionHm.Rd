@@ -22,7 +22,10 @@ contributionHm(
   feature_palette = "reading",
   alpha_floor = 0.6,
   saturate = 0.04,
-  na_col = "grey88"
+  na_col = "grey88",
+  sample_block = NULL,
+  sample_block_name = "Region",
+  block_palette = "Set 2"
 )
 }
 \arguments{
@@ -104,6 +107,21 @@ at the colour limit (default \code{0.04}, i.e. 4\%).}
 
 \item{na_col}{Colour for features that cannot be scored -- no variance
 across samples, or missing values (default \code{"grey88"}).}
+
+\item{sample_block}{Optional character/factor vector, one entry per sample,
+dividing the rows into blocks -- one per region of interest, typically.
+Rows are split by it, and \strong{each block is scored against itself}: both the
+z-score and the group mean are computed within a block, so the hue says how
+a group sits among the other samples' regions of that type rather than
+restating that one region type is brighter than another. A block with one
+sample has nothing to score against and is drawn in \code{na_col}. Defaults to
+\code{NULL} (one block, scored across all samples).}
+
+\item{sample_block_name}{Display name for the block annotation legend
+(default \code{"Region"}).}
+
+\item{block_palette}{Character. Qualitative palette for the block colour bar
+(default \code{"Set 2"}), kept distinct from \code{group_palette}.}
 }
 \value{
 A \code{ComplexHeatmap::Heatmap} (rows = samples, columns = features),
