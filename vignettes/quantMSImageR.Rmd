@@ -444,10 +444,13 @@ point per pixel:
 
 ```{r roi-summary, fig.cap = "One feature by region, one point per section. Each section contributes one value per region label, the median over its pixels there."}
 feature <- "12-HHTrE"
+# spectra() is a plain matrix with no dimnames, so a feature is taken by its
+# row number rather than by name.
+fi <- match(feature, fData(combined)$name)
 vals <- data.frame(
   run       = as.character(pData(combined)$run),
   roi_label = as.character(pData(combined)$roi_label),
-  intensity = as.numeric(spectra(combined, "intensity")[feature, ])
+  intensity = as.numeric(spectra(combined, "intensity")[fi, ])
 )
 vals <- subset(vals, roi_label %in% c("a", "b"))
 

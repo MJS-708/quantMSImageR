@@ -153,10 +153,10 @@ test_that("without sample_block nothing about the panel changes", {
     numeric(1))
   z <- pmin(pmax((med - mean(med)) / stats::sd(med), -1), 1)
   expect_equal(unname(hm@matrix[, "lipid_1"]), unname(z))
-  # Rows are still split by group -- two slices, the A samples then the B ones
-  # -- and the group bar is the only annotation.
-  expect_length(hm@row_order_list, 2L)
-  expect_equal(sort(hm@row_order_list[[1]]), 1:2)
+  # Rows are still split by group, and the group bar is the only annotation.
+  # (row_order_list is empty until the heatmap is drawn; the split it will use
+  # is in matrix_param.)
+  expect_equal(as.character(hm@matrix_param$row_split[[1]]), labs)
   expect_equal(names(hm@left_annotation@anno_list), "Group")
 })
 
@@ -174,9 +174,9 @@ test_that("sample_block scores each block against itself", {
   expect_equal(unname(m["s1", ] + m["s2", ]), rep(0, ncol(m)), tolerance = 1e-8)
   expect_equal(unname(m["s3", ] + m["s4", ]), rep(0, ncol(m)), tolerance = 1e-8)
   # Rows split by REGION, not by group: the groups here alternate (A, B, A, B),
-  # so a first slice of rows 1-2 can only have come from the block.
-  expect_length(hm@row_order_list, 2L)
-  expect_equal(sort(hm@row_order_list[[1]]), 1:2)
+  # so a split of a, a, b, b can only have come from the block.
+  expect_equal(as.character(hm@matrix_param$row_split[[1]]),
+               c("a", "a", "b", "b"))
   # The group keeps its own colour bar beside the region one.
   expect_equal(names(hm@left_annotation@anno_list), c("Region", "Group"))
 })
