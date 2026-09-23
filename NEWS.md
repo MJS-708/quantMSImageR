@@ -1,4 +1,4 @@
-# quantMSImageR (development version)
+# quantMSImageR 0.99.8
 
 * Tissues acquired in pieces -- a top and a bottom, say -- can now be joined
   into one sample. `readMRM()` keeps each pixel's stage position (`x_stage`,
