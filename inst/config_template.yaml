@@ -13,27 +13,32 @@ paths:
   lib_ion_path: "path/to/ion_library.csv"  # MRM ion-library CSV
 
 # ============================ SAMPLES ============================
-# one entry per sample. pos:/neg: = .raw name(s); run_id unique; label = group.
-# Several .raw files for one sample? Add `combine:` to say what they are:
-#   panels  (default) different transitions over the same pixels
-#   stitch            pieces of ONE tissue acquired in separate passes, e.g.
-#                     a section too tall for the stage done as top then bottom.
-#                     Their pixels are unioned into a single run -- two halves
-#                     of one tissue are not two replicates.
-#   - neg:     ["18Apr_p6-antIgEtop", "18Apr_p6-antIgEbtm"]
-#     combine: "stitch"
-#     run_id:  "P6_a-IgE"
-#     label:   "a-IgE"
+# One entry per sample. pos:/neg: = .raw name(s); run_id unique; label = group.
 samples:
+
+  # One acquisition.
   - neg: "acq_run_ctrl_neg"             # pos: and/or neg: (string or list)
     run_id: "S1"                        # unique per sample
     label:  "Ctrl"                      # group (shared across replicates)
 
-  - pos:                                # multiple acquisitions -> combined
-      - "acq_run_trt_pos_rep1"
-      - "acq_run_trt_pos_rep2"
+  # Several panels over the SAME area -- neg + pos, or pos01 + pos02.
+  # Merged pixel by pixel (bindPanels).
+  - neg: "acq_run_trt_neg"
+    pos: ["acq_run_trt_pos01", "acq_run_trt_pos02"]
     run_id: "S2"
     label:  "Treatment"
+
+  # One tissue acquired in PIECES, e.g. a top and a bottom. Panels are merged
+  # within each piece, then the pieces are placed where the stage recorded
+  # them and joined into one sample (stitchAcquisitions). Two halves of one
+  # tissue are one sample, not two replicates.
+  - run_id: "S3"
+    label:  "Treatment"
+    pieces:
+      - neg: "acq_run_trt2_top_neg"
+        pos: ["acq_run_trt2_top_pos01", "acq_run_trt2_top_pos02"]
+      - neg: "acq_run_trt2_btm_neg"
+        pos: ["acq_run_trt2_btm_pos01", "acq_run_trt2_btm_pos02"]
 
 # ==================== PROCESSING PARAMETERS ====================
 parameters:
@@ -81,6 +86,19 @@ features:
     enabled: False                      # False = keep original names
     #"8-isoPGE2 || PGE2": "PGE2"
 
+# ============================== ROIs ==============================
+# Regions drawn with labelROIs(), one roi_labels.csv per acquisition.
+roi:
+  enabled:            auto              # auto (on when any acquisition has roi_labels.csv) | True | False
+  include_unassigned: False             # tissue outside every region as its own "unassigned" type | leave out
+  compare:            "between_groups"  # between_groups: airway Ctrl v HDM, vessel Ctrl v HDM
+                                        # between_rois:   Ctrl airway v vessel, HDM airway v vessel
+                                        # both:           both sets of plots
+  heatmap:            True              # extra heatmap section: one row per sample and region, each region z-scored against itself | False
+  unit:               "sample"          # sample: one point per sample per region type (airways pooled)
+                                        # roi:    one point per region (airway_01, airway_02, ...)
+                                        # both:   both, side by side
+
 # ========================= CALIBRATION =========================
 # Quantification from on-slide / on-tissue standards
 calibration:
@@ -109,3 +127,4 @@ output:
   render_report: True                   # build HTML report
   output_txt:    False                  # write per-feature txt images
   output_ratios: False                  # write ratio txt images (needs ratios.enabled)
+  colocalisation: auto                  # pixel colocalisation heatmaps (slow): auto = off when any sample merges acquisitions | True | False

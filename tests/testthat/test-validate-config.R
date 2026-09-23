@@ -140,3 +140,63 @@ test_that("print method summarises without erroring", {
   expect_output(print(v), "quantMSImageR validation")
   expect_output(print(v), "All checks passed")
 })
+
+test_that("output$colocalisation must be auto, True or False", {
+  cfg <- good_cfg()
+
+  cfg$output$colocalisation <- FALSE
+  expect_length(validateConfig(cfg)$errors, 0)
+
+  cfg$output$colocalisation <- TRUE
+  expect_length(validateConfig(cfg)$errors, 0)
+
+  cfg$output$colocalisation <- "auto"
+  expect_length(validateConfig(cfg)$errors, 0)
+
+  # A string would otherwise be read by the report as off, without a word.
+  cfg$output$colocalisation <- "off"
+  expect_true(any(grepl("colocalisation", validateConfig(cfg)$errors)))
+})
+
+test_that("a sample in pieces is checked for shape", {
+  piece_sample <- function(...) c(list(run_id = "S2", label = "A"), list(...))
+  two <- list(list(neg = "top", pos = list("top_p1")), list(neg = "btm"))
+
+  cfg <- good_cfg()
+  cfg$samples[[2]] <- piece_sample(pieces = two)
+  expect_length(validateConfig(cfg)$errors, 0)
+
+  # One piece is not a tissue in pieces.
+  cfg$samples[[2]] <- piece_sample(pieces = two[1])
+  expect_true(any(grepl("two or more", validateConfig(cfg)$errors)))
+
+  # A piece with no acquisitions of its own.
+  cfg$samples[[2]] <- piece_sample(pieces = list(two[[1]], list(label = "x")))
+  expect_true(any(grepl("its own pos", validateConfig(cfg)$errors)))
+
+  # Acquisitions beside pieces: which area do they cover?
+  cfg$samples[[2]] <- piece_sample(pieces = two, neg = "other")
+  expect_true(any(grepl("under each piece", validateConfig(cfg)$errors)))
+})
+
+test_that("the roi block takes only documented values", {
+  cfg <- good_cfg()
+  cfg$roi <- list(enabled = "auto", include_unassigned = FALSE,
+                  compare = "between_groups", unit = "both")
+  expect_length(validateConfig(cfg)$errors, 0)
+
+  for (cmp in c("between_rois", "both")) {
+    cfg$roi$compare <- cmp
+    expect_length(validateConfig(cfg)$errors, 0)
+  }
+
+  bad <- list(enabled = "yes please", include_unassigned = "no",
+              compare = "groups", unit = "pixel")
+  for (k in names(bad)) {
+    cfg2 <- cfg
+    cfg2$roi[[k]] <- bad[[k]]
+    expect_true(any(grepl(paste0("roi$", k), validateConfig(cfg2)$errors,
+                          fixed = TRUE)),
+                info = k)
+  }
+})

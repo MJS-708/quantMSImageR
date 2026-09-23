@@ -88,3 +88,40 @@ test_that("invalid average_method is rejected early", {
     regexp = "'arg' should be one of"
   )
 })
+
+test_that("regions of interest are off unless asked for", {
+  result <- suppressMessages(generateTxtImages(
+    fns = pos04_name, data_path = pos04_folder, image_dir = tempdir(),
+    lib_ion_path = lib_ion_path, snr_thresh = 1, output_txt = FALSE))
+  expect_false(result$rois)
+  expect_false("roi_label" %in% names(pData(result$combined)))
+})
+
+test_that("roi_labels.csv is attached by pixel position", {
+  # A copy of the bundled acquisition with ten tissue pixels labelled airway_01.
+  tmp <- tempfile("qmsi_roi_")
+  dir.create(tmp)
+  on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
+  file.copy(file.path(extdata, "pos04_test.raw"), tmp, recursive = TRUE)
+  raw  <- file.path(tmp, "pos04_test.raw")
+  obj  <- readRDS(file.path(raw, "MSImagingExperiment.rds"))
+  mask <- read.csv(file.path(raw, "tissue_pixels.csv"))   # legacy: row order
+  tiss <- which(as.logical(mask$tissue_pixels))[1:10]
+  write.csv(data.frame(x = pData(obj)$x[tiss], y = pData(obj)$y[tiss],
+                       roi_label = "airway", roi_id = "airway_01"),
+            file.path(raw, "roi_labels.csv"), row.names = FALSE)
+
+  result <- suppressMessages(generateTxtImages(
+    fns = pos04_name, data_path = tmp, image_dir = tmp,
+    lib_ion_path = lib_ion_path, snr_thresh = 1, output_txt = FALSE,
+    rois = "auto"))
+  pd <- pData(result$combined)
+  bg <- as.character(pd$sample_name) == "background_pixels"
+
+  expect_true(result$rois)
+  expect_equal(sum(pd$roi_id == "airway_01", na.rm = TRUE), 10L)
+  expect_true(all(is.na(pd$roi_label[bg])))              # background: no region
+  expect_setequal(unique(pd$roi_label[!bg]), c("airway", "unassigned"))
+  # The SNR-filtered objects, which the report reads, carry them too.
+  expect_true("roi_label" %in% names(pData(result$combined_snr)))
+})

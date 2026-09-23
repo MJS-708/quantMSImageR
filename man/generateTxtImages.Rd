@@ -25,7 +25,8 @@ generateTxtImages(
   is_mode = "line",
   is_window = 15,
   remove_IS = TRUE,
-  type_header = "Type"
+  type_header = "Type",
+  rois = FALSE
 )
 }
 \arguments{
@@ -34,7 +35,12 @@ for single-polarity studies. For dual-polarity studies pass a list where
 each element is either a plain string (single acquisition) or a named list
 with fields \code{pos}, \code{neg}, \code{label}, and optionally \code{prefix_pos}/\code{prefix_neg}
 (see \code{\link[=bindPanels]{bindPanels()}}). \code{runStudy.R} builds this list automatically
-from the YAML \code{samples} section.}
+from the YAML \code{samples} section.
+
+A tissue acquired in pieces (top and bottom, say) is one element with a
+\code{pieces} field instead of \code{pos}/\code{neg}: a list of areas, each with its own
+\code{pos} and/or \code{neg}. Each piece's panels are bound, and the pieces are then
+placed by stage position with \code{\link[=stitchAcquisitions]{stitchAcquisitions()}} and become one run.}
 
 \item{data_path}{Path to the folder that contains the \code{.raw} acquisition
 directories.}
@@ -127,6 +133,17 @@ normalising (default \code{TRUE}).}
 
 \item{type_header}{Character. Ion-library column holding the feature type,
 passed to \code{\link[=readMRM]{readMRM()}} and matched by \code{is_name} (default \code{"Type"}).}
+
+\item{rois}{Regions of interest drawn with \code{\link[=labelROIs]{labelROIs()}}. \code{TRUE} reads
+\code{roi_labels.csv} from each acquisition's \code{.raw} folder and adds \code{roi_label}
+and \code{roi_id} to \code{pData()}: the region's name and its numbered identifier
+(\code{airway_01}), \code{"unassigned"} for tissue outside every region and \code{NA} for
+background. Acquisitions without the file are entirely \code{"unassigned"}.
+\code{"auto"} is \code{TRUE} when any acquisition has the file; \code{FALSE} (default)
+ignores them. Regions already on an object -- a \verb{section:} RDS saved with
+\code{roi_label}/\code{roi_id}, as the bundled example sections are -- are kept as
+they are, but \code{"auto"} cannot see them before loading, so switch regions on
+with \code{TRUE} for a study built from such sections.}
 }
 \value{
 Invisibly returns a named list:
@@ -138,6 +155,7 @@ backward compatibility.}
 \item{\code{combined_snr_list}}{Named list of SNR-filtered objects, one per
 threshold in \code{snr_thresh}, named \code{"snr<value>"} (e.g. \code{"snr3"}).}
 \item{\code{combined_NAbackground}}{Raw intensity with background set to \code{NA}.}
+\item{\code{rois}}{Logical: whether region-of-interest labels were attached.}
 }
 }
 \description{

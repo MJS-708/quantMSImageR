@@ -16,6 +16,11 @@
 #'   with fields `pos`, `neg`, `label`, and optionally `prefix_pos`/`prefix_neg`
 #'   (see [bindPanels()]). `runStudy.R` builds this list automatically
 #'   from the YAML `samples` section.
+#'
+#'   A tissue acquired in pieces (top and bottom, say) is one element with a
+#'   `pieces` field instead of `pos`/`neg`: a list of areas, each with its own
+#'   `pos` and/or `neg`. Each piece's panels are bound, and the pieces are then
+#'   placed by stage position with [stitchAcquisitions()] and become one run.
 #' @param data_path Path to the folder that contains the `.raw` acquisition
 #'   directories.
 #' @param image_dir Root output directory. One sub-directory per acquisition
@@ -88,6 +93,16 @@
 #'   normalising (default `TRUE`).
 #' @param type_header Character. Ion-library column holding the feature type,
 #'   passed to [readMRM()] and matched by `is_name` (default `"Type"`).
+#' @param rois Regions of interest drawn with [labelROIs()]. `TRUE` reads
+#'   `roi_labels.csv` from each acquisition's `.raw` folder and adds `roi_label`
+#'   and `roi_id` to `pData()`: the region's name and its numbered identifier
+#'   (`airway_01`), `"unassigned"` for tissue outside every region and `NA` for
+#'   background. Acquisitions without the file are entirely `"unassigned"`.
+#'   `"auto"` is `TRUE` when any acquisition has the file; `FALSE` (default)
+#'   ignores them. Regions already on an object -- a `section:` RDS saved with
+#'   `roi_label`/`roi_id`, as the bundled example sections are -- are kept as
+#'   they are, but `"auto"` cannot see them before loading, so switch regions on
+#'   with `TRUE` for a study built from such sections.
 #'
 #' @return Invisibly returns a named list:
 #'   \describe{
@@ -98,6 +113,7 @@
 #'     \item{`combined_snr_list`}{Named list of SNR-filtered objects, one per
 #'       threshold in `snr_thresh`, named `"snr<value>"` (e.g. `"snr3"`).}
 #'     \item{`combined_NAbackground`}{Raw intensity with background set to `NA`.}
+#'     \item{`rois`}{Logical: whether region-of-interest labels were attached.}
 #'   }
 #'
 #' @seealso [int2SNR()], [applySNR()], [back2NA()], [imageR()]
@@ -141,7 +157,8 @@ generateTxtImages <- function(
   is_mode        = "line",
   is_window      = 15,
   remove_IS      = TRUE,
-  type_header    = "Type"
+  type_header    = "Type",
+  rois           = FALSE
 ) {
 
   average_method <- match.arg(average_method, c("mean", "median"))
@@ -280,7 +297,12 @@ generateTxtImages <- function(
   # inside the .raw folder (e.g. slide1_brain01.RDS) instead of reading the
   # Waters raw data. The RDS is assumed to already carry pData$sample_name
   # and ion-library-matched fData (saved by an earlier preprocessing step).
+  # Regions of interest are attached last, once the tissue labels are known.
   load_and_prep_acq <- function(fn_name, section = NULL) {
+    attach_rois(.load_acq(fn_name, section), fn_name, section)
+  }
+
+  .load_acq <- function(fn_name, section = NULL) {
     if (!is.null(section) && nzchar(section)) {
       rds_path <- file.path(data_path, paste0(fn_name, ".raw"),
                             paste0(section, ".RDS"))
@@ -411,9 +433,96 @@ generateTxtImages <- function(
     } else {
       obj <- objs[[1]]
       for (i in seq_along(objs)[-1])
-        obj <- bindPanels(obj, objs[[i]], label = label)
+        obj <- bind_panels(obj, objs[[i]], label = label)
     }
     pData(obj)$run <- factor(rep(label, ncol(obj)))
+    obj
+  }
+
+  # One area of tissue: every panel acquired over it, both polarities, bound
+  # into one object. A sample is one area, or -- with `pieces:` -- several,
+  # stitched together afterwards. `combine` describes the several files WITHIN
+  # a polarity; the two polarities are always panels of one another.
+  load_area <- function(pos_fns, neg_fns, label, mode = "panels") {
+    if (!is.null(pos_fns) && !is.null(neg_fns)) {
+      pos_obj <- load_and_prep_multiple(pos_fns, label = label, mode = mode)
+      neg_obj <- load_and_prep_multiple(neg_fns, label = label, mode = mode)
+      bind_panels(pos_obj, neg_obj, label = label)
+    } else {
+      load_and_prep_multiple(pos_fns %||% neg_fns, label = label, mode = mode)
+    }
+  }
+
+  # bindPanels() keeps obj1's pixel metadata, so regions drawn on obj2's
+  # acquisition would be lost whenever obj1 was not labelled. Carry them over
+  # where obj1 has none; panels of one area share their pixel grid.
+  bind_panels <- function(obj1, obj2, label) {
+    out <- bindPanels(obj1, obj2, label = label)
+    if (!.use_roi) return(out)
+    pd2  <- pData(obj2)
+    k2   <- paste(pd2$x, pd2$y, sep = "_")
+    kout <- paste(pData(out)$x, pData(out)$y, sep = "_")
+    m    <- match(kout, k2)
+    lab  <- as.character(pData(out)$roi_label)
+    id   <- as.character(pData(out)$roi_id)
+    lab2 <- as.character(pd2$roi_label)[m]
+    id2  <- as.character(pd2$roi_id)[m]
+    has2 <- !is.na(lab2) & lab2 != "unassigned"
+    fill <- has2 & !is.na(lab) & lab == "unassigned"
+    clash <- sum(has2 & !is.na(lab) & lab != "unassigned" & lab != lab2)
+    if (clash > 0)
+      message(sprintf(paste0(
+        "  '%s': %d pixel(s) carry a different region label in each panel; ",
+        "the first panel's label is kept."), label, clash))
+    if (any(fill)) {
+      lab[fill] <- lab2[fill]
+      id[fill]  <- id2[fill]
+      pData(out)$roi_label <- lab
+      pData(out)$roi_id    <- id
+    }
+    out
+  }
+
+  # Regions of interest drawn with labelROIs(), read from roi_labels.csv in the
+  # acquisition's .raw folder and matched on (x, y) like the tissue mask.
+  # Background pixels belong to no region (NA); tissue outside every region is
+  # "unassigned". With regions switched on, every acquisition gets both columns
+  # -- unlabelled ones entirely "unassigned" -- so samples still combine.
+  attach_rois <- function(obj, fn_name, section = NULL) {
+    if (!.use_roi) return(obj)
+    pd <- pData(obj)
+    # Regions the object already carries -- a section RDS saved with them, as
+    # the bundled example sections are -- are what they say they are.
+    if (all(c("roi_label", "roi_id") %in% names(pd)) &&
+        any(!is.na(pd$roi_label) & pd$roi_label != "unassigned"))
+      return(obj)
+    is_bg <- as.character(pData(obj)$sample_name) %in%
+               .bg_labels("background_pixels")
+    lab <- rep("unassigned", ncol(obj))
+    id  <- lab
+    roi_path <- file.path(data_path, paste0(fn_name, ".raw"), "roi_labels.csv")
+    if ((is.null(section) || !nzchar(section)) && file.exists(roi_path)) {
+      rl <- read.csv(roi_path, stringsAsFactors = FALSE)
+      if (!all(c("x", "y", "roi_label", "roi_id") %in% names(rl)))
+        stop("roi_labels.csv for '", fn_name, "' needs columns x, y, ",
+             "roi_label and roi_id; redraw it with labelROIs().", call. = FALSE)
+      m  <- match(paste(pData(obj)$x, pData(obj)$y, sep = "_"),
+                  paste(rl$x, rl$y, sep = "_"))
+      ok <- !is.na(m)
+      lab[ok] <- as.character(rl$roi_label[m[ok]])
+      id[ok]  <- as.character(rl$roi_id[m[ok]])
+      n_bg <- sum(ok & is_bg & lab != "unassigned")
+      if (n_bg > 0)
+        message(sprintf(paste0(
+          "  '%s': %d region pixel(s) are background in tissue_pixels.csv and ",
+          "belong to no region."), fn_name, n_bg))
+      message(sprintf("  '%s': %d region(s) from roi_labels.csv.", fn_name,
+                      length(unique(id[ok & !is_bg & lab != "unassigned"]))))
+    }
+    lab[is_bg] <- NA_character_
+    id[is_bg]  <- NA_character_
+    pData(obj)$roi_label <- lab
+    pData(obj)$roi_id    <- id
     obj
   }
 
@@ -422,20 +531,76 @@ generateTxtImages <- function(
   # fns: character vector (backward-compat) OR list where each element is
   # a string (single acq) or named list with pos/neg/label fields.
   fn_list   <- as.list(fns)
-  fn_labels <- vapply(fn_list, function(e)
-    if (is.list(e)) e$label %||% (e$pos[1] %||% e$neg[1]) else as.character(e),
-    character(1))
+  fn_labels <- vapply(fn_list, function(e) {
+    if (!is.list(e)) return(as.character(e))
+    first <- if (!is.null(e$pieces)) e$pieces[[1]] else e
+    as.character(e$label %||% (unlist(first$pos)[1] %||% unlist(first$neg)[1]))
+  }, character(1))
+
+  # Regions of interest: "auto" switches them on when any acquisition in the
+  # study has a roi_labels.csv.
+  .acq_names <- unique(unlist(lapply(fn_list, function(e) {
+    if (!is.list(e)) return(as.character(e))
+    areas <- if (!is.null(e$pieces)) e$pieces else list(e)
+    unlist(lapply(areas, function(a) c(unlist(a$pos), unlist(a$neg))))
+  })))
+  .use_roi <- if (identical(tolower(as.character(rois)), "auto")) {
+    any(file.exists(file.path(data_path, paste0(.acq_names, ".raw"),
+                              "roi_labels.csv")))
+  } else isTRUE(as.logical(rois))
+  if (.use_roi)
+    message("Regions of interest: on (roi_labels.csv read where present).")
 
   # ----- Load and process acquisitions -----------------------------------
 
   combined          <- NULL
   combined_snr_list <- vector("list", length(snr_thresh_vec))
 
+  # Internal-standard normalisation, per acquisition and before SNR, since
+  # int2SNR() references the background of whichever layer it is given.
+  normalise_is <- function(obj, what) {
+    if (!.use_is) return(obj)
+    # int2response() matches the standard on the feature-type column -- the
+    # ion library's Type column, typically "IS" -- not on the transition
+    # name. Checked here as well so the message names the acquisition.
+    .ft <- as.character(.feature_type(obj))
+    if (!is_name %in% .ft)
+      stop("generateTxtImages: no feature typed '", is_name,
+           "' in '", what, "'. `is_name` is the value of the ion ",
+           "library's Type column (e.g. \"IS\"), not a transition name. ",
+           "Values present: ",
+           paste(unique(.ft), collapse = ", "),
+           call. = FALSE)
+    int2response(obj, val_slot = "intensity",
+                 normalisation = "internal_standard",
+                 IS_name = is_name, is_norm_header = is_norm_header,
+                 mode = is_mode, window = is_window,
+                 remove_IS = remove_IS)
+  }
+
+  # SNR filtering at one threshold. A threshold of 0 short-circuits to the raw
+  # object (no SNR computation) -- the smoke-test path -- so overrides are
+  # ignored for a 0-valued global report.
+  snr_filter <- function(obj, thr, ov) {
+    if (thr == 0) return(obj)
+    tmp <- int2SNR(
+      MSIobject = obj, val_slot = .val, pixel_header = "sample_name",
+      background = "background_pixels", tissue = "tissue_pixels",
+      snr_thresh = thr, average = average_method,
+      snr_overrides = ov
+    )
+    applySNR(MSIobject = tmp, val_slot = .val)
+  }
+
   for (ind in seq_along(fn_list)) {
     fn_entry <- fn_list[[ind]]
     fn_label <- fn_labels[ind]
     message(sprintf("Loading %s (%d/%d)", fn_label, ind, length(fn_list)))
 
+    # `parts` are normalised and SNR-filtered on their own: the sample, or each
+    # piece of a sample acquired in pieces. Pieces are separate acquisitions --
+    # often on different days -- so each is referenced to its own internal
+    # standard and its own background before they are stitched into one.
     if (is.list(fn_entry)) {
       pos_fns <- if (!is.null(fn_entry$pos)) unlist(fn_entry$pos) else NULL
       neg_fns <- if (!is.null(fn_entry$neg)) unlist(fn_entry$neg) else NULL
@@ -448,67 +613,47 @@ generateTxtImages <- function(
         if (!is.null(pos_fns) && !is.null(neg_fns))
           stop("`section:` with dual polarity (pos + neg) is not supported")
         raw_name <- (neg_fns %||% pos_fns)[1]
-        tissue   <- load_and_prep_acq(raw_name, section = section)
-        pData(tissue)$run <- factor(rep(fn_label, ncol(tissue)))
-      } else if (!is.null(pos_fns) && !is.null(neg_fns)) {
-        # Both polarities: combine within each polarity then bind across.
-        # `combine` describes the several files WITHIN a polarity; the two
-        # polarities are always panels of one another.
-        pos_obj <- load_and_prep_multiple(pos_fns, label = fn_label,
-                                          mode = combine_mode)
-        neg_obj <- load_and_prep_multiple(neg_fns, label = fn_label,
-                                          mode = combine_mode)
-        tissue  <- bindPanels(pos_obj, neg_obj, label = fn_label)
+        parts    <- list(load_and_prep_acq(raw_name, section = section))
+      } else if (!is.null(fn_entry$pieces)) {
+        # Pieces of one tissue acquired separately (top and bottom, say). Each
+        # piece is one area, its panels bound as usual; the pieces are placed
+        # by stage position below and become one sample.
+        parts <- lapply(fn_entry$pieces, function(pc) {
+          p_fns <- if (!is.null(pc$pos)) unlist(pc$pos) else NULL
+          n_fns <- if (!is.null(pc$neg)) unlist(pc$neg) else NULL
+          load_area(p_fns, n_fns, label = as.character((n_fns %||% p_fns)[1]))
+        })
       } else {
-        # Single polarity (pos: OR neg: only)
-        tissue <- load_and_prep_multiple(pos_fns %||% neg_fns,
-                                         label = fn_label, mode = combine_mode)
+        parts <- list(load_area(pos_fns, neg_fns, label = fn_label,
+                                mode = combine_mode))
       }
     } else {
       # Plain string: backward-compatible single acquisition
-      tissue <- load_and_prep_acq(fn_entry)
+      parts <- list(load_and_prep_acq(fn_entry))
     }
 
-    # Internal-standard normalisation, per acquisition and before SNR, since
-    # int2SNR() references the background of whichever layer it is given.
-    if (.use_is) {
-      # int2response() matches the standard on the feature-type column -- the
-      # ion library's Type column, typically "IS" -- not on the transition
-      # name. Checked here as well so the message names the acquisition.
-      .ft <- as.character(.feature_type(tissue))
-      if (!is_name %in% .ft)
-        stop("generateTxtImages: no feature typed '", is_name,
-             "' in '", fn_label, "'. `is_name` is the value of the ion ",
-             "library's Type column (e.g. \"IS\"), not a transition name. ",
-             "Values present: ",
-             paste(unique(.ft), collapse = ", "),
-             call. = FALSE)
-      tissue <- int2response(tissue, val_slot = "intensity",
-                             normalisation = "internal_standard",
-                             IS_name = is_name, is_norm_header = is_norm_header,
-                             mode = is_mode, window = is_window,
-                             remove_IS = remove_IS)
+    parts <- lapply(parts, normalise_is, what = fn_label)
+
+    # One sample from its parts. Stitching is repeated for every SNR threshold;
+    # it places the pieces identically each time, so only the first says so.
+    assemble <- function(objs, quiet = FALSE) {
+      o <- if (length(objs) == 1L) objs[[1]]
+           else if (quiet) suppressMessages(stitchAcquisitions(objs, label = fn_label))
+           else stitchAcquisitions(objs, label = fn_label)
+      pData(o)$run <- factor(rep(fn_label, ncol(o)))
+      o
     }
+    tissue <- assemble(parts)
 
     # Per-feature overrides resolved against THIS acquisition's features.
     .ov <- resolve_overrides(as.character(fData(tissue)$name))
 
-    # Compute one SNR-filtered object per requested threshold. A threshold of
-    # 0 short-circuits to the raw `tissue` object (no SNR computation) -- the
-    # smoke-test path -- so overrides are ignored for a 0-valued global report.
+    # One SNR-filtered object per requested threshold.
     for (si in seq_along(snr_thresh_vec)) {
       thr <- snr_thresh_vec[si]
-      tissue_snr <- if (thr == 0) {
-        tissue
-      } else {
-        tmp <- int2SNR(
-          MSIobject = tissue, val_slot = .val, pixel_header = "sample_name",
-          background = "background_pixels", tissue = "tissue_pixels",
-          snr_thresh = thr, average = average_method,
-          snr_overrides = .ov
-        )
-        applySNR(MSIobject = tmp, val_slot = .val)
-      }
+      tissue_snr <- if (thr == 0) tissue
+                    else assemble(lapply(parts, snr_filter, thr = thr, ov = .ov),
+                                  quiet = TRUE)
 
       if (is.null(combined_snr_list[[si]])) {
         combined_snr_list[[si]] <- tissue_snr
@@ -542,7 +687,8 @@ generateTxtImages <- function(
     combined              = combined,
     combined_snr          = combined_snr_list[[1]],
     combined_snr_list     = setNames(combined_snr_list, paste0("snr", snr_thresh_vec)),
-    combined_NAbackground = combined_NAbackground
+    combined_NAbackground = combined_NAbackground,
+    rois                  = .use_roi
   )
 
   if (!output_txt) return(invisible(out))

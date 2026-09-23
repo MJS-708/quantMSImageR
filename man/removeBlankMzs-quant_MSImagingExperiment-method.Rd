@@ -28,6 +28,7 @@ obj <- removeBlankMzs(obj)
 }
 \seealso{
 Other acquisition:
+\code{\link[=labelROIs]{labelROIs()}},
 \code{\link[=readMRM]{readMRM()}},
 \code{\link[=selectTissuePixels]{selectTissuePixels()}},
 \code{\link[=trimMSI]{trimMSI()}}

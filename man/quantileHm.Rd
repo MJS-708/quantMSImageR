@@ -12,11 +12,15 @@ quantileHm(
   feature_split = NULL,
   feature_split_name = "Pathway",
   group_split_name = "Group",
+  sample_block = NULL,
+  sample_block_name = "Region",
+  block_palette = "Set 2",
   cell_size = 8,
   max_aspect = 1.5,
   cell_border = "white",
   fontsize = 8,
   palette = c("heatmap2", "heatmap0"),
+  na_col = "grey88",
   group_palette = "hat",
   feature_palette = "reading",
   row_split = NULL,
@@ -49,6 +53,22 @@ legend (e.g. \code{"Met-1"}, \code{"Pathway"}). Defaults to \code{"Pathway"}.}
 \item{group_split_name}{Display name for the sample-group annotation legend
 (e.g. \code{"Treatment"}, \code{"Group"}). Defaults to \code{"Group"}.}
 
+\item{sample_block}{Optional character/factor vector, one entry per sample,
+dividing the rows into blocks -- one per region of interest, typically.
+Rows are split by it, and \strong{each block is z-scored against itself}, so a
+colour says where a sample sits among the others of that block rather than
+among every row. Without it, a panel holding airways and parenchyma would
+mostly report that the two tissues differ, which is rarely the question.
+A block with only one sample has no spread to score against and is drawn in
+\code{na_col}. Defaults to \code{NULL} (one block, scored across all samples).}
+
+\item{sample_block_name}{Display name for the block annotation legend
+(default \code{"Region"}).}
+
+\item{block_palette}{Character. Qualitative palette for the block colour bar
+(default \code{"Set 2"}), kept distinct from \code{group_palette} so a region is not
+mistaken for a group.}
+
 \item{cell_size}{Numeric. Side of a heatmap cell, in millimetres (default
 \code{8}). Giving the body an absolute size is what makes cells square; leaving
 it to \code{ComplexHeatmap} stretches them to fill the device, which produces
@@ -72,6 +92,10 @@ crowds the panel once feature names are long enough to need rotating.}
 \item{palette}{Character. Diverging colour ramp for the z-scores:
 \code{"heatmap2"} (default, blue-white-red) or \code{"heatmap0"}. See
 \code{\link[=quantPalettes]{quantPalettes()}}.}
+
+\item{na_col}{Colour for features that cannot be scored -- no variance
+across samples, or missing values (default \code{"grey88"}). The same default
+as \code{\link[=contributionHm]{contributionHm()}}, so an unscoreable feature looks identical in both.}
 
 \item{group_palette, feature_palette}{Character. Qualitative palettes for the
 sample-group and feature-group colour bars (defaults \code{"hat"} and
@@ -120,10 +144,12 @@ saturates readily, which is deliberate -- the panel is meant to show the
 pattern, not the magnitude -- but it does mean two saturated cells can sit
 at very different z-scores.
 
-A feature with no variance across samples has an undefined z-score. It is
-currently drawn at the bottom of the ramp rather than as missing, so a
-perfectly flat feature reads as uniformly low; treat an entirely
-single-coloured column with suspicion and check the underlying values.
+A feature with no variance across samples, and a feature that is missing,
+both have no z-score: there is no spread to place a sample within. They are
+drawn in \code{na_col} rather than given a position on the ramp, matching
+\code{\link[=contributionHm]{contributionHm()}}. In particular neither is drawn as low, so a
+single-coloured grey column means "cannot be scored", not "depleted
+everywhere".
 }
 
 \section{Why there is no scale argument here}{

@@ -149,7 +149,11 @@ runExample <- function(render_report = TRUE,
     perc           = 97,
     rot_clockwise  = 0,
     average_method = "median",
-    output_txt     = output_txt
+    output_txt     = output_txt,
+    # The bundled sections carry two "a" and two "b" regions each (see
+    # inst/scripts/generate_example_data.R), so the example shows the regions
+    # section as a real study with labelROIs() output would.
+    rois           = TRUE
   )
 
   # ---- Quantification demo (calibration) -----------------------------------
@@ -229,6 +233,12 @@ runExample <- function(render_report = TRUE,
     out_path          <- tmp_dir
     report_fn         <- "Example"
     ratios_cfg        <- NULL
+    # Mirrors the YAML `roi:` block. The example asks for every view, since its
+    # job is to show what the section can do; a study usually picks one.
+    roi_on                 <- isTRUE(result$rois)
+    roi_compare            <- "both"
+    roi_unit               <- "both"
+    roi_include_unassigned <- FALSE
 
     html_file <- file.path(tmp_dir,
                             paste0("Example_SNR", snr_thresh,

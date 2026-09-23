@@ -185,11 +185,16 @@ runStudy <- function(config_file) {
   # Build fns list: each element has pos (string or list), neg (string or list),
   # and label.  pos: / neg: may be a single string or a YAML sequence.
   # Use the unique run ID as the label so pData$run is unique per sample.
+  .files <- function(x) if (!is.null(x)) as.character(unlist(x)) else NULL
   fns <- lapply(seq_along(cfg$samples), function(i) {
     s <- cfg$samples[[i]]
     list(
-      pos     = if (!is.null(s$pos)) as.character(unlist(s$pos)) else NULL,
-      neg     = if (!is.null(s$neg)) as.character(unlist(s$neg)) else NULL,
+      pos     = .files(s$pos),
+      neg     = .files(s$neg),
+      # A tissue acquired in pieces (top and bottom): one area per piece, each
+      # with its own panels. Stitched by stage position into one sample.
+      pieces  = if (!is.null(s$pieces)) lapply(s$pieces, function(pc)
+                  list(pos = .files(pc$pos), neg = .files(pc$neg))) else NULL,
       # What several .raw files for this sample mean. See generateTxtImages().
       combine = if (!is.null(s$combine)) as.character(s$combine) else "panels",
       section = if (!is.null(s$section)) as.character(s$section) else NULL,
@@ -197,14 +202,22 @@ runStudy <- function(config_file) {
     )
   })
 
+  # Files of one polarity for the sample map; pieces are separated by " + ".
+  .map_files <- function(f, pol) {
+    areas <- if (!is.null(f$pieces)) f$pieces else list(f)
+    parts <- vapply(areas, function(a)
+      if (!is.null(a[[pol]])) paste(a[[pol]], collapse = "; ") else "",
+      character(1))
+    parts <- parts[nzchar(parts)]
+    if (length(parts)) paste(parts, collapse = " + ") else ""
+  }
+
   # Sample mapping table (original filenames <-> run IDs <-> group labels) for the report
   sample_map <- data.frame(
     run_id     = heatmap_order,
     group      = heatmap_labs,
-    pos_files  = vapply(fns, function(f)
-      if (!is.null(f$pos)) paste(f$pos, collapse = "; ") else "", character(1)),
-    neg_files  = vapply(fns, function(f)
-      if (!is.null(f$neg)) paste(f$neg, collapse = "; ") else "", character(1)),
+    pos_files  = vapply(fns, .map_files, character(1), pol = "pos"),
+    neg_files  = vapply(fns, .map_files, character(1), pol = "neg"),
     section    = vapply(fns, function(f)
       if (!is.null(f$section)) f$section else "", character(1)),
     stringsAsFactors = FALSE
@@ -255,6 +268,32 @@ runStudy <- function(config_file) {
   render_report  <- cfg$output$render_report  %||% TRUE
   output_txt     <- cfg$output$output_txt     %||% TRUE
   output_ratios  <- cfg$output$output_ratios  %||% TRUE
+  # The report's pixel colocalisation section. Read here so the report finds it
+  # in this frame at render time. "auto" (the default) switches it off when any
+  # sample merges several acquisitions -- panels, both polarities or pieces --
+  # since most pixel pairs would then cross acquisitions, and the section is by
+  # far the slowest part of the report.
+  .n_acq <- vapply(fns, function(f) {
+    areas <- if (!is.null(f$pieces)) f$pieces else list(f)
+    length(unique(unlist(lapply(areas, function(a) c(a$pos, a$neg)))))
+  }, integer(1))
+  .coloc_cfg <- cfg$output$colocalisation %||% "auto"
+  colocalisation <- if (identical(tolower(as.character(.coloc_cfg)), "auto")) {
+    !any(.n_acq > 1L)
+  } else isTRUE(as.logical(.coloc_cfg))
+  if (identical(tolower(as.character(.coloc_cfg)), "auto"))
+    message("Colocalisation: ", if (colocalisation) "on" else
+            "off (a sample merges several acquisitions)", " [auto].")
+
+  # Regions of interest drawn with labelROIs(). "auto" (the default) switches
+  # them on when any acquisition has a roi_labels.csv. The rest is read by the
+  # report's region section.
+  .roi <- cfg$roi %||% list()
+  roi_enabled            <- .roi$enabled %||% "auto"
+  roi_compare            <- as.character(.roi$compare %||% "between_groups")
+  roi_heatmap            <- isTRUE(as.logical(.roi$heatmap %||% TRUE))
+  roi_unit               <- as.character(.roi$unit    %||% "sample")
+  roi_include_unassigned <- isTRUE(as.logical(.roi$include_unassigned %||% FALSE))
   # report_fn is set per-SNR inside the render loop (see below)
 
   # ---- Feature control (optional) -------------------------------------------
@@ -314,8 +353,11 @@ runStudy <- function(config_file) {
     is_mode        = is_mode,
     is_window      = is_window,
     remove_IS      = remove_IS,
-    type_header    = type_header
+    type_header    = type_header,
+    rois           = roi_enabled
   )
+  # Resolved by generateTxtImages() (for "auto": whether any file was found).
+  roi_on <- isTRUE(result$rois)
 
   # ---------------------------------------------------------------------------
   # Calibration (optional): gated by calibration.enabled. Builds a response-vs-

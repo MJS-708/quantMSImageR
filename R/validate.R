@@ -214,11 +214,36 @@ validateConfig = function(config, check_paths = TRUE){
       .chk_add(chk, "samples listed", "ok")
 
       no_src = vapply(s, function(e)
-        is.null(e$pos) && is.null(e$neg) && is.null(e$sections), logical(1))
+        is.null(e$pos) && is.null(e$neg) && is.null(e$sections) &&
+          is.null(e$pieces), logical(1))
       if(any(no_src))
         .chk_add(chk, "sample acquisitions", "error", sprintf(
-          "%d sample(s) have neither pos:, neg: nor sections:.", sum(no_src)))
+          "%d sample(s) have none of pos:, neg:, sections: or pieces:.", sum(no_src)))
       else .chk_add(chk, "sample acquisitions", "ok")
+
+      # pieces: a tissue acquired in several areas, each with its own panels.
+      # The acquisitions belong to the pieces, so a sample that also lists
+      # pos:/neg: of its own is ambiguous about which area they cover.
+      .pc_bad = character()
+      for(i in seq_along(s)){
+        e = s[[i]]
+        if(is.null(e$pieces)) next
+        who = as.character(e$run_id %||% e$label %||% sprintf("sample %d", i))
+        pcs = e$pieces
+        if(!is.list(pcs) || length(pcs) < 2L)
+          .pc_bad = c(.pc_bad, sprintf("'%s': pieces: needs two or more entries.", who))
+        else if(!all(vapply(pcs, function(pc) is.list(pc) &&
+                              (!is.null(pc$pos) || !is.null(pc$neg)), logical(1))))
+          .pc_bad = c(.pc_bad, sprintf(
+            "'%s': every entry under pieces: needs its own pos: and/or neg:.", who))
+        if(!is.null(e$pos) || !is.null(e$neg) || !is.null(e$sections) ||
+           !is.null(e$section) || !is.null(e$combine))
+          .pc_bad = c(.pc_bad, sprintf(
+            "'%s': with pieces:, list pos:/neg: under each piece, not beside pieces: (and no sections: or combine:).", who))
+      }
+      if(length(.pc_bad))
+        .chk_add(chk, "sample pieces", "error", paste(.pc_bad, collapse = " "))
+      else .chk_add(chk, "sample pieces", "ok")
 
       labs = vapply(s, function(e) as.character(e$label %||% NA_character_), character(1))
       if(anyNA(labs) || any(!nzchar(trimws(labs))))
@@ -364,6 +389,60 @@ validateConfig = function(config, check_paths = TRUE){
       .chk_add(chk, "output$fig_dpi", "warning", sprintf(
         "output$fig_dpi = %g will make a very large HTML report; 300 is usually enough.", d))
     else .chk_add(chk, "output$fig_dpi", "ok")
+  }
+
+  # Anything other than True/False/auto -- a quoted "True", a typo -- would be
+  # read by the report as off, without a word. YAML reads True/true/TRUE (and
+  # yes/on) as logical, unquoted.
+  .true_false_auto = function(v)
+    length(v) == 1L && ((is.logical(v) && !is.na(v)) || identical(v, "auto"))
+
+  co = config$output$colocalisation
+  if(!is.null(co)){
+    if(!.true_false_auto(co))
+      .chk_add(chk, "output$colocalisation", "error", sprintf(
+        "output$colocalisation = '%s' must be auto, True or False (unquoted).",
+        paste(co, collapse = ", ")))
+    else .chk_add(chk, "output$colocalisation", "ok")
+  }
+
+  # ---- regions of interest ---------------------------------------------------
+  roi = config$roi
+  if(!is.null(roi)){
+    if(!is.null(roi$enabled) && !.true_false_auto(roi$enabled))
+      .chk_add(chk, "roi$enabled", "error", sprintf(
+        "roi$enabled = '%s' must be auto, True or False (unquoted).",
+        paste(roi$enabled, collapse = ", ")))
+    else .chk_add(chk, "roi$enabled", "ok")
+
+    iu = roi$include_unassigned
+    if(!is.null(iu) && !(is.logical(iu) && length(iu) == 1L && !is.na(iu)))
+      .chk_add(chk, "roi$include_unassigned", "error", sprintf(
+        "roi$include_unassigned = '%s' must be True or False (unquoted).",
+        paste(iu, collapse = ", ")))
+    else .chk_add(chk, "roi$include_unassigned", "ok")
+
+    rh = roi$heatmap
+    if(!is.null(rh) && !(is.logical(rh) && length(rh) == 1L && !is.na(rh)))
+      .chk_add(chk, "roi$heatmap", "error", sprintf(
+        "roi$heatmap = '%s' must be True or False (unquoted).",
+        paste(rh, collapse = ", ")))
+    else .chk_add(chk, "roi$heatmap", "ok")
+
+    rc = roi$compare
+    if(!is.null(rc) && !(length(rc) == 1L &&
+                         rc %in% c("between_groups", "between_rois", "both")))
+      .chk_add(chk, "roi$compare", "error", sprintf(
+        "roi$compare = '%s'; use 'between_groups' (each region: Ctrl v HDM), 'between_rois' (each group: airway v vessel) or 'both'.",
+        paste(rc, collapse = ", ")))
+    else .chk_add(chk, "roi$compare", "ok")
+
+    ru = roi$unit
+    if(!is.null(ru) && !(length(ru) == 1L && ru %in% c("sample", "roi", "both")))
+      .chk_add(chk, "roi$unit", "error", sprintf(
+        "roi$unit = '%s'; use 'sample' (one point per sample and region), 'roi' (one point per numbered region) or 'both'.",
+        paste(ru, collapse = ", ")))
+    else .chk_add(chk, "roi$unit", "ok")
   }
 
   # ---- calibration ---------------------------------------------------------

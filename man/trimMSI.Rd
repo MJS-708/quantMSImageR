@@ -30,6 +30,7 @@ obj <- trimMSI(obj)
 }
 \seealso{
 Other acquisition:
+\code{\link[=labelROIs]{labelROIs()}},
 \code{\link[=readMRM]{readMRM()}},
 \code{\link{removeBlankMzs,quant_MSImagingExperiment-method}},
 \code{\link[=selectTissuePixels]{selectTissuePixels()}}

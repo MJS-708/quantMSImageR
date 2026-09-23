@@ -31,10 +31,12 @@
 #' pattern, not the magnitude -- but it does mean two saturated cells can sit
 #' at very different z-scores.
 #'
-#' A feature with no variance across samples has an undefined z-score. It is
-#' currently drawn at the bottom of the ramp rather than as missing, so a
-#' perfectly flat feature reads as uniformly low; treat an entirely
-#' single-coloured column with suspicion and check the underlying values.
+#' A feature with no variance across samples, and a feature that is missing,
+#' both have no z-score: there is no spread to place a sample within. They are
+#' drawn in `na_col` rather than given a position on the ramp, matching
+#' [contributionHm()]. In particular neither is drawn as low, so a
+#' single-coloured grey column means "cannot be scored", not "depleted
+#' everywhere".
 #'
 #' @section Why there is no scale argument here:
 #'
@@ -81,6 +83,19 @@
 #'   legend (e.g. `"Met-1"`, `"Pathway"`). Defaults to `"Pathway"`.
 #' @param group_split_name Display name for the sample-group annotation legend
 #'   (e.g. `"Treatment"`, `"Group"`). Defaults to `"Group"`.
+#' @param sample_block Optional character/factor vector, one entry per sample,
+#'   dividing the rows into blocks -- one per region of interest, typically.
+#'   Rows are split by it, and **each block is z-scored against itself**, so a
+#'   colour says where a sample sits among the others of that block rather than
+#'   among every row. Without it, a panel holding airways and parenchyma would
+#'   mostly report that the two tissues differ, which is rarely the question.
+#'   A block with only one sample has no spread to score against and is drawn in
+#'   `na_col`. Defaults to `NULL` (one block, scored across all samples).
+#' @param sample_block_name Display name for the block annotation legend
+#'   (default `"Region"`).
+#' @param block_palette Character. Qualitative palette for the block colour bar
+#'   (default `"Set 2"`), kept distinct from `group_palette` so a region is not
+#'   mistaken for a group.
 #' @param palette Character. Diverging colour ramp for the z-scores:
 #'   `"heatmap2"` (default, blue-white-red) or `"heatmap0"`. See
 #'   [quantPalettes()].
@@ -107,6 +122,9 @@
 #' @param fontsize Numeric. Point size for the sample and feature labels and the
 #'   annotation names (default `8`). `ComplexHeatmap` defaults to 12, which
 #'   crowds the panel once feature names are long enough to need rotating.
+#' @param na_col Colour for features that cannot be scored -- no variance
+#'   across samples, or missing values (default `"grey88"`). The same default
+#'   as [contributionHm()], so an unscoreable feature looks identical in both.
 #'
 #' @return A `ComplexHeatmap::Heatmap` object (rows = samples, columns =
 #'   features), with an absolutely-sized body unless `cell_size` is `NA`.
@@ -125,9 +143,13 @@ quantileHm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = N
                         feature_split = NULL,
                         feature_split_name = "Pathway",
                         group_split_name = "Group",
+                        sample_block = NULL,
+                        sample_block_name = "Region",
+                        block_palette = "Set 2",
                         cell_size = 8, max_aspect = 1.5,
                         cell_border = "white", fontsize = 8,
                         palette = c("heatmap2", "heatmap0"),
+                        na_col = "grey88",
                         group_palette = "hat",
                         feature_palette = "reading",
                         row_split = NULL,
@@ -154,29 +176,53 @@ quantileHm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = N
   out_matrix <- .quantile_matrix(MSIobject, quant_val, heatmap_order,
                                  context = "quantileHm")
 
-  # Scale each row to the percentage of its maximum value, avoiding division by 0
-  row_max <- matrixStats::rowMaxs(out_matrix, na.rm = TRUE)
-
-  # Replace zeros in row_max with 1 to avoid NaN during division
-  row_max[row_max == 0] <- 1
-
-  # Scale the matrix
-  scaled_out_matrix <- sweep(out_matrix, 1, row_max, FUN = "/")
-
   # Z-score scaling with clipping between -1 and 1.
-  # Single-sample: sd = NA so z-scoring is undefined; use 0 (neutral) instead.
+  #
+  # A feature with no variance across samples has sd 0, so every cell is 0/0,
+  # and a feature that is missing has no value to score at all. Neither can be
+  # placed on the ramp. This used to send both to -1, which paints a flat or
+  # absent feature as uniformly LOW -- a reading the data never supported, and
+  # indistinguishable from a feature genuinely depleted in every sample.
+  #
+  # Both now stay NA and are drawn in na_col, which is what contributionHm()
+  # already does. The two heatmaps are two readings of one matrix, so a
+  # feature that cannot be scored has to look the same in both.
+
+  # Rows (samples) can be divided into blocks -- one per region type, say --
+  # each scored against itself. Without this a panel of airways and parenchyma
+  # would mostly report that the two tissues differ, which is not the question
+  # the panel is being asked.
+  blk <- if (!is.null(sample_block))
+           factor(sample_block, levels = unique(sample_block)) else NULL
+  if (!is.null(blk) && length(blk) != ncol(out_matrix))
+    stop("quantileHm: sample_block has ", length(blk), " entries but there ",
+         "are ", ncol(out_matrix), " samples.", call. = FALSE)
+
   if (ncol(out_matrix) == 1) {
+    # Single sample: sd is undefined for every feature, so scoring them all as
+    # unscoreable would grey out the whole panel and say nothing. Nothing can
+    # deviate from a mean it defines by itself, so 0 is the honest fill.
     z_matrix <- matrix(0, nrow = nrow(out_matrix), ncol = 1,
                        dimnames = dimnames(out_matrix))
+    z_matrix[is.na(out_matrix)] <- NA_real_
+  } else if (!is.null(blk)) {
+    z_matrix <- out_matrix
+    z_matrix[] <- NA_real_
+    for (b in levels(blk)) {
+      j <- which(blk == b)
+      # A block of one sample has no spread to score against, so its cells stay
+      # unscoreable rather than being drawn at the middle of the ramp.
+      if (length(j) > 1L)
+        z_matrix[, j] <- t(apply(out_matrix[, j, drop = FALSE], 1, .z_clip))
+    }
   } else {
     # t() ensures result is n_features x n_samples (apply over rows returns transposed)
-    z_matrix <- t(apply(out_matrix, 1, function(x) {
-      z <- (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
-      pmin(pmax(z, -1), 1)  # Clip to [-1, 1]
-    }))
-    # Ensure no NaN or Inf in z_matrix
-    z_matrix[is.na(z_matrix)] <- -1
-    z_matrix[is.infinite(z_matrix)] <- 1
+    #
+    # The unscoreable row keeps x's names: apply() takes the sample names from
+    # the first feature's result and drops them for the WHOLE matrix if any
+    # other feature's differ, so one unnamed row would cost the panel its
+    # sample labels -- and only in studies that have a flat feature.
+    z_matrix <- t(apply(out_matrix, 1, .z_clip))
   }
 
   # Orientation: samples are ROWS and features are COLUMNS. Studies normally
@@ -196,11 +242,13 @@ quantileHm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = N
   # with contributionHm(), so the two heatmaps of a study are the same panel
   # and only the cell fill differs between them.
   layout <- .hm_layout(n_row = nrow(z_matrix), n_col = ncol(z_matrix),
-                       gs = gs, fs = fs,
+                       gs = gs, fs = fs, bs = blk,
                        group_split_name = group_split_name,
                        feature_split_name = feature_split_name,
+                       block_split_name = sample_block_name,
                        group_palette = group_palette,
                        feature_palette = feature_palette,
+                       block_palette = block_palette,
                        cell_size = cell_size, max_aspect = max_aspect,
                        cell_border = cell_border, fontsize = fontsize)
 
@@ -211,7 +259,7 @@ quantileHm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = N
     seq(-1, 1, length.out = length(.cols)), .cols)
 
   hm <- do.call(ComplexHeatmap::Heatmap, c(list(
-    z_matrix, name = "Z-score", col = .col_fn), layout))
+    z_matrix, name = "Z-score", col = .col_fn, na_col = na_col), layout))
 
   return(hm)
 }
@@ -234,6 +282,18 @@ quantileHm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = N
 # how a legend ends up sliced off at the right edge. Breaking at the "||"
 # separator first keeps the two halves of a compound name on their own lines;
 # anything still too long falls back to ordinary word wrapping.
+# One feature's values across samples, as a z-score clipped to [-1, 1].
+#
+# The unscoreable case keeps x's names: apply() takes the sample names from the
+# first feature's result and drops them for the whole matrix if another
+# feature's differ, so an unnamed row would cost the panel its sample labels.
+.z_clip <- function(x) {
+  s <- stats::sd(x, na.rm = TRUE)
+  if (!is.finite(s) || s == 0)
+    return(stats::setNames(rep(NA_real_, length(x)), names(x)))
+  pmin(pmax((x - mean(x, na.rm = TRUE)) / s, -1), 1)
+}
+
 .wrap_label <- function(x, width = 28) {
   vapply(as.character(x), function(s) {
     if (is.na(s) || nchar(s) <= width) return(s)
@@ -244,10 +304,12 @@ quantileHm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = N
   }, character(1), USE.NAMES = FALSE)
 }
 
-.hm_layout <- function(n_row, n_col, gs, fs,
+.hm_layout <- function(n_row, n_col, gs, fs, bs = NULL,
                        group_split_name = "Group",
                        feature_split_name = "Pathway",
+                       block_split_name = "Region",
                        group_palette = "hat", feature_palette = "reading",
+                       block_palette = "Set 2",
                        cell_size = 8, max_aspect = 1.5,
                        cell_border = "white", fontsize = 8) {
 
@@ -265,29 +327,33 @@ quantileHm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = N
   # sample / feature rather than a continuous stripe.
   .anno_gp <- .rect_gp
 
-  # Coloured left annotation for the sample groups.
+  # Coloured left annotation: the row block (region) first where there is one,
+  # then the sample groups, so a row reads "which region, then which group".
+  #
+  # Show the colour keys: the row slice titles are suppressed (row_title =
+  # NULL), so without these legends the bars are unlabelled. Drawing several
+  # annotation legends together can trip a ComplexHeatmap viewport bug ("depth
+  # applied to NULL"); the report draws with merge_legends = TRUE, which packs
+  # the legends and avoids it.
+  .bars <- list()
+  if (!is.null(bs)) .bars[[block_split_name]] <- list(v = bs, pal = block_palette)
+  if (!is.null(gs)) .bars[[group_split_name]] <- list(v = gs, pal = group_palette)
+
   left_anno <- NULL
-  if (!is.null(gs)) {
-    grp_cols <- .anno_cols(levels(gs), group_palette)
-    .col_args <- list(); .col_args[[group_split_name]] <- grp_cols
-    .anno_args <- list(); .anno_args[[group_split_name]] <- gs
-    # Show the group colour key: the row slice titles are suppressed
-    # (row_title = NULL), so without this legend the group colours are
-    # unlabelled. Drawing several annotation legends together can trip a
-    # ComplexHeatmap viewport bug ("depth applied to NULL"); the report draws
-    # with merge_legends = TRUE, which packs the legends and avoids it.
+  if (length(.bars)) {
+    .anno_args <- lapply(.bars, `[[`, "v")
+    .col_args  <- lapply(.bars, function(b) .anno_cols(levels(b$v), b$pal))
+    .leg_args  <- lapply(.bars, function(b) list(
+      title_gp = grid::gpar(fontsize = fontsize, fontface = "bold"),
+      at = levels(b$v), labels = .wrap_label(levels(b$v)),
+      labels_gp = .lab_gp))
     left_anno <- do.call(ComplexHeatmap::rowAnnotation,
       c(.anno_args, list(col = .col_args, show_legend = TRUE,
                           gp = .anno_gp,
                           show_annotation_name = TRUE,
                           annotation_name_gp = .lab_gp,
                           annotation_name_side = "bottom",
-                          annotation_legend_param = list(
-                            title_gp = grid::gpar(fontsize = fontsize,
-                                                   fontface = "bold"),
-                            at = levels(gs),
-                            labels = .wrap_label(levels(gs)),
-                            labels_gp = .lab_gp))))
+                          annotation_legend_param = .leg_args)))
   }
 
   # Coloured top annotation for the feature groups.
@@ -336,7 +402,10 @@ quantileHm = function(MSIobject, quant_val, heatmap_order = NA, heatmap_labs = N
       title_gp = grid::gpar(fontsize = fontsize, fontface = "bold"),
       labels_gp = .lab_gp),
     cluster_rows = FALSE, cluster_columns = FALSE, show_row_dend = FALSE,
-    row_split = gs, row_title = NULL, cluster_row_slices = FALSE,
+    # Rows split by the block where there is one -- each region type gets its
+    # own slice, scored against itself -- and by group otherwise.
+    row_split = if (!is.null(bs)) bs else gs,
+    row_title = NULL, cluster_row_slices = FALSE,
     column_split = fs, column_title = NULL, cluster_column_slices = FALSE,
     left_annotation = left_anno,
     top_annotation = top_anno), .size)
