@@ -20,3 +20,4 @@
 ^_pkgdown\.yml$
 ^logo_source\.png$
 ^\.github$
+^AGENTS\.md$

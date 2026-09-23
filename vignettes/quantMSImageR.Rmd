@@ -86,8 +86,11 @@ family it belongs to. The whole workflow is:
                         v
         selectTissuePixels() --> tissue_pixels.csv  (x, y, tissue/background)
                         |
+        labelROIs()          --> roi_labels.csv     (x, y, region label + id)
+                        |
     +-------------------+-------------------+
     |  ASSEMBLE   alignFeatures -> combineMSIs / bindPanels   |
+    |             stitchAcquisitions (pieces of one tissue)     |
     |             trimMSI                                       |
     +-------------------+-------------------+
                         v   quant_MSImagingExperiment
@@ -163,7 +166,7 @@ afterwards.
 |---|---|---|
 | spectra slots | `intensity` (raw), `response` (IS-normalised), `snr`, `pg_pixel` / `pg_mm2` (calibrated) | `spectra(x, "name")`, `spectraData(x)` |
 | feature metadata | `mz`, `name`, transition m/z, analyte type, ion-library columns | `fData(x)` |
-| pixel metadata | `x`, `y`, `run`, tissue/background label | `pData(x)` |
+| pixel metadata | `x`, `y`, `run`, tissue/background label, stage position, region label | `pData(x)` |
 | calibration | fitted models, calibration levels, fit diagnostics | `calibrationModels(x)`, `calibrationLevels(x)`, `calibrationDiagnostics(x)` |
 | tissue summaries | pixel and ROI matrices | `tissueMatrix(x)`, `tissueData(x)` |
 
@@ -238,6 +241,7 @@ ready for `selectTissuePixels()` and the rest of the workflow.
 | `alignFeatures()` | two objects | both reduced to common features, m/z-keyed |
 | `combineMSIs()` | two or more aligned objects | one object, each acquisition its own `run` |
 | `bindPanels()` | two objects on a shared `(x, y)` grid | features of both on the pixel-grid intersection |
+| `stitchAcquisitions()` | pieces of one tissue acquired separately | the pixels of every piece, placed where the stage recorded them, as one run |
 
 Note the difference between the last two. `combineMSIs()` stacks different
 sections side by side, adding pixels. `bindPanels()` merges two
@@ -284,6 +288,26 @@ table(pData(combined)$run)
 ```
 
 Everything below operates on this one `combined` object.
+
+## Pieces of one tissue
+
+A section too large for one acquisition is sometimes imaged in pieces -- a top
+and a bottom half, for instance. `stitchAcquisitions()` joins them. `readMRM()`
+keeps each pixel's stage position (`x_stage`, `y_stage`, in mm), so each piece
+is placed where it was acquired -- above, below or beside the others -- and the
+order they are passed does not matter. Pixels between the pieces are simply
+absent. Pieces that overlap stop with an error rather than averaging the shared
+pixels.
+
+The pieces must share a pixel size. Their grids rarely line up exactly, because
+each acquisition starts wherever the stage was set, so every pixel is moved to
+the nearest position on a common grid and the largest shift is reported.
+
+`bindPanels()` and `stitchAcquisitions()` do different jobs. Panels over the
+*same* area -- pos01 and pos02, or a negative- and a positive-mode run -- are
+merged pixel by pixel with `bindPanels()`. Pieces covering *different* areas
+are joined with `stitchAcquisitions()`. A sample can need both; the `pieces:`
+entry of the study YAML does them in the right order.
 
 # Selecting tissue pixels
 
@@ -338,6 +362,112 @@ ggplot(mask_tbl, aes(x, -y, fill = sample_name)) +
         strip.text = element_text(size = 7),
         legend.text = element_text(size = 7))
 ```
+
+# Labelling regions of interest
+
+*Family: `acquisition`.*
+
+| Function | Takes | Produces |
+|---|---|---|
+| `labelROIs()` | acquisition name, data path, ion library | `roi_labels.csv` (`x`, `y`, `roi_label`, `roi_id`) plus a map of the labelled regions |
+
+Once an acquisition has a tissue mask, regions within the tissue can be
+labelled: airways, parenchyma, a vessel. `labelROIs()` shows the ion image of a
+selected transition, across tissue pixels only. Then draw a region, name it,
+and choose whether to add another:
+
+```{r label-rois, eval = FALSE}
+labelROIs(
+  name         = "my_acquisition",
+  data_path    = "path/to/raw",
+  lib_ion_path = "path/to/ion_library.csv"
+)
+#> Draw a region on the image, then close the window.
+#> Label for this region (used in this study: airway, vessel): airway
+#> Saved as airway_03.
+#> Add another region? [y/n]: y
+```
+
+The same label can be used for several regions -- a section usually holds many
+airways. Each region is numbered as it is drawn (`airway_01`, `airway_02`, ...),
+so every region keeps its own identity while sharing its label with the others.
+Labels already used in the study are listed each time, so a region type carries
+the same name in every sample; the report compares regions by label.
+
+A pixel belongs to at most one region, and a region drawn over an earlier one
+takes those pixels. Tissue outside every region is `unassigned`; background has
+no region.
+
+The regions are saved as `roi_labels.csv` in the acquisition's `.raw` folder --
+one file per acquisition, beside the tissue mask, which is left untouched.
+Running `labelROIs()` again adds to the existing regions; `overwrite = TRUE`
+starts again and keeps the old file as a backup. For a sample with several
+panels over the same area, label one of them and pass the others to `copy_to`;
+the regions are copied by pixel position.
+
+## What the labels look like downstream
+
+Drawing regions needs a device and a person, so the bundled sections come with
+regions already: two called `a` near the middle of each tissue and two called
+`b` out by the rim, exactly as `labelROIs()` would have written them. Every
+labelled pixel carries the region's name and its numbered identity:
+
+```{r roi-table}
+roi_tbl <- as.data.frame(pData(combined))[, c("run", "x", "y",
+                                              "roi_label", "roi_id")]
+labelled <- roi_tbl[!is.na(roi_tbl$roi_id) & roi_tbl$roi_id != "unassigned", ]
+
+table(labelled$run, labelled$roi_id)
+```
+
+Two regions share the label `a` and two share `b`, which is the usual case: a
+section holds many airways, and each is its own region while the label is what
+the report compares. Tissue outside every region is `unassigned`, and
+background has no region at all (`NA`).
+
+```{r roi-map, fig.wide = TRUE, fig.cap = "Regions of interest in all six sections. The two `a` regions sit near the middle of each tissue and the two `b` regions out by the rim; grey is tissue belonging to no region."}
+ggplot(subset(roi_tbl, !is.na(roi_label)), aes(x, -y, fill = roi_label)) +
+  geom_tile() +
+  facet_wrap(~ run, ncol = 3) +
+  coord_equal() +
+  scale_fill_manual(values = c(a = "#66C2A5", b = "#FC8D62",
+                               unassigned = "grey85")) +
+  labs(x = NULL, y = NULL, fill = NULL) +
+  theme_minimal() +
+  theme(axis.text = element_blank(), panel.grid = element_blank(),
+        strip.text = element_text(size = 7))
+```
+
+The comparison the report draws is then one point per sample and region -- the
+median of that sample's pixels in regions of that label -- rather than one
+point per pixel:
+
+```{r roi-summary, fig.cap = "One feature by region, one point per section. Each section contributes one value per region label, the median over its pixels there."}
+feature <- "12-HHTrE"
+vals <- data.frame(
+  run       = as.character(pData(combined)$run),
+  roi_label = as.character(pData(combined)$roi_label),
+  intensity = as.numeric(spectra(combined, "intensity")[feature, ])
+)
+vals <- subset(vals, roi_label %in% c("a", "b"))
+
+per_sample <- aggregate(intensity ~ run + roi_label, data = vals,
+                        FUN = median)
+per_sample$group <- ifelse(per_sample$run %in% sections[1:3], "A", "B")
+
+ggplot(per_sample, aes(roi_label, intensity, fill = roi_label)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.6, width = 0.6) +
+  geom_point(shape = 21, size = 2) +
+  facet_wrap(~ group) +
+  scale_fill_manual(values = c(a = "#66C2A5", b = "#FC8D62"), guide = "none") +
+  labs(x = NULL, y = paste(feature, "(median per section)")) +
+  theme_classic()
+```
+
+Six points per panel, one per section, not the thousands of pixels behind
+them. The `a` regions are the brighter ones here because they sit where the
+signal is: nothing about the regions was made to differ, they are simply in
+different places.
 
 # Ion images
 
@@ -618,6 +748,81 @@ run a large study unattended:
 ```sh
 Rscript -e 'quantMSImageR::runStudy("study_config.yaml")'
 ```
+
+## Samples made of several acquisitions
+
+A sample is often more than one `.raw` folder, and the entry says what the
+files are:
+
+```yaml
+samples:
+
+  # One acquisition.
+  - neg: "M120-1"
+    run_id: "Male-120"
+    label:  "Young"
+
+  # Several panels over the SAME area -- neg + pos, or pos01 + pos02.
+  # Merged pixel by pixel (bindPanels).
+  - neg: "M316-PLs"
+    pos: ["M316-pos01", "M316-pos02"]
+    run_id: "Female-316"
+    label:  "Young"
+
+  # One tissue acquired in PIECES, e.g. top and bottom. Panels are merged
+  # within each piece, then the pieces are placed where the stage recorded
+  # them and joined into one sample (stitchAcquisitions).
+  - run_id: "Male-707"
+    label:  "Old"
+    pieces:
+      - neg: "M707-top"
+        pos: ["M707-top_pos01", "M707-top_pos02"]
+      - neg: "M707-btm"
+        pos: ["M707_btm-pos01", "M707_btm-pos02"]
+```
+
+Two halves of one tissue are one sample, not two. Left as separate samples they
+count twice in every group summary, and because the halves agree with each
+other they look like a reproducible effect rather than one measurement.
+
+## Comparing regions of interest
+
+When any acquisition has regions, the report adds a section comparing them:
+
+- a map of the regions in every sample;
+- box plots for each feature, arranged by `compare`:
+  - `"between_groups"` -- each region type on its own, groups side by side:
+    airway, Ctrl v HDM; vessel, Ctrl v HDM;
+  - `"between_rois"` -- each group on its own, region types side by side:
+    Ctrl, airway v vessel; HDM, airway v vessel;
+  - `"both"` -- both sets;
+- a heatmap section, one row per sample and region, split by region, with
+  **each region z-scored against itself** -- so a colour says where a sample
+  sits among the other samples' airways, rather than restating that airways
+  and parenchyma differ (`heatmap: False` leaves it out);
+- an `ROI_summary` sheet in the tables workbook: one row per point (see
+  `unit`) and feature, with pixel quantiles and the pixel count.
+
+What each point stands for is set by `unit`:
+
+- `"sample"` -- one point per sample and region type: the median over all of
+  that sample's airways, for instance;
+- `"roi"` -- one point per region: `airway_01`, `airway_02`, ... each on its own;
+- `"both"` -- both, side by side.
+
+```yaml
+roi:
+  enabled:            auto              # auto (on when any acquisition has roi_labels.csv) | True | False
+  include_unassigned: False             # tissue outside every region as its own "unassigned" type | leave out
+  compare:            "between_groups"  # between_groups | between_rois | both
+  heatmap:            True              # the by-region heatmap section | False
+  unit:               "sample"          # sample | roi | both
+```
+
+The points are samples or independent regions, not pixels. The pixels of one
+region are repeated measurements of the same tissue; a box plot over pixels
+would show thousands of points where there are only a handful of regions or
+animals.
 
 ## The configuration as a record of the analysis
 

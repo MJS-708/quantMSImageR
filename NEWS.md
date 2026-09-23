@@ -1,3 +1,71 @@
+# quantMSImageR (development version)
+
+* Tissues acquired in pieces -- a top and a bottom, say -- can now be joined
+  into one sample. `readMRM()` keeps each pixel's stage position (`x_stage`,
+  `y_stage`, in mm) alongside its grid indices, and `stitchAcquisitions()` uses
+  it to place every piece where it was acquired: above, below or beside, in any
+  order, with the space between pieces left empty. Pieces must share a pixel
+  size; each is moved to the nearest position on a common grid and the largest
+  shift is reported. Previously every piece started at `(1, 1)`, so real pieces
+  could not be stitched at all, and the documentation wrongly said Waters
+  coordinates were absolute. Objects without stage positions (older caches)
+  behave as before.
+* The study YAML gains `pieces:` for such a sample: each piece lists its own
+  `pos:`/`neg:` panels, which are merged within the piece and then stitched.
+  Each piece is normalised to its internal standard and SNR-filtered against
+  its own background before stitching, since the pieces are separate
+  acquisitions.
+* New `labelROIs()` labels regions of interest within the tissue -- airways,
+  vessels, parenchyma -- after `selectTissuePixels()`. Several regions can
+  share a label and are numbered (`airway_01`, `airway_02`, ...). Regions are
+  saved per acquisition as `roi_labels.csv`, beside the untouched tissue mask,
+  and `copy_to` applies them to the other panels over the same area.
+* The report gains a regions-of-interest tab in section 3, set by the new
+  `roi:` block: maps of the regions in every sample, a heatmap with one row per
+  sample and region (`heatmap: True`), and box plots per feature between groups
+  within each region type (`compare: "between_groups"`, the default), between
+  region types within each group (`"between_rois"`) or both. The region map is
+  repeated above the ion images, where it is the key to what they show.
+* `quantileHm()` gains `sample_block`, which divides the rows into blocks --
+  one per region of interest, typically -- splits the panel by them and
+  z-scores **each block against itself**. Scoring across regions would mostly
+  report that airways and parenchyma differ, which is not what the panel is
+  being asked. A block of one sample has no spread to score against and is
+  drawn in `na_col`. Without the argument the panel is exactly as before.
+* `quantileHm()` no longer loses its sample names when a study contains a
+  feature with no variance. The unscoreable column returned an unnamed vector,
+  and `apply()` drops the names for the whole matrix when one result's differ,
+  so the row labels vanished -- but only for studies that happened to hold a
+  flat feature.
+* The bundled example sections carry two `a` and two `b` regions each, so
+  `runExample()` renders the regions section and the vignette can show what
+  labelled regions look like without a drawing device.
+  `unit` sets what a point is -- a sample's pooled region type (`"sample"`,
+  default), a single region (`"roi"`) or both -- never a pixel. Unlabelled
+  tissue is `unassigned` and left out unless `include_unassigned: True`. The
+  tables workbook gains an `ROI_summary` sheet.
+* `output: colocalisation` switches off the report's pixel colocalisation
+  section and the `Cor_*` sheets of the tables workbook. It is by far the
+  slowest part of the report -- every feature against every other, over every
+  pixel, repeated for each group -- and in a study whose samples merge several
+  acquisitions most of those pairs compare separately acquired panels, which is
+  not a sound pixel-level comparison. The default, `auto`, is off whenever a
+  sample merges several acquisitions (panels, both polarities or pieces) and on
+  otherwise.
+* `combineMSIs()` fills a `pData()` column that some objects lack with `NA`,
+  rather than failing inside `cbind()`.
+* The citation now reads "Smith MJ": the given names in `Authors@R` are split,
+  so R's citation style takes an initial from each.
+* `bindPanels()` no longer documents cross-panel colocalisation as meaningful
+  on the merged object, and now explains that pixels are matched on
+  per-acquisition indices, which is only correct when both rasters start at
+  the same stage position.
+* `quantileHm()` no longer draws features it cannot score as uniformly low. A
+  feature with no variance across samples, or a missing value, used to be sent
+  to the bottom of the colour scale, where it was indistinguishable from a
+  feature depleted in every sample. Both are now drawn in the new `na_col`
+  (default `"grey88"`), matching `contributionHm()`.
+
 # quantMSImageR 0.99.7
 
 * `parameters$heatmap_quantiles` sets which pixel quantiles get a heatmap

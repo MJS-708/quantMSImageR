@@ -3,17 +3,30 @@
 #' Combines two `MSImagingExperiment` objects acquired on the *same physical
 #' sample* into one whose feature set spans both inputs. Pixels are matched
 #' by `(x, y)` coordinates rather than by row order, so the two acquisitions
-#' can have different pixel counts (which is the rule, not the exception:
-#' different MRM panels or polarities almost always sample at slightly
-#' different rates and therefore produce different grids).
-#'
-#' Pixels present in only one input are dropped -- a small percentage of edge
-#' coverage in the more densely sampled acquisition typically. Pixels present
-#' in both keep real intensities from both inputs, so cross-panel /
-#' cross-polarity colocalisation is meaningful at the combined object.
+#' can have different pixel counts -- a raster acquired at a faster scan rate
+#' can, for instance, lose its last column.
 #'
 #' The common use is pairing a positive- and a negative-mode acquisition of the
 #' same section, but any two panels of the same physical area work.
+#'
+#' @section Which pixels are matched:
+#' The `(x, y)` coordinates are the pixel indices [readMRM()] assigns, counted
+#' from 1 within each acquisition; the absolute stage position is not kept.
+#' Matching on them is only correct when both rasters start at the same stage
+#' position with the same pixel size. Two acquisitions that start elsewhere, or
+#' whose sample was moved between them, still match index for index and are
+#' merged without warning onto pixels that are not the same place on the
+#' tissue. Check that the two stage programs agree before merging.
+#'
+#' Pixels present in only one input are dropped. Pixels present in both keep
+#' real intensities from both inputs, but they remain two separate
+#' acquisitions: taken at different times, the later one possibly on a surface
+#' the first had already desorbed, and aligned only as well as the stage
+#' allows. That supports comparing tissue regions across panels. Pixel-level
+#' colocalisation between panels carries all of those effects with it -- treat
+#' it with caution and prefer features from a single acquisition. The report
+#' section can be switched off with `output: colocalisation: False` in the
+#' [runStudy()] config.
 #'
 #' @import Cardinal
 #' @include setClasses.R
