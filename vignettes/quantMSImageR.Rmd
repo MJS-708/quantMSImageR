@@ -372,9 +372,21 @@ ggplot(mask_tbl, aes(x, -y, fill = sample_name)) +
 | `labelROIs()` | acquisition name, data path, ion library | `roi_labels.csv` (`x`, `y`, `roi_label`, `roi_id`) plus a map of the labelled regions |
 
 Once an acquisition has a tissue mask, regions within the tissue can be
-labelled: airways, parenchyma, a vessel. `labelROIs()` shows the ion image of a
-selected transition, across tissue pixels only. Then draw a region, name it,
-and choose whether to add another:
+labelled: airways, parenchyma, a vessel. This is worth doing whenever a whole
+section is the wrong unit to compare:
+
+- **A transition marks a tissue type.** If one of the measured ions is
+  characteristic of a structure -- an airway, a lesion, a particular cell layer
+  -- the ion image itself tells you where that structure is, and the region can
+  be drawn from it rather than from a stain on a neighbouring section.
+- **Dose defines the region.** In a toxicity study the toxicant is often one of
+  the measured ions, so regions can be drawn where it is high and where it is
+  low in the *same* tissue, and the endogenous species compared between them.
+  That comparison is within one animal, so it is not carried by the differences
+  between animals that a group comparison has to survive.
+
+`labelROIs()` shows the ion image of a selected transition, across tissue
+pixels only. Then draw a region, name it, and choose whether to add another:
 
 ```{r label-rois, eval = FALSE}
 labelROIs(
@@ -496,6 +508,7 @@ colours:
   heatmap:     "heatmap2"  # heatmap2 | heatmap0
   group:       "hat"       # hat | reading | heatmap0
   feature:     "reading"   # reading | hat | heatmap0
+  region:      "Set 2"     # regions of interest; also any grDevices qualitative palette
   cell_border: "white"     # any colour, or "none"
 ```
 
@@ -503,6 +516,22 @@ colours:
 names(quantPalettes())
 quantPalettes("heatmap0")
 ```
+
+`region:` also accepts a `grDevices` qualitative palette, which is where its
+default comes from -- the region colours should not be mistaken for the group
+ones, and the package's own qualitative sets are already spoken for. To see
+what any of them look like before choosing:
+
+```{r palette-preview, eval = FALSE}
+scales::show_col(quantPalettes("hat"))              # a package palette
+grDevices::hcl.pals("qualitative")                  # the rest, by name
+scales::show_col(grDevices::hcl.colors(6, "Dark 3"))
+```
+
+The [colorspace palette
+reference](https://colorspace.r-forge.r-project.org/articles/hcl_palettes.html)
+shows every `grDevices` palette side by side, which is the quickest way to pick
+one.
 
 `imageR()` returns a `ggplot` ion image for a chosen feature. Because it is a
 plain `ggplot`, the layout can be adjusted -- here into a 3 x 2 grid:
@@ -790,36 +819,58 @@ other they look like a reproducible effect rather than one measurement.
 
 ## Comparing regions of interest
 
-When any acquisition has regions, the report adds a section comparing them:
+When any acquisition has regions, every analysis section of the report is drawn
+at sample level first and then at region level, so the two are read the same
+way rather than the regions living in a section of their own:
 
-- a map of the regions in every sample;
-- box plots for each feature, arranged by `compare`:
-  - `"between_groups"` -- each region type on its own, groups side by side:
-    airway, Ctrl v HDM; vessel, Ctrl v HDM;
-  - `"between_rois"` -- each group on its own, region types side by side:
-    Ctrl, airway v vessel; HDM, airway v vessel;
-  - `"both"` -- both sets;
-- a heatmap section, one row per sample and region, split by region, with
-  **each region z-scored against itself** -- so a colour says where a sample
-  sits among the other samples' airways, rather than restating that airways
-  and parenchyma differ (`heatmap: False` leaves it out);
-- an `ROI_summary` sheet in the tables workbook: one row per point (see
-  `unit`) and feature, with pixel quantiles and the pixel count.
+| Section | By sample | By region |
+|---|---|---|
+| 2. Heatmap | one row per sample | one row per sample and region, split by region, **each region z-scored against itself** |
+| 3. Comparison plots | box + violin over pixels | box plots with one point per sample or per region |
+| 4. Correlation | pixels of each sample | pixels of each region type |
+| 5. Regions of interest | -- | the region maps and how many pixels each holds |
+
+Scoring each region against itself is what makes the heatmap answer "which
+samples are high for this feature *in their airways*" rather than restating
+that airways and parenchyma differ. `heatmap: False` leaves that view out.
+
+The box plots are arranged by `compare`:
+
+- `"between_groups"` -- each region type on its own, groups side by side:
+  airway, Ctrl v HDM; vessel, Ctrl v HDM;
+- `"between_rois"` -- each group on its own, region types side by side:
+  Ctrl, airway v vessel; HDM, airway v vessel;
+- `"both"` -- both sets.
+
+An `ROI_summary` sheet in the tables workbook carries one row per point (see
+`unit`) and feature, with pixel quantiles and the pixel count.
+
+Correlation is computed at **one** level, never both, since it is the slowest
+part of the report: `output: colocalisation` takes `'roi'`, `'sample'`, `True`
+(the same as `'sample'`), `False`, or `auto`, which correlates within the
+regions when the study has them and is off otherwise. A region holds a fraction
+of a section's pixels, so the region level is the quicker one as well as the
+more specific question.
 
 What each point stands for is set by `unit`:
 
 - `"sample"` -- one point per sample and region type: the median over all of
   that sample's airways, for instance;
-- `"roi"` -- one point per region: `airway_01`, `airway_02`, ... each on its own;
-- `"both"` -- both, side by side.
+- `"roi"` -- one point per region: `airway_01`, `airway_02`, ... each on its own.
+
+One or the other, not both: a comparison has a single unit, and offering two
+views of the same numbers invites reading whichever looks better.
 
 ```yaml
 roi:
   enabled:            auto              # auto (on when any acquisition has roi_labels.csv) | True | False
   include_unassigned: False             # tissue outside every region as its own "unassigned" type | leave out
   compare:            "between_groups"  # between_groups | between_rois | both
-  heatmap:            True              # the by-region heatmap section | False
-  unit:               "sample"          # sample | roi | both
+  heatmap:            True              # the by-region heatmap view in section 2 | False
+  unit:               "sample"          # rows/points in the region views: sample | roi
+
+output:
+  colocalisation:     auto              # auto = within regions when there are any, else off | 'roi' | 'sample' | False
 ```
 
 The points are samples or independent regions, not pixels. The pixels of one

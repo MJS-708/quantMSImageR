@@ -20,12 +20,21 @@
   share a label and are numbered (`airway_01`, `airway_02`, ...). Regions are
   saved per acquisition as `roi_labels.csv`, beside the untouched tissue mask,
   and `copy_to` applies them to the other panels over the same area.
-* The report gains a regions-of-interest tab in section 3, set by the new
-  `roi:` block: maps of the regions in every sample, a heatmap with one row per
-  sample and region (`heatmap: True`), and box plots per feature between groups
-  within each region type (`compare: "between_groups"`, the default), between
-  region types within each group (`"between_rois"`) or both. The region map is
-  repeated above the ion images, where it is the key to what they show.
+* The report is arranged by level where a study has regions: sections 2
+  (heatmap), 3 (comparison plots) and 4 (correlation) are each drawn **by
+  sample** and then **by region**, so the two are read the same way rather than
+  the regions living in a section of their own. The region masks and their
+  pixel counts get a section of their own before the ion images, which take the
+  next number. A study without regions is unchanged, headings included.
+* The new `roi:` block sets the region views: `compare` puts groups side by
+  side within each region type (`"between_groups"`, the default), region types
+  side by side within each group (`"between_rois"`) or both; `unit` says
+  whether a row or point is a sample's region type or a single region -- one or
+  the other, since a comparison has a single unit; `heatmap: False` leaves the
+  region heatmap out. A point is never a pixel: the pixels of one region are
+  repeated measurements of the same tissue. Tissue outside every region is
+  `unassigned` and left out unless `include_unassigned: True`, and the tables
+  workbook gains an `ROI_summary` sheet.
 * `quantileHm()` gains `sample_block`, which divides the rows into blocks --
   one per region of interest, typically -- splits the panel by them and
   z-scores **each block against itself**. Scoring across regions would mostly
@@ -40,18 +49,16 @@
 * The bundled example sections carry two `a` and two `b` regions each, so
   `runExample()` renders the regions section and the vignette can show what
   labelled regions look like without a drawing device.
-  `unit` sets what a point is -- a sample's pooled region type (`"sample"`,
-  default), a single region (`"roi"`) or both -- never a pixel. Unlabelled
-  tissue is `unassigned` and left out unless `include_unassigned: True`. The
-  tables workbook gains an `ROI_summary` sheet.
-* `output: colocalisation` switches off the report's pixel colocalisation
-  section and the `Cor_*` sheets of the tables workbook. It is by far the
-  slowest part of the report -- every feature against every other, over every
-  pixel, repeated for each group -- and in a study whose samples merge several
-  acquisitions most of those pairs compare separately acquired panels, which is
-  not a sound pixel-level comparison. The default, `auto`, is off whenever a
-  sample merges several acquisitions (panels, both polarities or pieces) and on
-  otherwise.
+* `output: colocalisation` now names the level the correlation section is
+  computed at, and only one is ever drawn: `'sample'` (all pixels of each
+  sample), `'roi'` (the pixels of each region type), `False`, or `auto`. It is
+  by far the slowest part of the report -- every feature against every other,
+  over every pixel, repeated per group -- so `auto` correlates within the
+  regions when a study has them, which is both the cheaper computation and the
+  more specific question, and is off otherwise. It is also off whenever a
+  sample merges several acquisitions, since most pixel pairs would then cross
+  acquisitions. `True` is read as `'sample'`, so existing configs keep the
+  section they had.
 * `combineMSIs()` fills a `pData()` column that some objects lack with `NA`,
   rather than failing inside `cbind()`.
 * The citation now reads "Smith MJ": the given names in `Authors@R` are split,

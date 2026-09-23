@@ -20,3 +20,6 @@ vignettes/*.html
 docs/
 # pkgdown/ is tracked: it holds the favicons and extra.css the
 # site is built from. The generated site itself is in docs/.
+
+# Agent scratch notes, not part of the package.
+AGENTS.md
