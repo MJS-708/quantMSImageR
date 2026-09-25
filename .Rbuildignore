@@ -18,6 +18,6 @@
 ^docs$
 ^pkgdown$
 ^_pkgdown\.yml$
-^logo_source\.png$
+^logo_source.*\.png$
 ^\.github$
 ^AGENTS\.md$
