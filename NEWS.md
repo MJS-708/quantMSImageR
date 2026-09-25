@@ -1,3 +1,9 @@
+# quantMSImageR 0.99.9
+
+* New package logo, carried by the README, the pkgdown site and the HTML
+  report; the report's copy now has a transparent background rather than
+  sitting on a white square.
+
 # quantMSImageR 0.99.8
 
 * Tissues acquired in pieces -- a top and a bottom, say -- can now be joined
