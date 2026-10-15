@@ -216,9 +216,15 @@ readMRM <- function(name, folder, lib_ion_path, overwrite = TRUE,
     mz           = ion_lib$new_transition_int,
     feature_type = ion_lib[[type_header]],
     precursor_mz = ion_lib$precursor_mz,
-    product_mz   = ion_lib$product_mz,
-    name         = ion_lib$transition_id_name
+    product_mz   = ion_lib$product_mz
   )
+  # Acquisition settings, beside the masses they belong to: two transitions can
+  # share a precursor and a product and differ only in collision energy, and
+  # without these the report cannot tell them apart. Carried when the library
+  # defines them rather than being required of every library.
+  for (.acq in c("collision_eV", "cone_V"))
+    if (.acq %in% names(ion_lib)) .fcols[[.acq]] <- ion_lib[[.acq]]
+  .fcols$name <- ion_lib$transition_id_name
   # The analyte-to-standard map only matters for panels with several internal
   # standards, so it is carried when the library defines it and omitted
   # otherwise rather than being required of every library.

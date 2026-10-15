@@ -151,6 +151,36 @@ test_that("auto picks the heatmap from group size, not group count", {
   expect_error(.heatmap_style("sideways", c("A", "B")))
 })
 
+test_that("auto also needs the blocks to be big enough to z-score", {
+  labs <- c("A", "A", "A", "B", "B", "B")
+
+  # Three rows per block: the z-score has room to say something.
+  expect_equal(
+    .heatmap_style("auto", labs, block = c(rep("r1", 3), rep("r2", 3))),
+    "contribution")
+
+  # Two rows in a block score to +/-0.707 whatever the data says, so the panel
+  # would be saturated colour carrying only a sign. This is the shape that
+  # regions produce: enough rows per GROUP, not enough per region.
+  expect_equal(
+    .heatmap_style("auto", labs, block = rep(c("r1", "r2", "r3"), each = 2)),
+    "per_sample")
+
+  # One row in a block cannot be scored at all.
+  expect_equal(
+    .heatmap_style("auto", c(labs, "B"),
+                   block = c(rep("r1", 3), rep("r2", 3), "r3")),
+    "per_sample")
+
+  # No block given is the ordinary single-block case, judged on groups alone.
+  expect_equal(.heatmap_style("auto", labs), "contribution")
+
+  # An explicit choice still wins over the block check.
+  expect_equal(
+    .heatmap_style("contribution", labs, block = rep(c("r1", "r2", "r3"), each = 2)),
+    "contribution")
+})
+
 # ---- Blocks (regions of interest) ------------------------------------------
 
 test_that("a block is scored against itself, not against the panel", {

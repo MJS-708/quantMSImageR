@@ -8,6 +8,10 @@
 # man/figures is tracked: the README logo and pkgdown both read
 # from it, so an untracked one is a broken image on GitHub.
 logo_source*.png
+# Full-resolution logo masters: man/figures/logo.png is the one the
+# README and pkgdown read, and a 6 MB source has no business in a
+# package tarball.
+man/figures/quantMSImageR-final-*.png
 *.BiocCheck/
 /doc/
 

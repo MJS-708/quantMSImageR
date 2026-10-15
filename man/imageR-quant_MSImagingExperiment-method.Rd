@@ -19,7 +19,8 @@
   blank_back = TRUE,
   aspect_ratio = 1,
   text_image = FALSE,
-  palette = c("heatmap0", "viridis")
+  palette = c("heatmap0", "viridis"),
+  raster = FALSE
 )
 }
 \arguments{
@@ -61,6 +62,11 @@ maximum (\code{TRUE}) rather than raw values (\code{FALSE}, the default).}
 \item{palette}{Character. Colour scale for the image: \code{"heatmap0"} (the
 default, matching the YAML \verb{colours: ion_image:} default) or \code{"viridis"}
 (perceptually uniform and colour-blind safe). See \code{\link[=quantPalettes]{quantPalettes()}}.}
+
+\item{raster}{Logical. Draw the pixels with \code{geom_raster()} rather than
+\code{geom_tile()}. Much faster on a large acquisition -- one image instead of
+a rectangle per pixel -- and valid because MSI pixels lie on a regular
+lattice. Default \code{FALSE}, which keeps the original rendering.}
 }
 \value{
 A \code{ggplot} object, or a numeric matrix when \code{text_image = TRUE}.

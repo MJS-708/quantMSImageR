@@ -236,6 +236,13 @@ runExample <- function(render_report = TRUE,
     ratios_cfg        <- NULL
     # Mirrors the YAML `roi:` block. The example asks for every view, since its
     # job is to show what the section can do; a study usually picks one.
+    ion_gif_on             <- TRUE
+    ion_gif_features       <- "all"
+    ion_gif_seconds        <- 0.4
+    report_percentile      <- 95
+    ion_scale_within       <- "all"
+    block_name             <- "Block"
+    block_centre           <- "off"   # the example declares no block:
     roi_on                 <- isTRUE(result$rois)
     roi_compare            <- "both"
     roi_unit               <- "sample"

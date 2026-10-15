@@ -93,6 +93,9 @@
 #'   normalising (default `TRUE`).
 #' @param type_header Character. Ion-library column holding the feature type,
 #'   passed to [readMRM()] and matched by `is_name` (default `"Type"`).
+#' @param stitch_overlap What [stitchAcquisitions()] should do when two pieces
+#'   of one tissue claim the same position: `"error"` (default), or `"first"` /
+#'   `"last"` to keep that piece's pixels where they collide.
 #' @param rois Regions of interest drawn with [labelROIs()]. `TRUE` reads
 #'   `roi_labels.csv` from each acquisition's `.raw` folder and adds `roi_label`
 #'   and `roi_id` to `pData()`: the region's name and its numbered identifier
@@ -158,10 +161,12 @@ generateTxtImages <- function(
   is_window      = 15,
   remove_IS      = TRUE,
   type_header    = "Type",
-  rois           = FALSE
+  rois           = FALSE,
+  stitch_overlap = c("error", "first", "last")
 ) {
 
   average_method <- match.arg(average_method, c("mean", "median"))
+  stitch_overlap <- match.arg(stitch_overlap)
 
   # Internal-standard normalisation. int2response() adds a `response` layer
   # rather than overwriting `intensity`, so when it runs everything downstream
@@ -429,7 +434,7 @@ generateTxtImages <- function(
     if (length(objs) == 1L) {
       obj <- objs[[1]]
     } else if (identical(mode, "stitch")) {
-      obj <- stitchAcquisitions(objs, label = label)
+      obj <- stitchAcquisitions(objs, label = label, overlap = stitch_overlap)
     } else {
       obj <- objs[[1]]
       for (i in seq_along(objs)[-1])
@@ -638,8 +643,11 @@ generateTxtImages <- function(
     # it places the pieces identically each time, so only the first says so.
     assemble <- function(objs, quiet = FALSE) {
       o <- if (length(objs) == 1L) objs[[1]]
-           else if (quiet) suppressMessages(stitchAcquisitions(objs, label = fn_label))
-           else stitchAcquisitions(objs, label = fn_label)
+           else if (quiet) suppressMessages(
+             stitchAcquisitions(objs, label = fn_label,
+                                overlap = stitch_overlap))
+           else stitchAcquisitions(objs, label = fn_label,
+                                   overlap = stitch_overlap)
       pData(o)$run <- factor(rep(fn_label, ncol(o)))
       o
     }

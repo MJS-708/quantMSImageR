@@ -19,6 +19,7 @@ Print a validation result
 }
 \seealso{
 Other workflow:
+\code{\link[=blockCentre]{blockCentre()}},
 \code{\link[=generateTxtImages]{generateTxtImages()}},
 \code{\link[=runExample]{runExample()}},
 \code{\link[=runStudy]{runStudy()}},

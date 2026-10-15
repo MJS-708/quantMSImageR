@@ -16,7 +16,8 @@
 #' @importFrom dplyr group_by left_join mutate pull right_join row_number select
 #' @importFrom dplyr summarise ungroup
 #' @importFrom ggplot2 aes discrete_scale element_blank element_line element_rect
-#' @importFrom ggplot2 element_text facet_grid geom_point geom_tile ggplot labs
+#' @importFrom ggplot2 element_text facet_grid geom_point geom_tile geom_raster
+#' @importFrom ggplot2 ggplot labs
 #' @importFrom ggplot2 coord_equal geom_histogram geom_line geom_vline
 #' @importFrom ggplot2 coord_cartesian facet_wrap scale_fill_manual
 #' @importFrom ggplot2 rel theme theme_minimal

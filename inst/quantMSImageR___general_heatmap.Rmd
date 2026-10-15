@@ -247,10 +247,11 @@ DESI-MRM mass spectrometry imaging of tissue sections, processed with quantMSIma
 
 ## 1.1 Sample mapping
 
-Acquisition filenames, run IDs used throughout this report, and group labels.
-Where a group contains biological replicates, each section is assigned a unique
-`_1`, `_2`, … suffix (shown individually in heatmaps and ion images; pooled by
-group label in comparison plots).
+Acquisition filenames, the run IDs used throughout this report, each sample's
+`group`, and its `block` where the study declares a second factor (patient,
+donor, sex, slide). Where a group contains biological replicates, each section
+is assigned a unique `_1`, `_2`, … suffix (shown individually in heatmaps and
+ion images; pooled by group in comparison plots).
 
 ```{r sample-map, echo = FALSE}
 if (exists("sample_map")) {
@@ -394,6 +395,27 @@ if (length(.cell_border) != 1L || is.na(.cell_border) ||
   grDevices::colorRampPalette(quantMSImageR::quantPalettes(.pal_ion))(256)
 }
 
+# Percentile the colour scale is capped at for EVERY image in this report: the
+# animation, the dropdown and the concentration images. Deliberately separate
+# from `parameters$perc`, which caps the .txt images written for other software
+# -- those want minimal visual scaling, these want a map that can be read.
+.report_perc <- if (exists("report_percentile"))
+                  suppressWarnings(as.numeric(report_percentile)[1]) else NA_real_
+if (!isTRUE(is.finite(.report_perc)) || .report_perc <= 0 || .report_perc > 100)
+  .report_perc <- 95
+# "q95", so every caption states the cap it used rather than naming a fixed one.
+.perc_lab   <- paste0("q", format(signif(.report_perc, 4), trim = TRUE))
+.perc_title <- paste0("Scaled to ", .perc_lab)
+
+# Which panels SHARE a colour scale. "all" is one scale for the whole study --
+# readable only when the sections are of similar intensity. "block" gives each
+# patient/sex/slide its own, so a weak one still uses its full range; "group"
+# does the same per treatment. Each panel states the cap it used, so blocks stay
+# comparable by number even when they are not by colour.
+.scale_within <- if (exists("ion_scale_within"))
+                   tolower(as.character(ion_scale_within)[1]) else "all"
+if (!.scale_within %in% c("all", "block", "group")) .scale_within <- "all"
+
 # Named colour vector for a categorical variable. Mirrors the package-internal
 # .anno_cols() that quantileHm() uses, so the group colours in the box/violin
 # plots are the same ones as the heatmap's group bar.
@@ -491,6 +513,71 @@ if (exists("heatmap_labs") && exists("heatmap_order"))
 }
 ```
 
+```{r block-centre, echo=FALSE, include=FALSE}
+# A blocking factor's own level -- one patient's sections ionising better, one
+# slide run on a different day -- sits on top of every comparison made within
+# that block. Dividing each block through by its own reference takes it out,
+# and because the correction is multiplicative it leaves intact how far a
+# treatment actually moved a feature.
+#
+# This is a COPY. The heatmaps and the box/violin plots read it, since that is
+# where the block's level gets in the way; the ion images keep the raw object,
+# because an image should show what was measured and its cap should be a real
+# intensity.
+.blk_mode <- if (exists("block_centre"))
+               tolower(as.character(block_centre)[1]) else "off"
+if (!.blk_mode %in% c("off", "center", "baseline")) .blk_mode <- "off"
+
+# Both are built further down as well, by the chunk that first needed them;
+# this chunk runs earlier, so it defines them when they are not here yet.
+if (!exists("run_to_lab"))
+  run_to_lab <- stats::setNames(heatmap_labs, heatmap_order)
+if (!exists("baseline_label") || is.null(baseline_label) ||
+    !nzchar(baseline_label) || !baseline_label %in% heatmap_labs)
+  baseline_label <- heatmap_labs[1]
+
+# Pixel -> block, from the sample map. A study with no block: has nothing to do.
+.pix_blk <- NULL
+if (!identical(.blk_mode, "off") &&
+    exists("sample_map") && !is.null(sample_map$block) &&
+    any(nzchar(sample_map$block))) {
+  .pix_blk <- stats::setNames(sample_map$block, sample_map$run_id)[
+    as.character(pData(combined)$run)]
+  if (length(unique(.pix_blk[!is.na(.pix_blk)])) < 2L) .pix_blk <- NULL
+}
+
+combined_bc <- combined
+.blk_done   <- FALSE
+if (!is.null(.pix_blk)) {
+  .pix_grp_bc <- run_to_lab[as.character(pData(combined)$run)]
+  combined_bc <- tryCatch(
+    quantMSImageR::blockCentre(
+      combined, block = .pix_blk, mode = .blk_mode,
+      groups = unname(.pix_grp_bc), baseline = baseline_label,
+      val_slot = "intensity", verbose = TRUE),
+    error = function(e) { message("block centring skipped: ", e$message)
+                          combined })
+  .blk_done <- !identical(combined_bc, combined)
+}
+.blk_name <- if (exists("block_name")) as.character(block_name)[1] else "Block"
+```
+
+```{r block-note, results="asis", echo=FALSE}
+if (.blk_done)
+  cat(sprintf(
+    paste0("> **Corrected within %s.** Every feature is divided by its %s, so ",
+           "the heatmaps and the comparison plots below show how far each ",
+           "sample sits from its own %s rather than where that %s happened to ",
+           "sit overall. Response sizes are kept: a %s that moves twice as far ",
+           "still reads twice as far. The ion images are NOT corrected -- they ",
+           "show measured intensity.\n\n"),
+    tolower(.blk_name),
+    if (identical(.blk_mode, "baseline"))
+      sprintf("own '%s' group", baseline_label) else
+      sprintf("%s's own geometric mean", tolower(.blk_name)),
+    tolower(.blk_name), tolower(.blk_name), tolower(.blk_name)))
+```
+
 ```{r roi-setup, echo=FALSE, include=FALSE}
 # Regions of interest drawn with labelROIs() (the roi: block of the YAML). On
 # when runStudy() attached region labels and the object carries them; the
@@ -561,7 +648,7 @@ if (.roi_on) {
     rows <- unique(px[, c("key", "run", "roi_label", "group")])
     rows <- rows[order(match(rows$roi_label, .roi_plot_levels),
                        match(rows$run, .roi_runs), rows$key), ]
-    obj <- combined[, .roi_keep]
+    obj <- combined_bc[, .roi_keep]
     pData(obj)$run <- factor(px$key, levels = rows$key)
     list(obj = obj, rows = rows)
   }
@@ -665,15 +752,16 @@ if (length(.hm_views) > 1L) {
 # The region view replaces the object and the row identities; everything else
 # about the panel is the same, which is the point of reading them side by side.
 .hm_src <- if (.is_roi_view) .roi_view(.view) else NULL
-.hm_obj   <- if (.is_roi_view) .hm_src$obj  else combined
+.hm_obj   <- if (.is_roi_view) .hm_src$obj  else combined_bc
 .hm_order <- if (.is_roi_view) .hm_src$rows$key   else heatmap_order
 .hm_labs  <- if (.is_roi_view) .hm_src$rows$group else heatmap_labs
 .hm_block <- if (.is_roi_view) .hm_src$rows$roi_label else NULL
 
-# "auto" judged on THIS view's rows: by region there are as many rows per group
-# as the samples have regions, which is often enough for the contribution
-# encoding where the sample view has too few.
-.hm_style <- quantMSImageR:::.heatmap_style(.style_cfg, .hm_labs)
+# "auto" judged on THIS view's rows AND its blocks: by region there are as many
+# rows per group as the samples have regions, which is often enough for the
+# contribution encoding where the sample view has too few -- but each region is
+# then z-scored against itself, so the region has to hold enough rows too.
+.hm_style <- quantMSImageR:::.heatmap_style(.style_cfg, .hm_labs, .hm_block)
 cat(.style_note(.hm_style), "\n\n")
 
 for (quant_value in .hm_quantiles) {
@@ -917,8 +1005,8 @@ if (length(detected_mets) > 0) {
     
     # Build long df: one row per pixel, tagged with run_id and group label.
     df <- bind_rows(lapply(heatmap_order, function(fn) {
-      p <- combined$run == fn
-      v <- spectraData(combined)[[val_slot]][mz_ind, p]
+      p <- combined_bc$run == fn
+      v <- spectraData(combined_bc)[[val_slot]][mz_ind, p]
       v <- v[is.finite(v)]
       tibble(
         run = fn,
@@ -1515,13 +1603,239 @@ if (length(.roi_runs))
 
 ```{r ion-heading, results="asis", echo=FALSE}
 cat("# ", .sec_ion, ". Ion images {.tabset .tabset-fade}\n\n", sep = "")
+
+# Pixels ordered by group, so every panel below reads in the study's order. The
+# animation and the dropdown both want this; whichever runs first builds it.
+if (!exists("combined_img")) {
+  .pix_grp <- run_to_lab[as.character(pData(combined)$run)]
+  combined_img <- combined[, order(match(.pix_grp, unique(heatmap_labs)),
+                                   match(as.character(pData(combined)$run),
+                                         heatmap_order))]
+}
+.img_run <- as.character(pData(combined_img)$run)
+
+# Pixel -> the factor whose levels each get their own colour scale. sample_map
+# carries `block` only when the study declares one, and a factor with a single
+# level is the same as no split at all.
+.split_by <- if (identical(.scale_within, "block") &&
+                 !is.null(sample_map$block) && any(nzchar(sample_map$block))) {
+  stats::setNames(sample_map$block, sample_map$run_id)[.img_run]
+} else if (identical(.scale_within, "group")) {
+  run_to_lab[.img_run]
+} else NULL
+if (!is.null(.split_by) &&
+    length(unique(.split_by[!is.na(.split_by)])) < 2L) .split_by <- NULL
+
+# One coordinate extent for every column, so a pixel is the same size in every
+# panel and a larger section is drawn larger -- imageR() otherwise forces each
+# panel square through theme(aspect.ratio), which hides exactly that.
+.gx <- range(as.numeric(pData(combined_img)$x), na.rm = TRUE)
+.gy <- range(as.numeric(pData(combined_img)$y), na.rm = TRUE)
+# A strip of empty space above each section, for the run id to sit in rather
+# than on top of the tissue.
+.gy_pad <- diff(.gy) * 0.10
+
+# Canvas sized to the grid: one column per block, one row per sample in the
+# biggest block. Without this the panels shrink to fit a fixed canvas and the
+# leftover becomes white space between the columns.
+.ion_fig_w <- 7.5
+.ion_fig_h <- 6
+.blk_lv <- if (is.null(.split_by)) character(0) else unique(.split_by)
+if (!is.null(.split_by)) {
+  # One treatment per row inside a block, its replicates along the row: the
+  # columns are as wide as the biggest group, the rows as many as there are
+  # groups. One replicate per group (the ex vivo case) gives a single column,
+  # so the arms stack one per row, which is the comparison there.
+  .runs_of <- function(b) unique(.img_run[.split_by == b])
+  .blk_ncol <- vapply(.blk_lv, function(b)
+    as.integer(max(table(run_to_lab[.runs_of(b)]))), integer(1))
+  .blk_nrow <- vapply(.blk_lv, function(b)
+    length(unique(run_to_lab[.runs_of(b)])), integer(1))
+  names(.blk_ncol) <- .blk_lv
+
+  # Each run's position within its own block and group: the facet column, so
+  # that replicate 1 of Ctrl sits above replicate 1 of HDM.
+  .rep_of <- stats::setNames(rep(NA_integer_, 0), character(0))
+  for (b in .blk_lv) {
+    .rs <- .runs_of(b)
+    for (g in unique(run_to_lab[.rs])) {
+      .rg <- .rs[run_to_lab[.rs] == g]
+      .rg <- .rg[order(match(.rg, heatmap_order))]
+      .rep_of[.rg] <- seq_along(.rg)
+    }
+  }
+
+  .panel <- 2.4                                   # inches across, per panel
+  .asp   <- diff(.gy) / diff(.gx)
+  if (!isTRUE(is.finite(.asp)) || .asp <= 0) .asp <- 1
+  .ion_fig_w <- min(16, max(4, sum(.blk_ncol) * .panel + 0.5))
+  .ion_fig_h <- min(22, max(3, max(.blk_nrow) * .panel * .asp + 1.4))
+}
 ```
 
-Ion images of all tissue sections. Three rendering modes per feature:
+```{r ion-mode-list, results="asis", echo=FALSE}
+.modes <- c(
+  sprintf(paste0("**Scaled within each %s** — one colour scale per %s, its ",
+                 "groups as rows and replicates across, each column labelled ",
+                 "with the value it is capped at. Read this to compare a ",
+                 "treatment against its own %s; the cap is what keeps the ",
+                 "columns comparable once the colours no longer are."),
+          tolower(.blk_name), tolower(.blk_name), tolower(.blk_name)),
+  sprintf(paste0("**%s** — intensities capped at the %s across all ",
+                 "sections; balances spatial detail with cross-section ",
+                 "intensity comparability."), .perc_title, .perc_lab),
+  paste("**Histogram normalised** — contrast enhanced per section; best for",
+        "visualising spatial distribution within a section."),
+  paste("**No scaling or normalisation** — raw intensities; dominated by",
+        "hotspots but preserves absolute differences between sections."))
+if (is.null(.split_by)) .modes <- .modes[-1]
 
-1. **Scaled to 95th quantile** — intensities capped at the p95 across all sections; balances spatial detail with cross-section intensity comparability.
-2. **Histogram normalised** — contrast enhanced per section; best for visualising spatial distribution within a section.
-3. **No scaling or normalisation** — raw intensities; dominated by hotspots but preserves absolute differences between sections.
+cat(sprintf("Ion images of all tissue sections. %s rendering modes per feature:\n\n",
+            c("Three", "Four")[1 + (length(.modes) == 4L)]))
+cat(paste0(seq_along(.modes), ". ", .modes, collapse = "\n"), "\n\n")
+```
+
+```{r ion-gif, results="asis", echo=FALSE, warning=FALSE, message=FALSE}
+# Animation of every feature's ion image (output: ion_gif: in the YAML).
+#
+# One frame per metabolite, each showing all sections at once, so the animation
+# answers "how is each metabolite distributed across the study". Frames are
+# capped at the report percentile, like the first rendering below: without a
+# common treatment a moving panel makes every feature look equally intense.
+.gif_on <- !exists("ion_gif_on") || isTRUE(ion_gif_on)
+.gif_ok <- .gif_on && requireNamespace("magick", quietly = TRUE)
+
+if (.gif_on && !.gif_ok)
+  cat("*(animation skipped: the magick package is not installed)*\n\n")
+
+if (.gif_ok) {
+
+  # Pixels ordered by group, as the ion images below are: the facets then read
+  # in the study's order. That chunk builds this too, but it runs later.
+  if (!exists("combined_img")) {
+    .pix_grp <- run_to_lab[as.character(pData(combined)$run)]
+    combined_img <- combined[, order(match(.pix_grp, unique(heatmap_labs)),
+                                     match(as.character(pData(combined)$run),
+                                           heatmap_order))]
+  }
+
+  .gif_names <- as.character(fData(combined)$name)
+
+  # Which features, and in what order: by pathway, then by name within it, so
+  # the animation walks through one class at a time.
+  .gif_path <- if (exists(".row_split") && !is.null(.row_split))
+                 .row_split else rep("All features", length(.gif_names))
+  .gif_lvls <- unique(.gif_path)
+  .gif_cols <- .cat_cols(.gif_lvls, .pal_feature)
+
+  .gif_want <- if (exists("ion_gif_features") && !is.null(ion_gif_features) &&
+                   !identical(tolower(as.character(ion_gif_features)[1]), "all"))
+                 as.character(ion_gif_features) else .gif_names
+  .gif_idx <- which(.gif_names %in% .gif_want)
+  .gif_idx <- .gif_idx[order(match(.gif_path[.gif_idx], .gif_lvls),
+                             tolower(.gif_names[.gif_idx]))]
+  .gif_miss <- setdiff(.gif_want, .gif_names)
+
+  if (!length(.gif_idx)) {
+    cat("*(animation skipped: none of the requested features are in this study)*\n\n")
+  } else {
+    # The key, so a title's colour means something. Only the pathways actually
+    # animated appear in it.
+    .key_lvls <- .gif_lvls[.gif_lvls %in% .gif_path[.gif_idx]]
+    cat('<p style="margin:4px 0 10px 0;font-size:0.9em;">',
+        paste0('<span style="display:inline-block;width:12px;height:12px;',
+               'vertical-align:middle;margin-right:5px;border-radius:2px;',
+               'background:', .gif_cols[.key_lvls], ';"></span>', .key_lvls,
+               collapse = ' &nbsp;&nbsp; '),
+        '</p>\n', sep = "")
+
+    # Quick by default: the animation is for seeing the study at a glance, and
+    # the dropdown below is where a feature gets looked at properly.
+    .secs <- if (exists("ion_gif_seconds")) as.numeric(ion_gif_seconds) else 0.4
+    if (!isTRUE(is.finite(.secs)) || .secs <= 0) .secs <- 0.4
+
+    .frames <- character(0)
+    for (.i in .gif_idx) {
+      .f <- tempfile(fileext = ".png")
+      # What the colour scale is capped at for this feature, stated on the frame:
+      # the panel is comparable between sections but not between features, and
+      # this is the number that says by how much.
+      .cap <- suppressWarnings(stats::quantile(
+        as.numeric(spectraData(combined_img)[["intensity"]][.i, ]),
+        .report_perc / 100, na.rm = TRUE))
+      .cap_lab <- if (is.finite(.cap))
+                    paste0(.perc_lab, " = ",
+                           format(signif(.cap, 3), big.mark = ",",
+                                  scientific = FALSE, trim = TRUE))
+                  else ""
+      .path_i <- .gif_path[.i]
+      .box_w  <- min(0.45, 0.035 + 0.0135 * nchar(.path_i))
+
+      # A header strip rather than a title: a title can only be one colour, and
+      # the pathway wants a block of its own with its name written inside it.
+      .hdr <- ggplot2::ggplot() +
+        ggplot2::annotate("rect", xmin = 0, xmax = .box_w, ymin = 0.1, ymax = 0.9,
+                          fill = unname(.gif_cols[.path_i])) +
+        ggplot2::annotate("text", x = .box_w / 2, y = 0.5, label = .path_i,
+                          colour = "white", fontface = "bold", size = 3.4) +
+        ggplot2::annotate("text", x = .box_w + 0.02, y = 0.5,
+                          label = .gif_names[.i], hjust = 0, fontface = "bold",
+                          size = 4.6) +
+        ggplot2::annotate("text", x = 1, y = 0.5, label = .cap_lab, hjust = 1,
+                          size = 3.2, colour = "grey35") +
+        ggplot2::scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
+        ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
+        ggplot2::theme_void()
+
+      .p <- tryCatch(
+        quantMSImageR::imageR(combined_img, feat_ind = .i, val_slot = "intensity",
+                              sample_lab = "run", scale = "suppress",
+                              threshold = 0, percentile = .report_perc,
+                              value = paste(.perc_lab, "response"),
+                              palette = .pal_ion) +
+          ggplot2::facet_wrap(~ sample, ncol = 3) +
+          ggplot2::theme(
+            strip.text = ggplot2::element_text(size = 7),
+            legend.text = ggplot2::element_text(size = 7)),
+        error = function(e) e)
+      if (inherits(.p, "error")) next
+      # wrap_plots() rather than patchwork's `/`, which is an S3 operator and
+      # needs that namespace already loaded to dispatch.
+      ggplot2::ggsave(.f, patchwork::wrap_plots(list(.hdr, .p), ncol = 1,
+                                                heights = c(0.08, 1)),
+                      width = 7.5, height = 5.5, dpi = 96, bg = "white")
+      .frames <- c(.frames, .f)
+    }
+
+    if (!length(.frames)) {
+      cat("*(animation skipped: no feature could be drawn)*\n\n")
+    } else {
+      # Quantised and optimised: an animation of 30 full-colour frames is tens
+      # of megabytes, and the report has to stay a single portable file.
+      .gif_path_out <- file.path(
+        if (exists("out_path") && nzchar(out_path)) out_path else ".",
+        paste0(if (exists("report_fn")) report_fn else "report", "_ion_images.gif"))
+      .anim <- magick::image_animate(
+        magick::image_quantize(magick::image_read(.frames), max = 128),
+        delay = round(.secs * 100), optimize = TRUE)
+      magick::image_write(.anim, .gif_path_out)
+      unlink(.frames)
+
+      cat(paste0('<p><img src="', knitr::image_uri(.gif_path_out),
+                 '" alt="ion image animation" ',
+                 'style="max-width:100%;height:auto;"/></p>\n'))
+      cat("*", length(.frames), " features, ", .secs,
+          "s per frame, each capped at its own ", .perc_lab,
+          " across sections. ",
+          "Also written beside this report as `", basename(.gif_path_out),
+          "`.*\n\n", sep = "")
+      if (length(.gif_miss))
+        cat("*(not found in this study: ",
+            paste(.gif_miss, collapse = ", "), ")*\n\n", sep = "")
+    }
+  }
+}
+```
 
 ```{r roi-map-ion, echo=FALSE, eval=.roi_on, fig.width=11, fig.height=.roi_map_h}
 # The same maps as the section above, repeated here because this is where a
@@ -1532,19 +1846,12 @@ if (length(.roi_runs))
                               guides = "collect"))
 ```
 
-```{r ion-img-dropdown, results="asis", echo=FALSE, include=TRUE, warning=FALSE, fig.width=7.5, fig.height=6}
+```{r ion-img-dropdown, results="asis", echo=FALSE, include=TRUE, warning=FALSE, fig.width=.ion_fig_w, fig.height=.ion_fig_h}
 # ---- Helper to make safe HTML ids ----
 make_safe_id <- function(x) gsub("[^A-Za-z0-9_\\-]", "_", x)
 
-# Reorder pixels (columns of `combined`) so panels appear grouped by label.
-# combined has one column per PIXEL (not per sample), so we must compute the
-# sort key per pixel — using its run -> group label — not per sample.
-.pix_run <- as.character(pData(combined)$run)
-.pix_grp <- run_to_lab[.pix_run]
-.img_ord <- order(match(.pix_grp, unique(heatmap_labs)),
-                  match(.pix_run, heatmap_order))
-combined_img <- combined[, .img_ord]
-
+# combined_img, .split_by and the extent are built by the ion-heading chunk,
+# which runs before this one and before the animation.
 features <- as.character(fData(combined)$name)
 feature_ids <- vapply(features, make_safe_id, character(1))
 
@@ -1594,11 +1901,11 @@ for (i in seq_along(ord)) {
   # Use a styled <p> instead of <h3> so the feature name does not populate the TOC
   cat(sprintf("<p style='margin-top:10px;font-size:1.17em;font-weight:600;'>%s</p>\n", feature))
 
-  # q95 from non-NA pixels only; as.numeric() forces out of matter-array to plain R vector
+  # Cap from non-NA pixels only; as.numeric() forces out of matter-array to plain R vector
   all_ints <- tryCatch(
     as.numeric(spectraData(combined[idx, ])[["intensity"]]),
     error = function(e) numeric(0))   # empty -> has_signal FALSE, handled below
-  q95      <- suppressWarnings(quantile(all_ints, 0.95, na.rm = TRUE))
+  q_cap    <- suppressWarnings(quantile(all_ints, .report_perc / 100, na.rm = TRUE))
   has_signal <- any(is.finite(all_ints))   # FALSE when feature absent in every sample
 
   # Helper: blank grid page with message (keeps device in grid mode after Cardinal's grid rendering)
@@ -1607,24 +1914,152 @@ for (i in seq_along(ord)) {
     grid::grid.text(msg, gp = grid::gpar(fontsize = 11, col = "grey40"))
   }
 
-  # Plot 1: Scaled to 95th quantile (columns ordered by group)
-  # Subset to single feature, convert matter-backed array to plain matrix, cap at q95,
+  # Plot 1: capped at the report percentile (columns ordered by group)
+  # Subset to single feature, convert matter-backed array to plain matrix, cap it,
   # replace entire slot (sub-slice assignment does not persist in matter backend).
-  if (!has_signal) {
-    blank_grid("Scaled to 95th quantile\n(No signal in any sample)")
-  } else {
+  # Draw one panel set, capped at `cap`, over the pixels in `j`.
+  .draw_capped <- function(j, title) {
     tryCatch({
-      combined_q95 <- combined_img[idx, ]
-      ints_q95 <- as.matrix(spectraData(combined_q95)[["intensity"]])
-      if (is.finite(q95)) ints_q95[!is.na(ints_q95) & ints_q95 > q95] <- q95
-      spectraData(combined_q95)[["intensity"]] <- ints_q95
-      p1 <- image(combined_q95, scale = FALSE, zlim = c(0, q95), mz = mz_val,
-                  free = "xy", axes = FALSE, grid = FALSE, col = .ion_cols) |>
-        matter::set_title("Scaled to 95th quantile")
-      plot(p1)
-    }, error = function(e) {
-      blank_grid("Scaled to 95th quantile\n(No signal or error)")
+      .obj  <- combined_img[idx, j]
+      .ints <- as.matrix(spectraData(.obj)[["intensity"]])
+      .cap  <- suppressWarnings(stats::quantile(as.numeric(.ints),
+                                                .report_perc / 100, na.rm = TRUE))
+      # A cap of zero or NA means nothing to show, and zlim = c(0, 0) errors.
+      if (!isTRUE(is.finite(.cap)) || .cap <= 0) {
+        blank_grid(paste0(title, "\n(no signal here)"))
+        return(invisible(NULL))
+      }
+      .ints[!is.na(.ints) & .ints > .cap] <- .cap
+      spectraData(.obj)[["intensity"]] <- .ints
+      plot(image(.obj, scale = FALSE, zlim = c(0, .cap), mz = mz_val,
+                 free = "xy", axes = FALSE, grid = FALSE, col = .ion_cols) |>
+             matter::set_title(title))
+    }, error = function(e) blank_grid(paste0(title, "\n(no signal or error)")))
+    invisible(NULL)
+  }
+
+  # The first of four, when the study declares a block: the same feature scaled
+  # within each block, which is the comparison a blocked design is asking for.
+  # The three study-wide renderings follow it, unchanged.
+  if (has_signal && !is.null(.split_by)) {
+    # One ggplot per level, combined side by side: columns are the levels, rows
+    # the samples within one. patchwork leaves each plot its own fill scale and
+    # legend, which is the point -- Cardinal's image() draws the whole grid in a
+    # single call and so can carry only one. Each column states the value it is
+    # capped at, because that number is what keeps the columns comparable once
+    # the colours no longer are.
+    .cols <- lapply(seq_along(.blk_lv), function(.k) {
+      .lv <- .blk_lv[[.k]]
+      tryCatch({
+        .obj  <- combined_img[, which(.split_by == .lv)]
+        .cap  <- suppressWarnings(stats::quantile(
+          as.numeric(spectraData(.obj)[["intensity"]][idx, ]),
+          .report_perc / 100, na.rm = TRUE))
+        if (!isTRUE(is.finite(.cap)) || .cap <= 0) return(NULL)
+        .runs <- unique(as.character(pData(.obj)$run))
+        # One label per panel, placed in the headroom above the tissue.
+        .tags <- data.frame(sample = .runs,
+                            x = mean(.gx),
+                            y = -(.gy[1] - .gy_pad * 0.45),
+                            stringsAsFactors = FALSE)
+        quantMSImageR::imageR(.obj, feat_ind = idx, val_slot = "intensity",
+                              sample_lab = "run", scale = "suppress",
+                              threshold = 0, percentile = .report_perc,
+                              value = paste(.perc_lab, "response"),
+                              palette = .pal_ion,
+                              # A rectangle per pixel is minutes a report at
+                              # study scale; one raster image is seconds.
+                              raster = TRUE) +
+          # Rows are the groups, columns the replicates within one, so both
+          # axes of the grid are named: switch = "y" moves the group strip to
+          # the left, and the block title above names the column.
+          ggplot2::facet_grid(
+            rows = ggplot2::vars(factor(run_to_lab[as.character(sample)],
+                                        levels = unique(heatmap_labs))),
+            cols = ggplot2::vars(.rep_of[as.character(sample)]),
+            switch = "y") +
+          ggplot2::geom_text(data = .tags,
+                             ggplot2::aes(x = x, y = y, label = sample),
+                             inherit.aes = FALSE, size = 2.6, colour = "grey25") +
+          # y is plotted negated, so the limits are too. expand = FALSE drops
+          # the 5% ggplot pads on every side, which on three stacked panels is
+          # most of the gap between sections.
+          ggplot2::coord_fixed(ratio = 1, xlim = .gx,
+                               ylim = c(-.gy[2], -(.gy[1] - .gy_pad)),
+                               expand = FALSE) +
+          ggplot2::labs(title = paste0(
+            .lv, "  (", .perc_lab, " = ",
+            format(signif(.cap, 3), big.mark = ",",
+                   scientific = FALSE, trim = TRUE), ")")) +
+          # Wide enough that four six-figure tick labels do not collide.
+          ggplot2::guides(fill = ggplot2::guide_colourbar(
+            title.position = "top", title.hjust = 0.5,
+            barwidth = grid::unit(42, "mm"), barheight = grid::unit(3, "mm"))) +
+          ggplot2::theme(
+            # coord_fixed does the shaping now; aspect.ratio would fight it.
+            aspect.ratio    = NULL,
+            plot.title      = ggplot2::element_text(size = 11, face = "bold",
+                                                    hjust = 0.5),
+            # The replicate number along the top says nothing; the group on
+            # the left is the row name and stays.
+            strip.text.x    = ggplot2::element_blank(),
+            strip.background.x = ggplot2::element_blank(),
+            # A line round every panel marks both the group rows and the
+            # replicates along them, without needing a layer to draw it.
+            panel.border    = ggplot2::element_rect(colour = "grey80",
+                                                    fill = NA, linewidth = 0.3),
+            panel.spacing.y = grid::unit(5, "pt"),
+            panel.spacing.x = grid::unit(2, "pt"),
+            # Every block has the same rows, so only the leftmost names them.
+            strip.text.y.left  = if (.k == 1L)
+                                   ggplot2::element_text(
+                                     size = 9, face = "bold", angle = 90,
+                                     margin = ggplot2::margin(r = 2, l = 2))
+                                 else ggplot2::element_blank(),
+            strip.placement = "outside",
+            panel.spacing   = grid::unit(1, "pt"),
+            plot.margin     = ggplot2::margin(2, 2, 2, 2),
+            legend.position = "bottom",
+            legend.text     = ggplot2::element_text(size = 6),
+            legend.title    = ggplot2::element_text(size = 8),
+            legend.margin   = ggplot2::margin(t = 0, b = 0))
+      }, error = function(e) NULL)
     })
+    .keep  <- !vapply(.cols, is.null, logical(1))
+    .cols  <- .cols[.keep]
+    if (!length(.cols)) {
+      blank_grid(paste0(.perc_title, "\n(No signal or error)"))
+    } else {
+      # Widths in panels, so a block drawn three across really is three times
+      # the width of one drawn in a single column.
+      .w <- as.numeric(.blk_ncol[.keep])
+      if (length(.cols) > 1L) {
+        # patchwork has no separator of its own, so one is drawn: a narrow
+        # plot holding a single vertical segment, placed between the blocks.
+        .rule <- ggplot2::ggplot() +
+          ggplot2::annotate("segment", x = 0.5, xend = 0.5, y = 0, yend = 1,
+                            colour = "grey55", linewidth = 0.4) +
+          ggplot2::scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
+          ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
+          ggplot2::theme_void()
+        .inter <- vector("list", 2L * length(.cols) - 1L)
+        .inter[seq(1, length(.inter), by = 2L)] <- .cols
+        .inter[seq(2, length(.inter), by = 2L)] <- list(.rule)
+        .wi <- numeric(length(.inter))
+        .wi[seq(1, length(.wi), by = 2L)] <- .w
+        .wi[seq(2, length(.wi), by = 2L)] <- 0.06
+        .cols <- .inter
+        .w    <- .wi
+      }
+      print(patchwork::wrap_plots(.cols, nrow = 1, widths = .w))
+    }
+  }
+
+  # Capped across the whole study: every section on one scale, blocks and all.
+  if (!has_signal) {
+    blank_grid(paste0(.perc_title, "\n(No signal in any sample)"))
+  } else {
+    .draw_capped(seq_len(ncol(combined_img)), .perc_title)
   }
 
   # Plot 2: Histogram normalization & scaled (columns ordered by group)
@@ -1805,7 +2240,8 @@ for (.i in seq_along(.cal_ord)) {
     print(
       quantMSImageR::imageR(.cal_obj, feat_ind = .idx, sample_lab = "run",
                             val_slot = .conc_slot, value = .conc_unit,
-                            scale = "suppress", palette = .pal_ion) +
+                            scale = "suppress", percentile = .report_perc,
+                            palette = .pal_ion) +
         ggplot2::facet_wrap(~ sample, ncol = 3) +
         ggplot2::theme(strip.text  = ggplot2::element_text(size = 8),
                        legend.text = ggplot2::element_text(size = 8))

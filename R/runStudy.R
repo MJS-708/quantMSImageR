@@ -92,6 +92,24 @@ runStudy <- function(config_file) {
   # below assigns unique run IDs (e.g. 1a_1, 1a_2, ...).
   # ---------------------------------------------------------------------------
   .expanded <- list()
+  # `group:` is the key for a sample's group; `label:` is the old name for it
+  # and still works, so configs written before the rename keep running. Both are
+  # normalised to `label` here, at the config boundary, so nothing downstream
+  # needs to know which spelling was used.
+  .as_group <- function(e) {
+    g <- e$group %||% e$label
+    if (!is.null(g)) e$label <- g
+    e$group <- NULL
+    e
+  }
+  cfg$samples <- lapply(cfg$samples, function(s) {
+    s <- .as_group(s)
+    if (!is.null(s$sections))
+      s$sections <- lapply(s$sections,
+                           function(x) if (is.list(x)) .as_group(x) else x)
+    s
+  })
+
   for (s in cfg$samples) {
     if (!is.null(s$sections) && length(s$sections) > 0) {
       for (sec_entry in s$sections) {
@@ -212,10 +230,12 @@ runStudy <- function(config_file) {
     if (length(parts)) paste(parts, collapse = " + ") else ""
   }
 
-  # Sample mapping table (original filenames <-> run IDs <-> group labels) for the report
+  # Sample mapping table (original filenames <-> run IDs <-> group) for the report
   sample_map <- data.frame(
     run_id     = heatmap_order,
     group      = heatmap_labs,
+    block      = vapply(cfg$samples, function(s)
+      as.character(s$block %||% ""), character(1)),
     pos_files  = vapply(fns, .map_files, character(1), pol = "pos"),
     neg_files  = vapply(fns, .map_files, character(1), pol = "neg"),
     section    = vapply(fns, function(f)
@@ -224,6 +244,9 @@ runStudy <- function(config_file) {
   )
   # Drop section column if unused across the whole study
   if (all(sample_map$section == "")) sample_map$section <- NULL
+  # Likewise block: most studies have no second factor, and an empty column in
+  # the mapping table is just noise.
+  if (all(sample_map$block == "")) sample_map$block <- NULL
 
   snr_thresh     <- as.numeric(unlist(cfg$parameters$snr_thresh %||% 0))
   # Optional per-analyte SNR overrides: named map (analyte -> SNR). These
@@ -232,8 +255,14 @@ runStudy <- function(config_file) {
   # ion-library names.
   snr_overrides  <- cfg$parameters$snr_overrides %||% NULL
   thresh         <- cfg$parameters$thresh         %||% 20
-  perc           <- cfg$parameters$perc           %||% 97
+  # Caps the .txt images only (they feed other software, so they keep their
+  # dynamic range); the report's own images use output$ion_images$percentile.
+  perc           <- cfg$parameters$perc           %||% 99
   rot_clockwise  <- cfg$parameters$rot_clockwise  %||% 0
+  # Pieces of one tissue that share a strip: refuse by default, or keep one.
+  stitch_overlap <- tolower(as.character(
+    cfg$parameters$stitch_overlap %||% "error"))[1]
+  if (!stitch_overlap %in% c("error", "first", "last")) stitch_overlap <- "error"
   average_method <- cfg$parameters$average_method %||% "median"
   is_name        <- cfg$parameters$is_name        %||% NULL
   is_norm_header  <- cfg$parameters$is_norm_header  %||% "IS_norm"
@@ -241,7 +270,16 @@ runStudy <- function(config_file) {
   is_window      <- cfg$parameters$is_window      %||% 15
   type_header    <- cfg$parameters$type_header    %||% "Type"
   remove_IS      <- cfg$parameters$remove_IS      %||% TRUE
-  baseline_label    <- trimws(cfg$parameters$baseline_label %||% heatmap_labs[1])
+  # A second factor per sample, and what to do about it. `off` only annotates;
+  # `center` and `baseline` divide each block through by its own reference.
+  block_name   <- as.character(cfg$parameters$block_name %||% "Block")[1]
+  # `off` and `on` are YAML booleans, so the value may arrive as TRUE/FALSE.
+  block_centre <- .block_mode(cfg$parameters$block_centre)
+  if (!block_centre %in% c("off", "center", "baseline")) block_centre <- "off"
+
+  # baseline_group: names a value of group:; baseline_label: is its old name.
+  baseline_label    <- trimws(cfg$parameters$baseline_group %||%
+                              cfg$parameters$baseline_label %||% heatmap_labs[1])
   heatmap_row_split <- cfg$parameters$heatmap_row_split %||% NULL
   # Which heatmap section 2 draws. "auto" picks by study design; see
   # .heatmap_style() for the rule. Never both -- two readings of one matrix
@@ -298,6 +336,24 @@ runStudy <- function(config_file) {
   } else {
     "auto"          # resolved below, once it is known whether regions exist
   }
+
+  # Animation of every feature's ion image, at the top of the ion-image
+  # section. On by default; `features:` picks a subset, in pathway order.
+  .gif <- cfg$output$ion_gif
+  if (is.null(.gif)) .gif <- list()
+  if (is.logical(.gif)) .gif <- list(enabled = .gif)
+  ion_gif_on       <- isTRUE(as.logical(.gif$enabled %||% TRUE))
+  ion_gif_features <- if (is.null(.gif$features)) "all"
+                      else as.character(unlist(.gif$features))
+  ion_gif_seconds  <- as.numeric(.gif$seconds %||% 0.4)
+
+  # One cap for every image in the report -- animation, dropdown and
+  # concentration images -- so a frame and its panel never disagree.
+  .ion_img <- cfg$output$ion_images
+  if (is.null(.ion_img)) .ion_img <- list()
+  report_percentile <- as.numeric(.ion_img$percentile %||% 95)
+  # Which panels share a colour scale: all (one for the study) | block | group.
+  ion_scale_within  <- tolower(as.character(.ion_img$scale_within %||% "all"))[1]
 
   # Regions of interest drawn with labelROIs(). "auto" (the default) switches
   # them on when any acquisition has a roi_labels.csv. The rest is read by the
@@ -368,6 +424,7 @@ runStudy <- function(config_file) {
     is_window      = is_window,
     remove_IS      = remove_IS,
     type_header    = type_header,
+    stitch_overlap = stitch_overlap,
     rois           = roi_enabled
   )
   # Resolved by generateTxtImages() (for "auto": whether any file was found).
@@ -526,6 +583,10 @@ runStudy <- function(config_file) {
       report_fn <- if (user_pinned && length(snr_objs) == 1L)
         as.character(cfg$output$report_fn)[1] else
         paste0(cfg$study, "_SNR", snr_report)
+      # A corrected run and an uncorrected one are different readings of the
+      # same study, so they must not overwrite each other.
+      if (!identical(block_centre, "off"))
+        report_fn <- paste0(report_fn, "_blocked")
 
       out_file <- file.path(out_path,
                             paste0(report_fn, "_response_SNRfiltered.html"))

@@ -9,7 +9,7 @@ good_cfg <- function(out = tempfile()) {
       lib_ion_path = system.file("extdata", "example_ion_library.csv",
                                  package = "quantMSImageR")),
     samples = list(list(neg = "example", sections = list("section01"),
-                        run_id = "S1", label = "A")),
+                        run_id = "S1", group = "A")),
     parameters = list(snr_thresh = 0),
     output = list(render_report = FALSE, output_txt = FALSE)
   )
@@ -135,6 +135,28 @@ test_that("runStudy refuses to start on an invalid config", {
                "Config validation failed")
 })
 
+test_that("label: still works as the old name for group:", {
+  cfg <- good_cfg()
+  cfg$samples[[1]]$group <- NULL
+  cfg$samples[[1]]$label <- "A"
+
+  # It is an alias, not an error: configs written before the rename still run.
+  v <- validateConfig(cfg)
+  expect_length(v$errors, 0)
+  expect_true(any(grepl("label:", v$warnings)))
+
+  # A sample with neither is still a mistake.
+  cfg$samples[[1]]$label <- NULL
+  expect_true(any(grepl("group:", validateConfig(cfg)$errors)))
+
+  # baseline_group: wins over baseline_label:, and either names a real group.
+  cfg$samples[[1]]$group <- "A"
+  cfg$parameters$baseline_label <- "nope"
+  expect_true(any(grepl("baseline", validateConfig(cfg)$warnings)))
+  cfg$parameters$baseline_group <- "A"
+  expect_false(any(grepl("baseline", validateConfig(cfg)$warnings)))
+})
+
 test_that("print method summarises without erroring", {
   v <- validateConfig(good_cfg())
   expect_output(print(v), "quantMSImageR validation")
@@ -200,5 +222,54 @@ test_that("the roi block takes only documented values", {
     expect_true(any(grepl(paste0("roi$", k), validateConfig(cfg2)$errors,
                           fixed = TRUE)),
                 info = k)
+  }
+})
+
+test_that("output$ion_gif takes a switch or a block", {
+  cfg <- good_cfg()
+
+  for (v in list(TRUE, FALSE,
+                 list(enabled = TRUE),
+                 list(enabled = TRUE, features = "all", seconds = 2),
+                 list(features = list("12-HHTrE", "9-HOTE")))) {
+    cfg$output$ion_gif <- v
+    expect_length(validateConfig(cfg)$errors, 0)
+  }
+
+  # A key nobody implements, and a frame time that is not a time.
+  cfg$output$ion_gif <- list(enabled = TRUE, speed = "fast")
+  expect_true(any(grepl("ion_gif", validateConfig(cfg)$errors)))
+  cfg$output$ion_gif <- list(seconds = -1)
+  expect_true(any(grepl("ion_gif", validateConfig(cfg)$errors)))
+
+  # A feature the ion library does not have is a typo worth saying out loud,
+  # but not a reason to refuse the run.
+  cfg$output$ion_gif <- list(features = list("12-HHTrE", "not_a_feature"))
+  v <- validateConfig(cfg)
+  expect_length(v$errors, 0)
+  expect_true(any(grepl("not_a_feature", v$warnings)))
+})
+
+test_that("output$ion_images$percentile takes a percentile", {
+  cfg <- good_cfg()
+
+  for (v in list(list(percentile = 95), list(percentile = 99),
+                 list(percentile = 97.5), list(percentile = 100))) {
+    cfg$output$ion_images <- v
+    expect_length(validateConfig(cfg)$errors, 0)
+  }
+
+  # The layout keys are not read yet, but configs carry them, so they must not
+  # be refused.
+  cfg$output$ion_images <- list(percentile = 95, rows = "group", cols = "block",
+                                scale_within = "block", scale = "suppress")
+  expect_length(validateConfig(cfg)$errors, 0)
+
+  # Not a percentile, and a key nobody reads.
+  for (v in list(list(percentile = 0), list(percentile = 101),
+                 list(percentile = -5), list(percentile = "high"),
+                 list(perc = 95))) {
+    cfg$output$ion_images <- v
+    expect_true(any(grepl("ion_images", validateConfig(cfg)$errors)))
   }
 })

@@ -1,3 +1,88 @@
+# quantMSImageR 0.99.10
+
+* A blocking factor can now be corrected for, not just annotated.
+  `parameters: block_centre:` takes `center` -- divide each block by its own
+  geometric mean -- or `baseline`, which divides by the block's
+  `baseline_group` arm so a value reads as a fold change against its own
+  control. `off` is the default, so declaring `block:` on its own never changes
+  a number. The correction is multiplicative, so a block's gain goes and the
+  size of its response stays: a patient who responds twice as strongly still
+  reads twice as strongly. It reaches the heatmaps and the comparison plots,
+  which is where a block's own level gets in the way; the ion images are left
+  alone, because an image should show the intensity that was measured. A
+  corrected report gains `blocked` in its filename so it cannot overwrite an
+  uncorrected one, and says at the top what was done. `blockCentre()` is
+  exported for use outside the report.
+
+* `stitchAcquisitions()` gains `overlap`, for pieces of one tissue that share a
+  strip -- a re-acquired edge, a generously cut margin. `"error"` remains the
+  default, because averaging two pieces or silently dropping one invents a
+  pixel; `"first"` and `"last"` keep that piece where they collide and report
+  how many were dropped. `parameters: stitch_overlap:` sets it from the YAML.
+
+* `fData()` now carries `collision_eV` and `cone_V` from the ion library, so
+  the report's feature table identifies a transition without a trip back to the
+  raw data: two transitions can share a precursor and a product and differ only
+  in collision energy. Acquisitions cached by an earlier version keep their old
+  feature table until re-read with `readMRM(overwrite = TRUE)`.
+
+* The ion-image section opens with an animation: one frame per feature, each
+  showing every section at once, ordered by pathway and under a pathway colour
+  key. Each frame carries a filled box in its pathway's colour with the pathway
+  written inside it, the metabolite beside it, and the intensity the colour
+  scale is capped at -- the panels within a frame are comparable, between frames
+  they are not, and that number says by how much. It answers "how is each
+  metabolite distributed across this study" in one object, and is written beside
+  the report as a `.gif` for talks and posters as well as embedded in it. On by
+  default; `output: ion_gif:` takes `enabled`, `features` (`"all"` or a list)
+  and `seconds` per frame. Needs the magick package, and says so rather than
+  failing when it is absent.
+
+* `output: ion_images: scale_within:` chooses which panels share a colour
+  scale: `all` (one for the study, the previous and default behaviour), `block`
+  (one per patient, sex or slide) or `group`. With a single scale across a study
+  whose sections differ in intensity, the weakest reads as empty and the
+  strongest saturates; per-block scales let each use its full range, and every
+  panel states the value it is capped at, so the blocks stay comparable by
+  number even when they are not by colour.
+
+  The grid follows from the design rather than being configured: a block is a
+  column, its groups are the rows, and replicates run across a row -- so the
+  panel reads across for replicates and down for treatment whether a block holds
+  one replicate per arm (an ex vivo pairing) or four (a mouse cohort). The
+  canvas is sized from that grid, and each column carries its own colour bar.
+  This rendering is drawn with `imageR()`; without `scale_within` the report
+  uses Cardinal's `image()` exactly as before.
+
+* `heatmap_style: auto` no longer chooses the contribution heatmap when the
+  z-score behind it cannot resolve anything. That score is taken *within* a
+  region, so the region is what has to be big enough: two rows in a region score
+  to +/-0.707 whatever the data says, and one cannot be scored at all -- a panel
+  of saturated colour carrying only a sign. Counting rows per group missed this,
+  because regions multiply the rows per group without giving the z-score more to
+  work with. `auto` now needs 3+ rows in a group **and** 3+ in every region;
+  an explicit `per_sample` or `contribution` is still honoured as given.
+
+* A sample's group is now given by `group:` rather than `label:`, which is what
+  it has always been -- `runStudy()` reads it straight into the sample map's
+  `group` column. `parameters: baseline_label:` becomes `baseline_group:` for
+  the same reason: it names a value of that key. **Both old names keep
+  working**, so existing configs run unchanged; `validateConfig()` says how many
+  samples still use `label:` so a study can be updated when convenient. The
+  `label:` under `ratios: entries:` is a different thing -- a ratio's display
+  name -- and is unaffected.
+
+* One percentile now caps every image in the report -- the animation, the
+  dropdown's first rendering and the concentration images -- set by
+  `output: ion_images: percentile:` (default 95), with each caption stating the
+  value it used instead of naming a fixed one. Previously the animation was
+  fixed at 95, the dropdown computed its own 95, and the concentration images
+  silently took `imageR()`'s default of 99. `parameters: perc:` is unchanged in
+  meaning and stays separate: it caps the `.txt` images written for other
+  software, which want their dynamic range rather than a readable map. Its
+  default moved from 97 to 99 for that reason; a `perc:` set in a config is
+  used as before.
+
 # quantMSImageR 0.99.9
 
 * New package logo, carried by the README, the pkgdown site and the HTML

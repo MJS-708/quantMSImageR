@@ -27,6 +27,24 @@
   invisible(env)
 }
 
+#' Normalise a block_centre value
+#'
+#' `off`, `on`, `yes` and `no` are YAML 1.1 booleans, so a config that spells
+#' the mode the natural way arrives here as TRUE/FALSE rather than as a word.
+#' Both spellings mean the same thing to whoever wrote the config.
+#'
+#' @keywords internal
+#' @noRd
+.block_mode = function(x){
+  if(is.null(x)) return("off")
+  if(is.logical(x)) return(if(isTRUE(x[1])) "center" else "off")
+  v = tolower(trimws(as.character(x)))[1]
+  if(v %in% c("false", "no", "n", "off")) return("off")
+  if(v %in% c("true", "yes", "y", "on"))  return("center")
+  if(identical(v, "centre")) return("center")
+  v
+}
+
 #' @keywords internal
 #' @noRd
 .chk_out = function(env){
@@ -228,7 +246,8 @@ validateConfig = function(config, check_paths = TRUE){
       for(i in seq_along(s)){
         e = s[[i]]
         if(is.null(e$pieces)) next
-        who = as.character(e$run_id %||% e$label %||% sprintf("sample %d", i))
+        who = as.character(e$run_id %||% e$group %||% e$label %||%
+                             sprintf("sample %d", i))
         pcs = e$pieces
         if(!is.list(pcs) || length(pcs) < 2L)
           .pc_bad = c(.pc_bad, sprintf("'%s': pieces: needs two or more entries.", who))
@@ -245,11 +264,22 @@ validateConfig = function(config, check_paths = TRUE){
         .chk_add(chk, "sample pieces", "error", paste(.pc_bad, collapse = " "))
       else .chk_add(chk, "sample pieces", "ok")
 
-      labs = vapply(s, function(e) as.character(e$label %||% NA_character_), character(1))
+      labs = vapply(s, function(e)
+        as.character(e$group %||% e$label %||% NA_character_), character(1))
       if(anyNA(labs) || any(!nzchar(trimws(labs))))
-        .chk_add(chk, "sample labels", "error",
-                 "every sample needs a label: (it is the group name).")
-      else .chk_add(chk, "sample labels", "ok")
+        .chk_add(chk, "sample groups", "error",
+                 "every sample needs a group: (the group it belongs to).")
+      else .chk_add(chk, "sample groups", "ok")
+
+      # `label:` is the old name for `group:`. It still works, so nothing breaks;
+      # a warning rather than a silent pass because only errors and warnings are
+      # printed, and this is the list of configs still to be swept.
+      .old = sum(vapply(s, function(e)
+        is.null(e$group) && !is.null(e$label), logical(1)))
+      if(.old)
+        .chk_add(chk, "sample group key", "warning", sprintf(
+          "%d sample%s still use label: for the group name. It keeps working; group: is the current key.",
+          .old, if(.old == 1) "" else "s"))
 
       ids = vapply(s, function(e) as.character(e$run_id %||% NA_character_), character(1))
       dup = unique(ids[!is.na(ids) & duplicated(ids)])
@@ -259,12 +289,50 @@ validateConfig = function(config, check_paths = TRUE){
           paste(dup, collapse = ", ")))
       else .chk_add(chk, "unique run_id", "ok")
 
-      bl = par$baseline_label
+      bl = par$baseline_group %||% par$baseline_label
       if(!is.null(bl) && nzchar(bl) && !bl %in% labs)
         .chk_add(chk, "baseline_label", "warning", sprintf(
           "parameters$baseline_label = '%s' is not one of the sample labels (%s).",
           bl, paste(unique(labs), collapse = ", ")))
       else .chk_add(chk, "baseline_label", "ok")
+
+      # ---- blocking ------------------------------------------------------
+      bc = .block_mode(par$block_centre)
+      if(!bc %in% c("off", "center", "baseline"))
+        .chk_add(chk, "block_centre", "error", sprintf(
+          "parameters$block_centre = '%s'; use off, center or baseline.", bc))
+      else .chk_add(chk, "block_centre", "ok")
+
+      blks = vapply(s, function(e) as.character(e$block %||% ""), character(1))
+      has_block = any(nzchar(blks))
+      # Correcting within a factor nothing declares would silently do nothing.
+      if(!identical(bc, "off") && !has_block)
+        .chk_add(chk, "block_centre", "warning", paste0(
+          "parameters$block_centre is on but no sample has a block:, so there ",
+          "is nothing to correct within."))
+      if(!identical(bc, "off") && has_block &&
+         length(unique(blks[nzchar(blks)])) < 2L)
+        .chk_add(chk, "block_centre", "warning", paste0(
+          "every sample is in the same block, so correcting within it would ",
+          "remove the comparison rather than a nuisance."))
+
+      so = tolower(as.character(par$stitch_overlap %||% "error"))[1]
+      if(!so %in% c("error", "first", "last"))
+        .chk_add(chk, "stitch_overlap", "error", sprintf(
+          "parameters$stitch_overlap = '%s'; use error, first or last.", so))
+      else .chk_add(chk, "stitch_overlap", "ok")
+
+      # baseline centring needs the reference arm inside EVERY block, or that
+      # block silently falls back to its own mean.
+      if(identical(bc, "baseline") && has_block && !is.null(bl) && nzchar(bl)){
+        miss = unique(blks[nzchar(blks)])
+        miss = miss[vapply(miss, function(b)
+          !any(labs[blks == b] == bl), logical(1))]
+        if(length(miss))
+          .chk_add(chk, "block_centre", "warning", sprintf(
+            "block(s) %s have no '%s' sample, so they will be centred on their own mean instead. Use center to treat every block alike.",
+            paste(miss, collapse = ", "), bl))
+      }
     }
   }
 
@@ -413,6 +481,62 @@ validateConfig = function(config, check_paths = TRUE){
         "output$colocalisation = '%s'; use auto, 'sample' (all pixels of each sample), 'roi' (pixels of each region type), True (= sample) or False.",
         paste(co, collapse = ", ")))
     else .chk_add(chk, "output$colocalisation", "ok")
+  }
+
+  # ---- ion image animation ---------------------------------------------------
+  gif = config$output$ion_gif
+  if(!is.null(gif)){
+    if(is.logical(gif)){
+      ok = length(gif) == 1L && !is.na(gif)
+    } else {
+      ok = is.list(gif) &&
+        all(names(gif) %in% c("enabled", "features", "seconds")) &&
+        (is.null(gif$enabled) ||
+           (is.logical(gif$enabled) && length(gif$enabled) == 1L)) &&
+        (is.null(gif$seconds) ||
+           (length(gif$seconds) == 1L &&
+            isTRUE(suppressWarnings(as.numeric(gif$seconds)) > 0)))
+    }
+    if(!ok)
+      .chk_add(chk, "output$ion_gif", "error", paste0(
+        "output$ion_gif takes True/False, or a block with enabled: (True/False), ",
+        "features: ('all' or a list of feature names) and seconds: (a positive ",
+        "number, the time each frame is shown)."))
+    else .chk_add(chk, "output$ion_gif", "ok")
+
+    # A named feature that is not in the ion library is a typo the animation
+    # would silently skip, so say so now.
+    if(is.list(gif) && !is.null(gif$features) && !is.null(ion_lib) &&
+       !identical(tolower(as.character(unlist(gif$features))[1]), "all")){
+      want = as.character(unlist(gif$features))
+      miss = setdiff(want, as.character(ion_lib$transition_id))
+      if(length(miss))
+        .chk_add(chk, "output$ion_gif features", "warning", sprintf(
+          "output$ion_gif$features names %s that the ion library does not: %s. (Display names from features$rename are resolved at render time, so a renamed feature is fine here.)",
+          if(length(miss) == 1) "a feature" else "features",
+          paste(utils::head(miss, 5), collapse = ", ")))
+      else .chk_add(chk, "output$ion_gif features", "ok")
+    }
+  }
+
+  # ---- ion image display -----------------------------------------------------
+  # `rows`, `cols`, `scale_within` and `scale` are accepted but not yet read by
+  # the report: configs carry them so they are ready, and a typo is still caught.
+  ii = config$output$ion_images
+  if(!is.null(ii)){
+    ii_keys = c("percentile", "rows", "cols", "scale_within", "scale")
+    ok = is.list(ii) && all(names(ii) %in% ii_keys) &&
+      (is.null(ii$percentile) ||
+         (length(ii$percentile) == 1L &&
+          isTRUE(suppressWarnings(as.numeric(ii$percentile)) > 0) &&
+          isTRUE(suppressWarnings(as.numeric(ii$percentile)) <= 100)))
+    if(!ok)
+      .chk_add(chk, "output$ion_images", "error", paste0(
+        "output$ion_images takes percentile: (a number above 0 and up to 100, ",
+        "the percentile every image in the report caps its colour scale at), ",
+        "and accepts rows:, cols:, scale_within: and scale: for later use. ",
+        "parameters$perc is the separate cap for the .txt images."))
+    else .chk_add(chk, "output$ion_images", "ok")
   }
 
   # ---- regions of interest ---------------------------------------------------

@@ -39,6 +39,7 @@ validateConfig(cfg, check_paths = FALSE)
 }
 \seealso{
 Other workflow:
+\code{\link[=blockCentre]{blockCentre()}},
 \code{\link[=generateTxtImages]{generateTxtImages()}},
 \code{\link[=print.quantValidation]{print.quantValidation()}},
 \code{\link[=runExample]{runExample()}},

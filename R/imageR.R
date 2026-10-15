@@ -32,6 +32,10 @@ setGeneric("imageR", function(MSIobject, ...) standardGeneric("imageR"))
 #'   default, matching the YAML `colours: ion_image:` default) or `"viridis"`
 #'   (perceptually uniform and colour-blind safe). See [quantPalettes()].
 #' @param blank_back Logical; when TRUE background/zero pixels are drawn transparent.
+#' @param raster Logical. Draw the pixels with `geom_raster()` rather than
+#'   `geom_tile()`. Much faster on a large acquisition -- one image instead of
+#'   a rectangle per pixel -- and valid because MSI pixels lie on a regular
+#'   lattice. Default `FALSE`, which keeps the original rendering.
 #' @param aspect_ratio numeric plot aspect ratio (default 1).
 #' @param text_image Logical; when TRUE return the image as a numeric matrix
 #'   (for text export) rather than a ggplot.
@@ -50,9 +54,12 @@ setMethod("imageR", "quant_MSImagingExperiment",
           function(MSIobject, val_slot = "intensity", value = "response %", scale = "suppress", threshold = 1,
                    sample_lab = "sample_ID", pixels = NA, percentile=99.0,
                    feat_ind = 1, perc_scale = FALSE, blank_back = TRUE, aspect_ratio=1,
-                   text_image = FALSE, palette = c("heatmap0", "viridis")){
+                   text_image = FALSE, palette = c("heatmap0", "viridis"),
+                   raster = FALSE){
 
             palette <- match.arg(palette)
+            # One layer, chosen once, used by both branches below.
+            .pixel_layer <- if (isTRUE(raster)) geom_raster() else geom_tile()
 
             # One fill scale for both plotting branches below.
             .fill_scale <- function(p) {
@@ -148,7 +155,7 @@ setMethod("imageR", "quant_MSImagingExperiment",
               image_df$response[is.na(image_df$response) | image_df$response <= 0] <- NA
 
               p = ggplot(data=image_df, aes(x = x, y = -y, fill = response)) +
-                geom_tile() +
+                .pixel_layer +
                 theme_minimal() +
                 theme(
                   aspect.ratio = aspect_ratio,
@@ -167,7 +174,7 @@ setMethod("imageR", "quant_MSImagingExperiment",
               image_df[is.na(image_df)] <- 0
 
               p = ggplot(data=image_df,aes(x=x,y=-y,fill=response))+
-                geom_tile() +
+                .pixel_layer +
                 theme_minimal() +
                 theme(aspect.ratio=aspect_ratio,
                       axis.title = element_blank(),

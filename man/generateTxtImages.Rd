@@ -26,7 +26,8 @@ generateTxtImages(
   is_window = 15,
   remove_IS = TRUE,
   type_header = "Type",
-  rois = FALSE
+  rois = FALSE,
+  stitch_overlap = c("error", "first", "last")
 )
 }
 \arguments{
@@ -144,6 +145,10 @@ ignores them. Regions already on an object -- a \verb{section:} RDS saved with
 \code{roi_label}/\code{roi_id}, as the bundled example sections are -- are kept as
 they are, but \code{"auto"} cannot see them before loading, so switch regions on
 with \code{TRUE} for a study built from such sections.}
+
+\item{stitch_overlap}{What \code{\link[=stitchAcquisitions]{stitchAcquisitions()}} should do when two pieces
+of one tissue claim the same position: \code{"error"} (default), or \code{"first"} /
+\code{"last"} to keep that piece's pixels where they collide.}
 }
 \value{
 Invisibly returns a named list:
@@ -187,6 +192,7 @@ res <- generateTxtImages(
 \code{\link[=int2SNR]{int2SNR()}}, \code{\link[=applySNR]{applySNR()}}, \code{\link[=back2NA]{back2NA()}}, \code{\link[=imageR]{imageR()}}
 
 Other workflow:
+\code{\link[=blockCentre]{blockCentre()}},
 \code{\link[=print.quantValidation]{print.quantValidation()}},
 \code{\link[=runExample]{runExample()}},
 \code{\link[=runStudy]{runStudy()}},

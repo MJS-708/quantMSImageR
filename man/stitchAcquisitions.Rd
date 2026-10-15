@@ -4,7 +4,7 @@
 \alias{stitchAcquisitions}
 \title{Stitch acquisitions that are pieces of one tissue into a single sample}
 \usage{
-stitchAcquisitions(..., label = NULL)
+stitchAcquisitions(..., label = NULL, overlap = c("error", "first", "last"))
 }
 \arguments{
 \item{...}{Two or more \code{MSImagingExperiment} objects, or a single list of
@@ -12,6 +12,13 @@ them. All must carry the same features and the same spectra layers.}
 
 \item{label}{Character. Run identifier for the stitched sample. Defaults to
 the first object's run.}
+
+\item{overlap}{What to do when two pieces claim the same grid position.
+\code{"error"} (default) refuses, because averaging or silently dropping a
+pixel invents data. \code{"first"} keeps the pixel from the earlier piece in
+the argument list and drops the later one's; \code{"last"} is the reverse.
+Either is a reasonable reading when passes deliberately share a strip, and
+the number dropped is reported.}
 }
 \value{
 One object holding the union of the input pixels, with \code{run} set to

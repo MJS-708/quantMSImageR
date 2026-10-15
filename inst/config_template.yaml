@@ -13,27 +13,31 @@ paths:
   lib_ion_path: "path/to/ion_library.csv"  # MRM ion-library CSV
 
 # ============================ SAMPLES ============================
-# One entry per sample. pos:/neg: = .raw name(s); run_id unique; label = group.
+# One entry per sample. pos:/neg: = .raw name(s); run_id unique; group = the
+# comparison. `block:` is optional -- a SECOND factor (patient, donor, sex,
+# slide) shared by several samples; see parameters$block_name below.
 samples:
 
   # One acquisition.
   - neg: "acq_run_ctrl_neg"             # pos: and/or neg: (string or list)
     run_id: "S1"                        # unique per sample
-    label:  "Ctrl"                      # group (shared across replicates)
+    block:  "P1"                        # optional second factor; omit when there is none
+    group:  "Ctrl"                      # the comparison (shared across replicates)
 
   # Several panels over the SAME area -- neg + pos, or pos01 + pos02.
   # Merged pixel by pixel (bindPanels).
   - neg: "acq_run_trt_neg"
     pos: ["acq_run_trt_pos01", "acq_run_trt_pos02"]
     run_id: "S2"
-    label:  "Treatment"
+    block:  "P1"                        # same patient as S1: a pair, not two groups
+    group:  "Treatment"
 
   # One tissue acquired in PIECES, e.g. a top and a bottom. Panels are merged
   # within each piece, then the pieces are placed where the stage recorded
   # them and joined into one sample (stitchAcquisitions). Two halves of one
   # tissue are one sample, not two replicates.
   - run_id: "S3"
-    label:  "Treatment"
+    group:  "Treatment"
     pieces:
       - neg: "acq_run_trt2_top_neg"
         pos: ["acq_run_trt2_top_pos01", "acq_run_trt2_top_pos02"]
@@ -47,11 +51,15 @@ parameters:
     #"PGE2":     5                      # display or ion-library names
     #"12-HETE":  1.2
   heatmap_row_split: "Met-1"            # ion-library column to split heatmap columns | omit
-  heatmap_style:  "auto"                # auto (contribution if any group has 3+ reps) | per_sample | contribution
+  heatmap_style:  "auto"                # auto = contribution when a group has 3+ reps AND every region has 3+ rows
+                                        #   (the z-score is taken within a region, so a region of two
+                                        #    saturates whatever the data says) | per_sample | contribution
   heatmap_scale:  "both"                # contribution heatmap only: shared = features comparable | feature = each on its own scale | both = one section per quantile showing each
   heatmap_quantiles: [0.25, 0.5, 0.75, 0.95, 0.98]   # pixel quantiles to draw a heatmap section for; fewer = shorter report
   thresh:         20                    # cold-spot percentile removed
-  perc:           97                    # hot-spot percentile suppressed
+  perc:           99                    # hot-spot percentile suppressed in the txt images
+                                        #   (these feed other software, so they keep their range;
+                                        #    output$ion_images$percentile caps the report images)
   rot_clockwise:  0                     # image rotation: 0/1/2/3 x 90 deg
   average_method: "median"              # background summary: mean | median
 
@@ -62,7 +70,20 @@ parameters:
   is_mode:        "line"                # summarise IS per: line | window | sample | pixel
   is_window:      15                    # n consecutive pixels when is_mode: window
   remove_IS:      True                  # drop the IS features after normalising
-  baseline_label: "Ctrl"                # group used as fold-change denominator
+  baseline_group: "Ctrl"                # group used as fold-change denominator
+  block_name:     "Patient"             # what block: means in this study, for the
+                                        #   sample map and the image panel titles
+  block_centre:   off                   # correct each block for its own level:
+                                        #   off      = annotate only, every value untouched
+                                        #   center   = divide each block by its OWN geometric mean
+                                        #   baseline = divide by the block's baseline_group arm, so
+                                        #              a cell reads as fold change vs its own control
+                                        #   Multiplicative, so a block's gain goes and the size of
+                                        #   its response stays. Reaches the heatmaps and the
+                                        #   comparison plots; the ion images are never corrected.
+                                        #   When on, the filename gains a "blocked" token.
+  stitch_overlap: "error"               # pieces of one tissue that claim the same position:
+                                        #   error (default) | first | last -- keep that piece
 
 # =========================== COLOURS ===========================
 # Palettes used in the HTML report. See quantPalettes() for the hex values.
@@ -137,6 +158,25 @@ output:
   render_report: True                   # build HTML report
   output_txt:    False                  # write per-feature txt images
   output_ratios: False                  # write ratio txt images (needs ratios.enabled)
+  ion_gif:                              # animation of the ion images, at the top of that section
+    enabled:  True                      # one frame per feature, all sections at once, in pathway order
+    features: "all"                     # "all", or a list: ["PGE2", "AA"]
+    seconds:  0.4                       # how long each frame is shown (quick: it is an overview)
+  ion_images:                           # display settings shared by EVERY image in the report
+    percentile:   95                    # colour scale capped here -- the animation, the dropdown's
+                                        #   first rendering and the concentration images alike; each
+                                        #   caption states the value it used. Separate from
+                                        #   parameters$perc, which caps the .txt images.
+    scale_within: "block"               # which panels SHARE a colour scale:
+                                        #   all   = one scale for the whole study (the default, and
+                                        #           Cardinal's image() rendering, unchanged)
+                                        #   block = one scale per patient/sex/slide. Each block
+                                        #           becomes a column, its groups the rows, replicates
+                                        #           across the row, and each column states its own cap
+                                        #   group = one scale per group instead
+                                        #   Needs block: on the samples; ignored without one.
+    scale:        "suppress"            # not yet read: suppress = linear, capped at percentile
+                                        #   histogram = enhance each panel | sqrt
   colocalisation: auto                  # pixel colocalisation, ONE level only (slowest section in the report):
                                         #   auto   = within the regions when the study has them, else off
                                         #            (and always off when a sample merges acquisitions)

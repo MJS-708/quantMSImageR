@@ -80,11 +80,20 @@
 #' whole <- stitchAcquisitions(half1, half2, label = "section01")
 #' ncol(whole) == ncol(obj)
 #'
+#' @param overlap What to do when two pieces claim the same grid position.
+#'   `"error"` (default) refuses, because averaging or silently dropping a
+#'   pixel invents data. `"first"` keeps the pixel from the earlier piece in
+#'   the argument list and drops the later one's; `"last"` is the reverse.
+#'   Either is a reasonable reading when passes deliberately share a strip, and
+#'   the number dropped is reported.
+#'
 #' @seealso [bindPanels()], [combineMSIs()], [readMRM()]
 #' @family combining acquisitions
 #' @export
-stitchAcquisitions <- function(..., label = NULL) {
+stitchAcquisitions <- function(..., label = NULL,
+                               overlap = c("error", "first", "last")) {
 
+  overlap <- match.arg(overlap)
   objects <- list(...)
   # Tolerate a single list, which is how the YAML path arrives.
   if (length(objects) == 1L && is.list(objects[[1]]) &&
@@ -140,15 +149,43 @@ stitchAcquisitions <- function(..., label = NULL) {
   keys <- lapply(xy, function(p) paste(p$x, p$y, sep = "_"))
   all_keys <- unlist(keys, use.names = FALSE)
   dup <- unique(all_keys[duplicated(all_keys)])
-  if (length(dup)) {
+  if (length(dup) && identical(overlap, "error")) {
     hint <- if (by_stage)
       "Pieces of one tissue should tile, not overlap -- check these are not the same region acquired twice."
     else
       "Without stage positions every piece starts at (1, 1); re-read the acquisitions with readMRM(overwrite = TRUE) so they are placed by where the stage recorded them."
+    # The way out is the same either way, so say it either way.
+    hint <- paste(hint,
+                  "If the pieces really do share a strip, overlap = \"first\"",
+                  "keeps the earlier piece where they collide.")
     stop("stitchAcquisitions: ", length(dup), " pixel position(s) appear ",
          "in more than one piece (e.g. ",
          paste(utils::head(sub("_", ", ", dup), 3), collapse = "; "),
          "). ", hint, call. = FALSE)
+  }
+  if (length(dup)) {
+    # Walk the pieces in the order the winner should be met, keeping the first
+    # claim on each position and dropping every later one.
+    ord  <- if (identical(overlap, "first")) seq_along(objects)
+            else rev(seq_along(objects))
+    seen <- character(0)
+    drop_n <- integer(length(objects))
+    for (ind in ord) {
+      k    <- keys[[ind]]
+      lose <- k %in% seen
+      seen <- c(seen, k[!lose])
+      drop_n[ind] <- sum(lose)
+      if (any(lose)) {
+        objects[[ind]] <- objects[[ind]][, !lose]
+        xy[[ind]]      <- lapply(xy[[ind]], function(v) v[!lose])
+        keys[[ind]]    <- k[!lose]
+      }
+    }
+    message(sprintf(
+      "stitchAcquisitions: %d overlapping pixel(s) resolved by keeping the %s piece (%s).",
+      sum(drop_n), overlap,
+      paste(sprintf("%s: %d dropped", vapply(objects, function(o)
+        as.character(pData(o)$run)[1], character(1)), drop_n), collapse = "; ")))
   }
 
   objects <- .harmonise_pdata(objects)

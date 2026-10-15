@@ -750,16 +750,44 @@ paths:
 samples:
   - pos: "acq_ctrl"
     run_id: "S1"
-    label:  "Ctrl"
+    group:  "Ctrl"
   - pos: "acq_treated"
     run_id: "S2"
-    label:  "Treatment"
+    group:  "Treatment"
 parameters:
   snr_thresh: [3]
 output:
   render_report: true
   output_txt:    true      # write per-feature .txt images for ImageJ
 ```
+
+The report's ion-image section opens with an animation of every feature --
+one frame per metabolite, all sections at once, ordered by pathway, each frame
+labelled with a box in its pathway's colour and the intensity its colour scale
+is capped at. The same file is written beside the report as a `.gif`, which is
+what goes into a talk. Switch it off or narrow it with `output: ion_gif:`:
+
+```yaml
+output:
+  ion_gif:
+    enabled:  True
+    features: "all"      # or ["PGE2", "AA"]
+    seconds:  0.4
+```
+
+Every image in the report -- the animation, the dropdown's first rendering and
+the concentration images -- caps its colour scale at the same percentile, and
+each caption states the value it used:
+
+```yaml
+output:
+  ion_images:
+    percentile: 95
+```
+
+This is separate from `parameters: perc:`, which caps the `.txt` images written
+for other software: those are an input to further processing and want their
+dynamic range, while the report's images want a map that can be read.
 
 The shipped template documents every option (SNR overrides, ratios,
 calibration, ...) -- open it to use as a starting point:
@@ -792,20 +820,20 @@ samples:
   # One acquisition.
   - neg: "M120-1"
     run_id: "Male-120"
-    label:  "Young"
+    group:  "Young"
 
   # Several panels over the SAME area -- neg + pos, or pos01 + pos02.
   # Merged pixel by pixel (bindPanels).
   - neg: "M316-PLs"
     pos: ["M316-pos01", "M316-pos02"]
     run_id: "Female-316"
-    label:  "Young"
+    group:  "Young"
 
   # One tissue acquired in PIECES, e.g. top and bottom. Panels are merged
   # within each piece, then the pieces are placed where the stage recorded
   # them and joined into one sample (stitchAcquisitions).
   - run_id: "Male-707"
-    label:  "Old"
+    group:  "Old"
     pieces:
       - neg: "M707-top"
         pos: ["M707-top_pos01", "M707-top_pos02"]
@@ -877,6 +905,103 @@ The points are samples or independent regions, not pixels. The pixels of one
 region are repeated measurements of the same tissue; a box plot over pixels
 would show thousands of points where there are only a handful of regions or
 animals.
+
+## A second factor: blocking
+
+Some designs carry a factor that is not the comparison: the donor a paired set
+of treatments came from, the sex of an animal, the slide an acquisition sat on.
+`block:` names it per sample, beside the `group:` that is being compared.
+
+```yaml
+samples:
+  - neg: "acq_d1_ctrl"
+    run_id: "D1_Ctrl"
+    block:  "D1"                # the donor these two share
+    group:  "Ctrl"
+  - neg: "acq_d1_treated"
+    run_id: "D1_Treated"
+    block:  "D1"
+    group:  "Treated"
+  - neg: "acq_d2_ctrl"
+    run_id: "D2_Ctrl"
+    block:  "D2"
+    group:  "Ctrl"
+  - neg: "acq_d2_treated"
+    run_id: "D2_Treated"
+    block:  "D2"
+    group:  "Treated"
+
+parameters:
+  block_name:   "Donor"         # what block: means, for legends and annotations
+  block_centre: "center"        # off | center | baseline
+```
+
+Declaring a block annotates and groups the report by it. Correcting for it is
+separate, and off by default, so adding `block:` on its own changes no number.
+
+### What correcting does
+
+A block carries a level of its own: one donor's sections ionise better, one
+slide was run on a different day. That level sits on top of every comparison
+made inside the block. `block_centre` divides each feature by a reference
+computed within the block, which removes it:
+
+- `center` divides by the block's own geometric mean. It needs no privileged
+  sample and pools every sample in the block, so it is the steadier choice.
+- `baseline` divides by the geometric mean of the block's `baseline_group`
+  samples, so a value reads directly as a fold change against its own control.
+  Clearer, and noisier: the reference's noise propagates into every other
+  sample of that block. A block with no `baseline_group` sample falls back to
+  its own mean and says so.
+
+The correction is multiplicative on intensity, which is additive in log space.
+A block-level gain is removed; differences in how far a treatment moves a
+feature are not. A donor who responds twice as strongly as another still reads
+twice as strongly afterwards, which is usually the point of the comparison.
+
+It reaches the heatmaps and the comparison plots, where the block's level gets
+in the way. The ion images are left uncorrected: an image should show the
+intensity that was measured, and its colour-scale cap should be a real number.
+A corrected report says so at the top and gains `blocked` in its filename, so
+it cannot overwrite an uncorrected run of the same study.
+
+`blockCentre()` applies the same correction outside the report.
+
+### Ion images scaled within a block
+
+`scale_within` decides which image panels share a colour scale:
+
+```yaml
+output:
+  ion_images:
+    percentile:   95            # where every image in the report caps its scale
+    scale_within: "block"       # all | block | group
+```
+
+`all` is one scale for the study, which is readable when the sections are of
+similar intensity and not when they are not: the weakest reads as empty and the
+strongest saturates. `block` gives each block its own, so each uses its full
+range; the grid is then one column per block, its groups as rows and replicates
+across, and every column states the value it is capped at. That number is what
+keeps the columns comparable once the colours no longer are.
+
+With a block the ion-image section draws four renderings per feature -- scaled
+within each block, then the three study-wide ones (capped at the percentile,
+histogram normalised, unscaled). Without one it draws the usual three.
+
+### Pieces that overlap
+
+`stitchAcquisitions()` refuses two pieces that claim the same grid position,
+because averaging them or dropping one silently would invent a pixel. Passes
+that deliberately share a strip are a real case, so the behaviour is settable:
+
+```yaml
+parameters:
+  stitch_overlap: "first"       # error (default) | first | last
+```
+
+`first` keeps the earlier piece's pixels where they collide, `last` the later
+one's, and either reports how many were dropped from each piece.
 
 ## The configuration as a record of the analysis
 

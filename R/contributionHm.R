@@ -432,11 +432,23 @@ contributionHm <- function(MSIobject, quant_val = 0.5,
 #
 # Deliberately a named function rather than an inline condition: it is a
 # judgement about study design, and it should be one line to change.
-.heatmap_style <- function(style = "auto", heatmap_labs = NULL) {
+.heatmap_style <- function(style = "auto", heatmap_labs = NULL,
+                           block = NULL) {
   style <- match.arg(as.character(style),
                      c("auto", "per_sample", "contribution"))
   if (style != "auto") return(style)
   labs <- stats::na.omit(as.character(heatmap_labs))
   if (!length(labs)) return("per_sample")
-  if (max(table(labs)) >= 3L) "contribution" else "per_sample"
+  # A group mean needs replicates behind it.
+  if (max(table(labs)) < 3L) return("per_sample")
+  # And the z-score is taken WITHIN a block, so the block is what has to be big
+  # enough. Two rows in a block score to +/-0.707 whatever the data says, and
+  # one cannot be scored at all -- a panel of saturated colour either way.
+  # Counting rows per group would miss this: regions multiply the rows per group
+  # without giving the z-score anything more to work with.
+  if (!is.null(block)) {
+    b <- stats::na.omit(as.character(block))
+    if (length(b) && min(table(b)) < 3L) return("per_sample")
+  }
+  "contribution"
 }
