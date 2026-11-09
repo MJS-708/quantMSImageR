@@ -1,338 +1,77 @@
-# quantMSImageR 0.99.10
+# quantMSImageR 0.99.11
 
-* A blocking factor can now be corrected for, not just annotated.
-  `parameters: block_centre:` takes `center` -- divide each block by its own
-  geometric mean -- or `baseline`, which divides by the block's
-  `baseline_group` arm so a value reads as a fold change against its own
-  control. `off` is the default, so declaring `block:` on its own never changes
-  a number. The correction is multiplicative, so a block's gain goes and the
-  size of its response stays: a patient who responds twice as strongly still
-  reads twice as strongly. It reaches the heatmaps and the comparison plots,
-  which is where a block's own level gets in the way; the ion images are left
-  alone, because an image should show the intensity that was measured. A
-  corrected report gains `blocked` in its filename so it cannot overwrite an
-  uncorrected one, and says at the top what was done. `blockCentre()` is
-  exported for use outside the report.
+First Bioconductor release (Bioconductor 3.24). quantMSImageR processes and
+quantifies targeted DESI-MRM mass spectrometry imaging data, extending
+Cardinal's `MSImagingExperiment` with a `quant_MSImagingExperiment` class that
+carries calibration and tissue metadata.
 
-* `stitchAcquisitions()` gains `overlap`, for pieces of one tissue that share a
-  strip -- a re-acquired edge, a generously cut margin. `"error"` remains the
-  default, because averaging two pieces or silently dropping one invents a
-  pixel; `"first"` and `"last"` keep that piece where they collide and report
-  how many were dropped. `parameters: stitch_overlap:` sets it from the YAML.
+## Reading and assembling acquisitions
 
-* `fData()` now carries `collision_eV` and `cone_V` from the ion library, so
-  the report's feature table identifies a transition without a trip back to the
-  raw data: two transitions can share a precursor and a product and differ only
-  in collision energy. Acquisitions cached by an earlier version keep their old
-  feature table until re-read with `readMRM(overwrite = TRUE)`.
+* `readMRM()` reads Waters DESI-MRM acquisitions and names each transition
+  from an ion-library CSV, matching precursor and product at unit resolution.
+  Isomers the instrument cannot separate are named for all of them
+  (`"A || B"`). Each pixel keeps its stage position.
+* `selectTissuePixels()` draws the tissue/background mask, and `labelROIs()`
+  draws regions of interest within the tissue (`airway_01`, `airway_02`, ...).
+  Both are saved beside the acquisition and matched by pixel position, so one
+  mask serves every MRM panel of the same area.
+* `combineMSIs()` holds several sections in one object, each its own `run`;
+  `bindPanels()` merges panels or polarities acquired over the same area; and
+  `stitchAcquisitions()` joins pieces of one tissue by stage position.
+  `alignFeatures()`, `trimMSI()` and `removeBlankMzs()` prepare them.
 
-* The ion-image section opens with an animation: one frame per feature, each
-  showing every section at once, ordered by pathway and under a pathway colour
-  key. Each frame carries a filled box in its pathway's colour with the pathway
-  written inside it, the metabolite beside it, and the intensity the colour
-  scale is capped at -- the panels within a frame are comparable, between frames
-  they are not, and that number says by how much. It answers "how is each
-  metabolite distributed across this study" in one object, and is written beside
-  the report as a `.gif` for talks and posters as well as embedded in it. On by
-  default; `output: ion_gif:` takes `enabled`, `features` (`"all"` or a list)
-  and `seconds` per frame. Needs the magick package, and says so rather than
-  failing when it is absent.
+## Normalisation and filtering
 
-* `output: ion_images: scale_within:` chooses which panels share a colour
-  scale: `all` (one for the study, the previous and default behaviour), `block`
-  (one per patient, sex or slide) or `group`. With a single scale across a study
-  whose sections differ in intensity, the weakest reads as empty and the
-  strongest saturates; per-block scales let each use its full range, and every
-  panel states the value it is capped at, so the blocks stay comparable by
-  number even when they are not by colour.
+* `int2response()` normalises to an internal standard per acquisition line,
+  rolling window, sample or pixel, with an ion-library column mapping each
+  analyte to its standard when there are several.
+* `int2SNR()` and `applySNR()` filter each feature against the acquisition's
+  own background pixels (median or mean), with optional per-feature thresholds.
+  `int2SNR()` warns when a mostly-zero background leaves the median noise level
+  set by the zero imputation rather than by the background.
+  `back2NA()` and `zero2NA()` mark background and empty values as missing.
+* `blockCentre()` corrects for a blocking factor -- patient, slide, sex -- by
+  dividing each block by its own geometric mean or by its baseline arm.
 
-  The grid follows from the design rather than being configured: a block is a
-  column, its groups are the rows, and replicates run across a row -- so the
-  panel reads across for replicates and down for treatment whether a block holds
-  one replicate per arm (an ex vivo pairing) or four (a mouse cohort). The
-  canvas is sized from that grid, and each column carries its own colour bar.
-  This rendering is drawn with `imageR()`; without `scale_within` the report
-  uses Cardinal's `image()` exactly as before.
+## Quantification
 
-* `heatmap_style: auto` no longer chooses the contribution heatmap when the
-  z-score behind it cannot resolve anything. That score is taken *within* a
-  region, so the region is what has to be big enough: two rows in a region score
-  to +/-0.707 whatever the data says, and one cannot be scored at all -- a panel
-  of saturated colour carrying only a sign. Counting rows per group missed this,
-  because regions multiply the rows per group without giving the z-score more to
-  work with. `auto` now needs 3+ rows in a group **and** 3+ in every region;
-  an explicit `per_sample` or `contribution` is still honoured as given.
+* `summariseCalLevels()`, `createCalCurve()` and `int2conc()` convert response
+  to amount (pg per pixel, and pg/mm^2 where the pixel size is known) against
+  on-slide (`"cal"`) or on-tissue standard-addition (`"std_addition"`)
+  standards, with 1/x, 1/x^2 or no weighting.
+* `calibrationDiagnostics()`, `calibrationR2()` and `plotCalCoverage()` report
+  the fit and whether the standards bracket the tissue signal. `int2conc()`
+  stops when more than 10% of a feature's pixels would be extrapolated, unless
+  told otherwise.
 
-* A sample's group is now given by `group:` rather than `label:`, which is what
-  it has always been -- `runStudy()` reads it straight into the sample map's
-  `group` column. `parameters: baseline_label:` becomes `baseline_group:` for
-  the same reason: it names a value of that key. **Both old names keep
-  working**, so existing configs run unchanged; `validateConfig()` says how many
-  samples still use `label:` so a study can be updated when convenient. The
-  `label:` under `ratios: entries:` is a different thing -- a ratio's display
-  name -- and is unaffected.
+## Visualisation and summaries
 
-* One percentile now caps every image in the report -- the animation, the
-  dropdown's first rendering and the concentration images -- set by
-  `output: ion_images: percentile:` (default 95), with each caption stating the
-  value it used instead of naming a fixed one. Previously the animation was
-  fixed at 95, the dropdown computed its own 95, and the concentration images
-  silently took `imageR()`'s default of 99. `parameters: perc:` is unchanged in
-  meaning and stays separate: it caps the `.txt` images written for other
-  software, which want their dynamic range rather than a readable map. Its
-  default moved from 97 to 99 for that reason; a `perc:` set in a config is
-  used as before.
+* `imageR()` draws ion images with capped, histogram-equalised or square-root
+  colour scales, in the palettes of `quantPalettes()`.
+* `quantileHm()` draws per-sample quantile heatmaps. `contributionHm()` colours
+  each cell by the group mean and shades it by the sample's contribution to it,
+  so a group effect resting on one replicate is visible.
+* `createMSIDataMatrix()`, `tissueData()` and `tissueMatrix()` return tables
+  for downstream statistics.
 
-# quantMSImageR 0.99.9
+## Whole-study workflow
 
-* New package logo, carried by the README, the pkgdown site and the HTML
-  report; the report's copy now has a transparent background rather than
-  sitting on a white square.
+* `runStudy()` runs a study from one YAML file: loading, normalisation, a sweep
+  of SNR thresholds, optional calibration and ion ratios, per-feature `.txt`
+  images for ImageJ and image registration, and one HTML report per threshold.
+  The report holds heatmaps, group comparisons, colocalisation, ion images
+  with an animated overview (also written as a `.gif`), regions of interest and
+  an embedded tables workbook.
+* `validateConfig()` checks a config -- paths, ion-library columns, enumerated
+  values, calibration and internal-standard settings -- and reports every
+  problem at once. `runStudy()` will not start on an invalid config.
+* `generateTxtImages()` is the engine behind `runStudy()`. `runExample()` runs
+  the workflow end to end on the bundled synthetic data: six sections in two
+  groups, plus a calibration acquisition.
 
-# quantMSImageR 0.99.8
-
-* Tissues acquired in pieces -- a top and a bottom, say -- can now be joined
-  into one sample. `readMRM()` keeps each pixel's stage position (`x_stage`,
-  `y_stage`, in mm) alongside its grid indices, and `stitchAcquisitions()` uses
-  it to place every piece where it was acquired: above, below or beside, in any
-  order, with the space between pieces left empty. Pieces must share a pixel
-  size; each is moved to the nearest position on a common grid and the largest
-  shift is reported. Previously every piece started at `(1, 1)`, so real pieces
-  could not be stitched at all, and the documentation wrongly said Waters
-  coordinates were absolute. Objects without stage positions (older caches)
-  behave as before.
-* The study YAML gains `pieces:` for such a sample: each piece lists its own
-  `pos:`/`neg:` panels, which are merged within the piece and then stitched.
-  Each piece is normalised to its internal standard and SNR-filtered against
-  its own background before stitching, since the pieces are separate
-  acquisitions.
-* New `labelROIs()` labels regions of interest within the tissue -- airways,
-  vessels, parenchyma -- after `selectTissuePixels()`. Several regions can
-  share a label and are numbered (`airway_01`, `airway_02`, ...). Regions are
-  saved per acquisition as `roi_labels.csv`, beside the untouched tissue mask,
-  and `copy_to` applies them to the other panels over the same area.
-* The report is arranged by level where a study has regions: sections 2
-  (heatmap), 3 (comparison plots) and 4 (correlation) are each drawn **by
-  sample** and then **by region**, so the two are read the same way rather than
-  the regions living in a section of their own. The region masks and their
-  pixel counts get a section of their own before the ion images, which take the
-  next number. A study without regions is unchanged, headings included.
-* The new `roi:` block sets the region views: `compare` puts groups side by
-  side within each region type (`"between_groups"`, the default), region types
-  side by side within each group (`"between_rois"`) or both; `unit` says
-  whether a row or point is a sample's region type or a single region -- one or
-  the other, since a comparison has a single unit; `heatmap: False` leaves the
-  region heatmap out. A point is never a pixel: the pixels of one region are
-  repeated measurements of the same tissue. Tissue outside every region is
-  `unassigned` and left out unless `include_unassigned: True`, and the tables
-  workbook gains an `ROI_summary` sheet.
-* `quantileHm()` gains `sample_block`, which divides the rows into blocks --
-  one per region of interest, typically -- splits the panel by them and
-  z-scores **each block against itself**. Scoring across regions would mostly
-  report that airways and parenchyma differ, which is not what the panel is
-  being asked. A block of one sample has no spread to score against and is
-  drawn in `na_col`. Without the argument the panel is exactly as before.
-* `quantileHm()` no longer loses its sample names when a study contains a
-  feature with no variance. The unscoreable column returned an unnamed vector,
-  and `apply()` drops the names for the whole matrix when one result's differ,
-  so the row labels vanished -- but only for studies that happened to hold a
-  flat feature.
-* The bundled example sections carry two `a` and two `b` regions each, so
-  `runExample()` renders the regions section and the vignette can show what
-  labelled regions look like without a drawing device.
-* `output: colocalisation` now names the level the correlation section is
-  computed at, and only one is ever drawn: `'sample'` (all pixels of each
-  sample), `'roi'` (the pixels of each region type), `False`, or `auto`. It is
-  by far the slowest part of the report -- every feature against every other,
-  over every pixel, repeated per group -- so `auto` correlates within the
-  regions when a study has them, which is both the cheaper computation and the
-  more specific question, and is off otherwise. It is also off whenever a
-  sample merges several acquisitions, since most pixel pairs would then cross
-  acquisitions. `True` is read as `'sample'`, so existing configs keep the
-  section they had.
-* `combineMSIs()` fills a `pData()` column that some objects lack with `NA`,
-  rather than failing inside `cbind()`.
-* The citation now reads "Smith MJ": the given names in `Authors@R` are split,
-  so R's citation style takes an initial from each.
-* `bindPanels()` no longer documents cross-panel colocalisation as meaningful
-  on the merged object, and now explains that pixels are matched on
-  per-acquisition indices, which is only correct when both rasters start at
-  the same stage position.
-* `quantileHm()` no longer draws features it cannot score as uniformly low. A
-  feature with no variance across samples, or a missing value, used to be sent
-  to the bottom of the colour scale, where it was indistinguishable from a
-  feature depleted in every sample. Both are now drawn in the new `na_col`
-  (default `"grey88"`), matching `contributionHm()`.
-
-# quantMSImageR 0.99.7
-
-* `parameters$heatmap_quantiles` sets which pixel quantiles get a heatmap
-  section, defaulting to the `0.25, 0.5, 0.75, 0.95, 0.98` that were previously
-  hard-coded, so an existing config renders exactly as before. The useful set
-  depends on the chemistry -- a feature confined to a few pixels shows at the
-  95th and not at the median, a diffuse one the other way round -- and it is
-  also the lever to pull if `heatmap_scale: "both"` makes a report longer than
-  you want, since two quantiles on two scales is usually more informative than
-  five on one.
-* `parameters$heatmap_scale` also accepts `"both"`, which draws each quantile
-  section twice -- once on the shared scale and once per-feature -- under
-  sub-headings that say what each one can and cannot be used for. The two
-  answer sequential questions rather than competing ones: the shared panel
-  says which features separate the groups, the per-feature panel says what one
-  feature's profile looks like. Reading them in that order also guards against
-  the per-feature panel's failure mode, where a feature with no group effect is
-  drawn just as vividly as the strongest one. `"both"` is a report setting;
-  `contributionHm()` itself still draws one heatmap.
-* `contributionHm()` gains `scale`. `"shared"` (default, unchanged behaviour)
-  keeps every feature on one colour scale so features can be compared with each
-  other; `"feature"` normalises each feature by its own extreme, so every
-  column fills the ramp whatever its actual spread. The second is the reading
-  [quantileHm()] gives, but keeping the group-mean hue and the contribution
-  opacity -- use it to look along one feature, never across features. The
-  legend states which scale is in force. Exposed in the study YAML as
-  `parameters$heatmap_scale`, and checked by `validateConfig()`.
-* Documented the colour system on both heatmaps. `?quantileHm` previously
-  mentioned only that z-scores are "clipped to [-1, 1]" and never said the
-  z-scoring is per feature, so nothing warned a reader that its colours are not
-  comparable between features.
-* `?contributionHm` gains a section on comparing features with each other: one
-  cap for the panel versus one per column, that `"shared"` ranks by effect size
-  rather than fold change, that the group-mean z-score is bounded at +/- 1 for a
-  balanced design so the cap can be read as a fraction of the separation the
-  design can show, and the two limits on that comparison (the deviation is
-  estimated from few samples, and is pooled across groups so the scale
-  compresses at the top).
-* `?quantileHm` gains a section explaining why it has no `scale` argument: it
-  colours the per-sample z-score, which is standardised per feature before
-  anything is drawn, so no choice of colour limits can restore a comparison
-  between features. `contributionHm()` escapes this by colouring the group mean
-  of those z-scores, which is not renormalised per feature.
-* `?quantileHm` now records that a feature with no variance across samples is
-  drawn at the bottom of the ramp rather than as missing, so an entirely
-  single-coloured column should be checked against the values. (The behaviour
-  itself is unchanged in this release.)
-
-# quantMSImageR 0.99.6
-
-Changes in response to the Bioconductor package review (Contributions #115).
-
-* **Function names are now camelCase throughout**, following the Bioconductor
-  style guidance. The convention applied is: acronyms upper case (`MRM`, `MSI`,
-  `SNR`, `NA`), other abbreviations camel (`Hm`, `Cal`). Renamed:
-  `align_features()` to `alignFeatures()`, `bind_panels()` to `bindPanels()`,
-  `build_feature_meta()` to `buildFeatureMeta()`, `combine_MSIs()` to
-  `combineMSIs()`, `contribution_hm()` to `contributionHm()`,
-  `create_cal_curve()` to `createCalCurve()`, `createMSIDatamatrix()` to
-  `createMSIDataMatrix()`, `generate_txt_images()` to `generateTxtImages()`,
-  `int2snr()` to `int2SNR()`, `plot_cal_coverage()` to `plotCalCoverage()`,
-  `quant_palettes()` to `quantPalettes()`, `quantile_hm()` to `quantileHm()`,
-  `read_mrm()` to `readMRM()`, `remove_blank_mzs()` to `removeBlankMzs()`,
-  `run_example()` to `runExample()`, `run_study()` to `runStudy()`,
-  `select_tissue_pixels()` to `selectTissuePixels()`, `stitch_acquisitions()`
-  to `stitchAcquisitions()`, `summarise_cal_levels()` to
-  `summariseCalLevels()`, `trim_MSI()` to `trimMSI()`, `validate_config()` to
-  `validateConfig()`, and `zero2na()` to `zero2NA()`. The S3 class
-  `quant_validation` is now `quantValidation`.
-
-  **No deprecated aliases are provided.** The package has never appeared in a
-  Bioconductor release, so there are no downstream users to protect and
-  Bioconductor's deprecation cycle does not apply. Existing scripts must be
-  updated. The S4 class `quant_MSImagingExperiment` is unchanged.
-
-* **Argument checking made consistent.** The exported plain functions that did
-  not validate their inputs now do: `alignFeatures()`, `bindPanels()`,
-  `trimMSI()`, `buildFeatureMeta()`, and the summarising helper shared by
-  `quantileHm()` and `contributionHm()`. Checks test for
-  `MSImagingExperiment`, which `quant_MSImagingExperiment` extends, so both are
-  accepted. `buildFeatureMeta()` previously returned a full-height frame of
-  `NA` rows when the ion library lacked `precursor_mz` / `product_mz`; it now
-  errors.
-
-* `?alignFeatures` documented `obj1` and `obj2` as `quant_MSImagingExperiment`
-  when the code has always accepted any `MSImagingExperiment`. The
-  documentation was wrong and has been corrected.
-
-* **Fixed two warnings emitted during report generation.**
-  `out-of-range values treated as 0 in coercion to raw` came from rmarkdown's
-  resource discovery: passing `intermediates_dir=` to `rmarkdown::render()`
-  makes it render a preview copy of the template with a `.md` extension, which
-  skips knitr, so an unexpanded `sprintf` placeholder in an HTML attribute
-  reached `utils::URLdecode()`. The tag is now built with `paste0()`. The
-  pandoc `Div ... unclosed, closing implicitly` warning came from HTML block
-  fences emitted without surrounding blank lines, whose parse depended on the
-  `markdown_in_html_blocks` extension; the fences are now padded, and the
-  statements between them are guarded so an error cannot skip a closing tag.
-
-* The sample-contribution key on `contributionHm()` is drawn in neutral grey
-  and labelled low / high. It previously used the top colour of the fill
-  palette, so red meant both "high z-score" and "contributed to the group
-  mean".
-
-* Long feature-class and sample-group legend labels are wrapped, and the report
-  heatmap device is no longer capped at a width that silently cropped the
-  right-hand legends off wide studies.
-
-# quantMSImageR 0.99.5
-
-* Added `contributionHm()`, a heatmap that encodes the group mean as hue and
-  each sample's agreement with it as opacity, so a group mean resting on one
-  replicate is visible rather than hidden.
-* Added `stitchAcquisitions()` for assembling several acquisitions of one
-  section into a single image.
-* Fixed the `combine` check in `validateConfig()`, which referenced the wrong
-  object and sat in the ion-library block rather than the samples block.
-
-# quantMSImageR 0.99.4
-
-* Transitions are now matched to the ion library at unit resolution
-  (`mz_tolerance` default `0.4`, was `0.05`). A triple quadrupole running MRM
-  selects Q1 and Q3 at unit resolution, so a product ion written as `308.1` and
-  one written as `308.3` are the same measurement; matching more tightly than
-  the instrument resolves made annotation depend on how many decimal places
-  were typed into the library. Applies to `readMRM()`, `buildFeatureMeta()`,
-  `alignFeatures()` and `bindPanels()`. Precursor **and** product must still
-  both agree.
-* `ambiguity` gains a `"combine"` mode, now the default. A transition matching
-  several library entries is named for all of them, joined with `" || "` --
-  e.g. `"LTC4 || 14_15-LTC4"`, isomers 0.03 Da apart on the product ion that no
-  acquisition can separate. Annotation columns come from the closest entry.
-  `"error"`, `"warn"` and `"nearest"` are unchanged.
-* Combining across entries of differing `Type` is refused: one feature cannot
-  be both analyte and internal standard.
-* Fixed the `show` methods export, which was declared in NAMESPACE without the
-  generic being imported from `methods`.
-
-# quantMSImageR 0.99.3
-
-* Fixed `runExample()` / `generateTxtImages()`: trimming empty background
-  borders no longer removes the last background pixels when the tissue fills a
-  perfect rectangle, which had left `int2SNR()` with nothing to reference.
-* Fixed the HTML report for single-acquisition studies: the run-to-group map is
-  now built in an always-run chunk, so single-sample reports render.
-
-# quantMSImageR 0.99.2
-
-* Report heatmap now shows the sample-group colour legend (the group colour bar
-  was previously drawn without a key). Legends are merged into one column, which
-  also avoids a ComplexHeatmap drawing error seen with multiple annotations.
-
-# quantMSImageR 0.99.1
-
-* Added `show()` methods for the `calibrationInfo`, `tissueInfo` and
-  `quant_MSImagingExperiment` classes.
-* Enabled R-universe build checking.
-* Vignette, help-page and package-title clarifications; documentation tidy-up.
-
-# quantMSImageR 0.99.0
-
-* First Bioconductor submission.
-* Added per-analyte SNR overrides (`snr_overrides`) and per-report `SNR_used`
-  reporting.
-* Added `bindPanels()` for coordinate-matched merging of cross-panel /
-  cross-polarity acquisitions of the same tissue.
-* Added `buildFeatureMeta()` to join ion-library metadata to features by m/z.
-* Coordinate-aware tissue masks (`selectTissuePixels()` now writes `x`/`y`),
-  portable across MRM panels of the same sample.
-* Consolidated `readMRM()` to handle single- and multi-analyte imaging folders.
-* Calibration (`summariseCalLevels()`, `createCalCurve()`, `int2conc()`)
-  can be driven from the study YAML via a `calibration:` block.
+Changes made during development and review (0.99.0 to 0.99.10) are listed in
+full at <https://github.com/MJS-708/quantMSImageR/blob/d1987f2/NEWS.md>.
+Scripts written against a pre-release version from GitHub need updating for
+one rename: function names became camelCase in 0.99.6 (`run_study()` is now
+`runStudy()`, and so on). Study configs need no changes: the old YAML keys
+`label:` and `baseline_label:` are still read.
