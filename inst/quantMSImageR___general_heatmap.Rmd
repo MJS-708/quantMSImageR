@@ -1754,34 +1754,92 @@ if (.gif_ok) {
     .secs <- if (exists("ion_gif_seconds")) as.numeric(ion_gif_seconds) else 0.4
     if (!isTRUE(is.finite(.secs)) || .secs <= 0) .secs <- 0.4
 
-    .frames <- character(0)
-    for (.i in .gif_idx) {
-      .f <- tempfile(fileext = ".png")
-      # What the colour scale is capped at for this feature, stated on the frame:
-      # the panel is comparable between sections but not between features, and
-      # this is the number that says by how much.
-      .cap <- suppressWarnings(stats::quantile(
-        as.numeric(spectraData(combined_img)[["intensity"]][.i, ]),
+    # One coordinate extent for every frame, and square pixels within it.
+    # imageR() forces each panel square through theme(aspect.ratio), which on a
+    # section two to four times wider than it is tall stretches the tissue until
+    # it is no longer the shape of the sample. The dropdown images below take
+    # the same treatment; this is it for the animation.
+    if (!exists(".gx"))
+      .gx <- range(as.numeric(pData(combined_img)$x), na.rm = TRUE)
+    if (!exists(".gy"))
+      .gy <- range(as.numeric(pData(combined_img)$y), na.rm = TRUE)
+    .gif_asp <- diff(.gy) / diff(.gx)
+    if (!isTRUE(is.finite(.gif_asp)) || .gif_asp <= 0) .gif_asp <- 1
+
+    # Frame sized to the grid it has to hold, so the sections fill it instead of
+    # floating in white space.
+    .gif_runs <- length(unique(as.character(pData(combined_img)$run)))
+    .gif_ncol <- max(1L, min(3L, .gif_runs))
+    .gif_nrow <- ceiling(.gif_runs / .gif_ncol)
+    .gif_w    <- 7.5
+    .gif_pw   <- (.gif_w - 1.6) / .gif_ncol        # inches across, per panel
+    .gif_h    <- max(2, min(12, .gif_nrow * (.gif_pw * .gif_asp + 0.28) + 0.4))
+
+    # Fit the feature name into what the badge and the cap label leave of the
+    # strip. A transition named for every compound it could be -- "A || B || C
+    # || D" -- is long enough to run under the cap label and print on top of it,
+    # so it is wrapped at a "||" and then shrunk until it fits.
+    #
+    # Width of one bold character at size 1, as a fraction of the strip: the
+    # frame is 7.5in at 96dpi, and size 1 is about 2.8pt wide at that width.
+    .cw <- 0.0029
+    .fit_hdr <- function(nm, cap_lab, path_i) {
+      box_w <- min(0.45, 0.035 + 0.0135 * nchar(path_i))
+      x0    <- box_w + 0.02
+      avail <- 1 - x0 - (if (nzchar(cap_lab)) 0.0075 * nchar(cap_lab) + 0.02 else 0)
+      if (nchar(nm) * .cw * 4.6 > avail) {
+        # Break at the "||" closest to the middle, so neither line is a stub.
+        pt <- strsplit(nm, " || ", fixed = TRUE)[[1]]
+        if (length(pt) > 1L) {
+          cut <- which.min(abs(cumsum(nchar(pt) + 4) - nchar(nm) / 2))
+          nm <- paste(paste(pt[seq_len(cut)], collapse = " || "),
+                      paste(pt[-seq_len(cut)], collapse = " || "), sep = " ||\n")
+        }
+      }
+      w <- max(nchar(strsplit(nm, "\n", fixed = TRUE)[[1]]))
+      list(label = nm, x0 = x0, box_w = box_w,
+           size = max(2.5, min(4.6, avail / (w * .cw))),
+           lines = 1L + grepl("\n", nm, fixed = TRUE))
+    }
+
+    # What the colour scale is capped at for each feature, stated on its frame:
+    # the panel is comparable between sections but not between features, and
+    # this is the number that says by how much. Worked out up front because the
+    # animation needs every frame the same size, so the longest name in the set
+    # has to decide the height of the strip before the first one is drawn.
+    .cap_labs <- vapply(.gif_idx, function(k) {
+      v <- suppressWarnings(stats::quantile(
+        as.numeric(spectraData(combined_img)[["intensity"]][k, ]),
         .report_perc / 100, na.rm = TRUE))
-      .cap_lab <- if (is.finite(.cap))
-                    paste0(.perc_lab, " = ",
-                           format(signif(.cap, 3), big.mark = ",",
-                                  scientific = FALSE, trim = TRUE))
-                  else ""
+      if (is.finite(v)) paste0(.perc_lab, " = ",
+                               format(signif(v, 3), big.mark = ",",
+                                      scientific = FALSE, trim = TRUE)) else ""
+    }, character(1))
+    .fits <- lapply(seq_along(.gif_idx), function(k)
+      .fit_hdr(.gif_names[.gif_idx[k]], .cap_labs[k], .gif_path[.gif_idx[k]]))
+    .hdr_in <- if (max(vapply(.fits, function(z) z$lines, integer(1))) > 1L)
+                 0.52 else 0.34
+
+    .frames <- character(0)
+    for (k in seq_along(.gif_idx)) {
+      .i <- .gif_idx[k]
+      .f <- tempfile(fileext = ".png")
+      .fit <- .fits[[k]]
       .path_i <- .gif_path[.i]
-      .box_w  <- min(0.45, 0.035 + 0.0135 * nchar(.path_i))
 
       # A header strip rather than a title: a title can only be one colour, and
       # the pathway wants a block of its own with its name written inside it.
       .hdr <- ggplot2::ggplot() +
-        ggplot2::annotate("rect", xmin = 0, xmax = .box_w, ymin = 0.1, ymax = 0.9,
+        ggplot2::annotate("rect", xmin = 0, xmax = .fit$box_w,
+                          ymin = 0.1, ymax = 0.9,
                           fill = unname(.gif_cols[.path_i])) +
-        ggplot2::annotate("text", x = .box_w / 2, y = 0.5, label = .path_i,
+        ggplot2::annotate("text", x = .fit$box_w / 2, y = 0.5, label = .path_i,
                           colour = "white", fontface = "bold", size = 3.4) +
-        ggplot2::annotate("text", x = .box_w + 0.02, y = 0.5,
-                          label = .gif_names[.i], hjust = 0, fontface = "bold",
-                          size = 4.6) +
-        ggplot2::annotate("text", x = 1, y = 0.5, label = .cap_lab, hjust = 1,
+        ggplot2::annotate("text", x = .fit$x0, y = 0.5,
+                          label = .fit$label, hjust = 0, vjust = 0.5,
+                          fontface = "bold", lineheight = 0.9,
+                          size = .fit$size) +
+        ggplot2::annotate("text", x = 1, y = 0.5, label = .cap_labs[k], hjust = 1,
                           size = 3.2, colour = "grey35") +
         ggplot2::scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
         ggplot2::scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
@@ -1793,17 +1851,25 @@ if (.gif_ok) {
                               threshold = 0, percentile = .report_perc,
                               value = paste(.perc_lab, "response"),
                               palette = .pal_ion) +
-          ggplot2::facet_wrap(~ sample, ncol = 3) +
+          ggplot2::facet_wrap(~ sample, ncol = .gif_ncol) +
+          # y is plotted negated, so its limits are too.
+          ggplot2::coord_fixed(ratio = 1, xlim = .gx,
+                               ylim = c(-.gy[2], -.gy[1]), expand = FALSE) +
           ggplot2::theme(
+            # coord_fixed does the shaping now; aspect.ratio would fight it.
+            aspect.ratio = NULL,
             strip.text = ggplot2::element_text(size = 7),
             legend.text = ggplot2::element_text(size = 7)),
         error = function(e) e)
       if (inherits(.p, "error")) next
       # wrap_plots() rather than patchwork's `/`, which is an S3 operator and
       # needs that namespace already loaded to dispatch.
+      # Square pixels make the panel as short as the tissue is, so the frame is
+      # rendered denser than the 96dpi it is displayed at to keep the detail.
       ggplot2::ggsave(.f, patchwork::wrap_plots(list(.hdr, .p), ncol = 1,
-                                                heights = c(0.08, 1)),
-                      width = 7.5, height = 5.5, dpi = 96, bg = "white")
+                                                heights = c(.hdr_in, .gif_h)),
+                      width = .gif_w, height = .gif_h + .hdr_in, dpi = 144,
+                      bg = "white")
       .frames <- c(.frames, .f)
     }
 
