@@ -60,18 +60,29 @@ per threshold value. A value of \code{0} skips SNR filtering entirely \emph{and}
 removes the requirement for a \code{tissue_pixels.csv} mask -- handy for a
 smoke-test pass before ROIs are drawn (default \code{0}).}
 
-\item{thresh}{Numeric. Cold-spot percentile passed to \code{imageR()} as
-\code{threshold} (default \code{20}).}
+\item{thresh}{Numeric, one value from 0 to 100. Cold-spot percentile for the
+\verb{_hs<perc>_cs<thresh>} \code{.txt} folders: after the hot-spot cap, values below
+this percentile are set to 0. Like \code{perc}, it is computed per sample over
+that sample's non-missing values -- after SNR filtering, the tissue pixels
+that passed -- and it does not touch the HTML report (default \code{20}).}
 
-\item{perc}{Numeric. Hot-spot percentile passed to \code{imageR()} as
-\code{percentile} (default \code{97}).}
+\item{perc}{Numeric, one value from 0 to 100. Hot-spot percentile for the
+same folders: values above it are capped to it (default \code{97}). The
+report's images are capped by \verb{output: ion_images: percentile:} instead.
+Keep \code{thresh} below \code{perc}: once the cap has made the top values equal, a
+floor at or above it removes either nothing or everything under the cap.}
 
-\item{rot_clockwise}{Integer (0-3). Number of 90 deg clockwise rotations
-applied via \code{pracma::rot90()} (default \code{0}).}
+\item{rot_clockwise}{One of \code{0}, \code{1}, \code{2} or \code{3}: the number of quarter
+turns clockwise applied to every \code{.txt} matrix with \code{pracma::rot90()}. Not
+degrees -- 180 degrees is \code{2}. \code{rot90()} counts turns modulo 4, so \code{180}
+would mean no rotation at all, and is refused. The report is never
+rotated (default \code{0}).}
 
 \item{average_method}{Character, \code{"mean"} or \code{"median"}. Statistic used to
 summarise the noise pixel vector in \code{int2SNR()}. Applied consistently to
-every acquisition (default \code{"median"}).}
+every acquisition (default \code{"median"}). Where a median noise level is only
+the imputed value (see \code{\link[=int2SNR]{int2SNR()}}), one warning for the whole call lists
+the samples affected; it has class \code{quantMSImageR_imputed_noise_study}.}
 
 \item{output_txt}{Logical. When \code{FALSE}, processing runs but no files are
 written to disk (default \code{TRUE}).}
@@ -171,6 +182,42 @@ tools). Setting \code{output_txt = FALSE} runs all processing but skips file
 writing, which is useful when the caller only needs the processed MSI
 objects (e.g. for HTML report rendering).
 }
+\section{Text-image output}{
+
+With \code{output_txt = TRUE}, each sample gets these folders under
+\verb{image_dir/<label>/}, each holding one tab-separated matrix per feature with
+no header and no coordinates (rows are y and columns x, before
+\code{rot_clockwise}). \verb{<t>} is the SNR threshold, \verb{<p>} is \code{perc} and \verb{<c>} is
+\code{thresh}:
+\describe{
+\item{\code{intensity_raw}}{Measured values; background pixels 0. No SNR
+filter.}
+\item{\verb{intensity_SNRfiltered<t>}}{Measured values; background pixels and
+tissue pixels below SNR \verb{<t>} are 0.}
+\item{\verb{response_SNRfiltered<t>_NORM}}{The same, rescaled to 0-100 within
+the sample.}
+\item{\verb{intensity_SNRfiltered<t>_hs<p>_cs<c>_removal}}{The SNR-filtered
+values capped at the sample's \verb{<p>}th percentile, then values below its
+\verb{<c>}th percentile set to 0. The closest to the report's ion images,
+which are capped but not floored.}
+\item{\verb{response_SNRfiltered<t>_hs<p>_cs<c>_NORM}}{The \verb{_removal} matrix
+rescaled to 0-100 within the sample.}
+\item{\verb{response_SNRfiltered<t>_hs<p>_cs<c>_COMBINED}}{The
+\verb{response_SNRfiltered<t>_NORM} matrix -- \strong{no} hot- or cold-spot step,
+despite the name -- with cell \verb{[1, 1]} replaced by the feature's largest
+value across the whole study, in measured units.}
+}
+Missing values are written as 0.
+
+Each matrix covers the sample's tissue bounding box, not the whole
+acquisition: \code{\link[=trimMSI]{trimMSI()}} drops every row and column that is entirely
+background, wherever it lies. Redrawing a tissue mask can therefore change
+a matrix's size and origin, and a registration made on the earlier matrices
+(an affine transform onto an H&E image, say) no longer lines up. To keep a
+frame, keep at least one tissue-labelled pixel in each of its rows and
+columns.
+}
+
 \examples{
 \donttest{
 # Section-mode run on the bundled synthetic data (no tissue mask needed at

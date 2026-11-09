@@ -56,73 +56,89 @@ exportMethods(tissueData)
 exportMethods(tissueMatrix)
 exportMethods(zero2NA)
 import(Cardinal)
-importFrom(ProtGenerics,"spectraData<-")
-importFrom(ProtGenerics,spectraData)
+importFrom(ProtGenerics,
+  "spectraData<-",
+  spectraData
+)
 importFrom(chemCal,inverse.predict)
 importFrom(circlize,colorRamp2)
-importFrom(dplyr,across)
-importFrom(dplyr,all_of)
-importFrom(dplyr,any_of)
-importFrom(dplyr,arrange)
-importFrom(dplyr,bind_rows)
-importFrom(dplyr,distinct)
-importFrom(dplyr,filter)
-importFrom(dplyr,group_by)
-importFrom(dplyr,left_join)
-importFrom(dplyr,mutate)
-importFrom(dplyr,pull)
-importFrom(dplyr,right_join)
-importFrom(dplyr,row_number)
-importFrom(dplyr,select)
-importFrom(dplyr,summarise)
-importFrom(dplyr,ungroup)
-importFrom(ggplot2,aes)
-importFrom(ggplot2,coord_cartesian)
-importFrom(ggplot2,coord_equal)
-importFrom(ggplot2,discrete_scale)
-importFrom(ggplot2,element_blank)
-importFrom(ggplot2,element_line)
-importFrom(ggplot2,element_rect)
-importFrom(ggplot2,element_text)
-importFrom(ggplot2,facet_grid)
-importFrom(ggplot2,facet_wrap)
-importFrom(ggplot2,geom_histogram)
-importFrom(ggplot2,geom_line)
-importFrom(ggplot2,geom_point)
-importFrom(ggplot2,geom_raster)
-importFrom(ggplot2,geom_tile)
-importFrom(ggplot2,geom_vline)
-importFrom(ggplot2,ggplot)
-importFrom(ggplot2,labs)
-importFrom(ggplot2,rel)
-importFrom(ggplot2,scale_alpha_identity)
-importFrom(ggplot2,scale_fill_gradientn)
-importFrom(ggplot2,scale_fill_manual)
-importFrom(ggplot2,theme)
-importFrom(ggplot2,theme_minimal)
-importFrom(grDevices,colorRampPalette)
-importFrom(grDevices,dev.new)
-importFrom(grDevices,rainbow)
+importFrom(dplyr,
+  across,
+  all_of,
+  any_of,
+  arrange,
+  bind_rows,
+  distinct,
+  filter,
+  group_by,
+  left_join,
+  mutate,
+  pull,
+  right_join,
+  row_number,
+  select,
+  summarise,
+  ungroup
+)
+importFrom(ggplot2,
+  aes,
+  coord_cartesian,
+  coord_equal,
+  discrete_scale,
+  element_blank,
+  element_line,
+  element_rect,
+  element_text,
+  facet_grid,
+  facet_wrap,
+  geom_histogram,
+  geom_line,
+  geom_point,
+  geom_raster,
+  geom_tile,
+  geom_vline,
+  ggplot,
+  labs,
+  rel,
+  scale_alpha_identity,
+  scale_fill_gradientn,
+  scale_fill_manual,
+  theme,
+  theme_minimal
+)
+importFrom(grDevices,
+  colorRampPalette,
+  dev.new,
+  rainbow
+)
 importFrom(grid,unit)
-importFrom(methods,as)
-importFrom(methods,is)
-importFrom(methods,new)
-importFrom(methods,setValidity)
-importFrom(methods,show)
-importFrom(methods,validObject)
+importFrom(methods,
+  as,
+  is,
+  new,
+  setValidity,
+  show,
+  validObject
+)
 importFrom(patchwork,wrap_plots)
-importFrom(stats,median)
-importFrom(stats,na.omit)
-importFrom(stats,quantile)
-importFrom(stats,sd)
-importFrom(stats,setNames)
-importFrom(tibble,column_to_rownames)
-importFrom(tibble,rownames_to_column)
-importFrom(tibble,tibble)
+importFrom(stats,
+  median,
+  na.omit,
+  quantile,
+  sd,
+  setNames
+)
+importFrom(tibble,
+  column_to_rownames,
+  rownames_to_column,
+  tibble
+)
 importFrom(tidyr,pivot_wider)
-importFrom(utils,read.csv)
-importFrom(utils,read.table)
-importFrom(utils,write.csv)
-importFrom(utils,write.table)
+importFrom(utils,
+  read.csv,
+  read.table,
+  write.csv,
+  write.table
+)
 importFrom(viridis,scale_fill_viridis)
 importFrom(yaml,read_yaml)

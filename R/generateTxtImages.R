@@ -34,15 +34,26 @@
 #'   per threshold value. A value of `0` skips SNR filtering entirely *and*
 #'   removes the requirement for a `tissue_pixels.csv` mask -- handy for a
 #'   smoke-test pass before ROIs are drawn (default `0`).
-#' @param thresh Numeric. Cold-spot percentile passed to `imageR()` as
-#'   `threshold` (default `20`).
-#' @param perc Numeric. Hot-spot percentile passed to `imageR()` as
-#'   `percentile` (default `97`).
-#' @param rot_clockwise Integer (0-3). Number of 90 deg clockwise rotations
-#'   applied via `pracma::rot90()` (default `0`).
+#' @param thresh Numeric, one value from 0 to 100. Cold-spot percentile for the
+#'   `_hs<perc>_cs<thresh>` `.txt` folders: after the hot-spot cap, values below
+#'   this percentile are set to 0. Like `perc`, it is computed per sample over
+#'   that sample's non-missing values -- after SNR filtering, the tissue pixels
+#'   that passed -- and it does not touch the HTML report (default `20`).
+#' @param perc Numeric, one value from 0 to 100. Hot-spot percentile for the
+#'   same folders: values above it are capped to it (default `97`). The
+#'   report's images are capped by `output: ion_images: percentile:` instead.
+#'   Keep `thresh` below `perc`: once the cap has made the top values equal, a
+#'   floor at or above it removes either nothing or everything under the cap.
+#' @param rot_clockwise One of `0`, `1`, `2` or `3`: the number of quarter
+#'   turns clockwise applied to every `.txt` matrix with `pracma::rot90()`. Not
+#'   degrees -- 180 degrees is `2`. `rot90()` counts turns modulo 4, so `180`
+#'   would mean no rotation at all, and is refused. The report is never
+#'   rotated (default `0`).
 #' @param average_method Character, `"mean"` or `"median"`. Statistic used to
 #'   summarise the noise pixel vector in `int2SNR()`. Applied consistently to
-#'   every acquisition (default `"median"`).
+#'   every acquisition (default `"median"`). Where a median noise level is only
+#'   the imputed value (see [int2SNR()]), one warning for the whole call lists
+#'   the samples affected; it has class `quantMSImageR_imputed_noise_study`.
 #' @param output_txt Logical. When `FALSE`, processing runs but no files are
 #'   written to disk (default `TRUE`).
 #' @param exclude Character vector of feature names to drop before processing.
@@ -119,6 +130,40 @@
 #'     \item{`rois`}{Logical: whether region-of-interest labels were attached.}
 #'   }
 #'
+#' @section Text-image output:
+#' With `output_txt = TRUE`, each sample gets these folders under
+#' `image_dir/<label>/`, each holding one tab-separated matrix per feature with
+#' no header and no coordinates (rows are y and columns x, before
+#' `rot_clockwise`). `<t>` is the SNR threshold, `<p>` is `perc` and `<c>` is
+#' `thresh`:
+#' \describe{
+#'   \item{`intensity_raw`}{Measured values; background pixels 0. No SNR
+#'     filter.}
+#'   \item{`intensity_SNRfiltered<t>`}{Measured values; background pixels and
+#'     tissue pixels below SNR `<t>` are 0.}
+#'   \item{`response_SNRfiltered<t>_NORM`}{The same, rescaled to 0-100 within
+#'     the sample.}
+#'   \item{`intensity_SNRfiltered<t>_hs<p>_cs<c>_removal`}{The SNR-filtered
+#'     values capped at the sample's `<p>`th percentile, then values below its
+#'     `<c>`th percentile set to 0. The closest to the report's ion images,
+#'     which are capped but not floored.}
+#'   \item{`response_SNRfiltered<t>_hs<p>_cs<c>_NORM`}{The `_removal` matrix
+#'     rescaled to 0-100 within the sample.}
+#'   \item{`response_SNRfiltered<t>_hs<p>_cs<c>_COMBINED`}{The
+#'     `response_SNRfiltered<t>_NORM` matrix -- **no** hot- or cold-spot step,
+#'     despite the name -- with cell `[1, 1]` replaced by the feature's largest
+#'     value across the whole study, in measured units.}
+#' }
+#' Missing values are written as 0.
+#'
+#' Each matrix covers the sample's tissue bounding box, not the whole
+#' acquisition: [trimMSI()] drops every row and column that is entirely
+#' background, wherever it lies. Redrawing a tissue mask can therefore change
+#' a matrix's size and origin, and a registration made on the earlier matrices
+#' (an affine transform onto an H&E image, say) no longer lines up. To keep a
+#' frame, keep at least one tissue-labelled pixel in each of its rows and
+#' columns.
+#'
 #' @seealso [int2SNR()], [applySNR()], [back2NA()], [imageR()]
 #'
 #' @examples
@@ -167,6 +212,26 @@ generateTxtImages <- function(
 
   average_method <- match.arg(average_method, c("mean", "median"))
   stitch_overlap <- match.arg(stitch_overlap)
+
+  # One value each -- only snr_thresh is swept -- and rot_clockwise counts
+  # quarter turns: pracma::rot90() reads k %% 4, so 180 (degrees) would
+  # silently mean no rotation at all.
+  .one_pct <- function(v, nm) {
+    x <- suppressWarnings(as.numeric(unlist(v)))
+    if (length(x) != 1L || is.na(x) || x < 0 || x > 100)
+      stop("generateTxtImages: `", nm, "` must be one number from 0 to 100 ",
+           "(a percentile); got ", paste(unlist(v), collapse = ", "),
+           ". Only snr_thresh takes several values.", call. = FALSE)
+    x
+  }
+  thresh <- .one_pct(thresh, "thresh")
+  perc   <- .one_pct(perc, "perc")
+  .rot <- suppressWarnings(as.numeric(unlist(rot_clockwise)))
+  if (length(.rot) != 1L || is.na(.rot) || !.rot %in% 0:3)
+    stop("generateTxtImages: `rot_clockwise` must be 0, 1, 2 or 3 -- quarter ",
+         "turns clockwise, not degrees (180 degrees is 2); got ",
+         paste(unlist(rot_clockwise), collapse = ", "), ".", call. = FALSE)
+  rot_clockwise <- .rot
 
   # Internal-standard normalisation. int2response() adds a `response` layer
   # rather than overwriting `intensity`, so when it runs everything downstream
@@ -395,7 +460,7 @@ generateTxtImages <- function(
 
       obj <- as(obj, "quant_MSImagingExperiment")
     }
-    # trimMSI() drops fully-background border rows/columns. When the tissue fills
+    # trimMSI() drops every all-background row/column. When the tissue fills
     # a perfect rectangle every background pixel lies in such a border, so trimming
     # would remove them all and leave int2SNR() with nothing to reference against.
     # Keep the untrimmed object in that case.
@@ -586,14 +651,31 @@ generateTxtImages <- function(
   # SNR filtering at one threshold. A threshold of 0 short-circuits to the raw
   # object (no SNR computation) -- the smoke-test path -- so overrides are
   # ignored for a 0-valued global report.
+  #
+  # int2SNR() warns when a median noise level is only the imputed value. The
+  # noise level does not depend on the threshold, so every threshold would
+  # repeat the same warning: collect them, one per sample, and report once.
+  .imputed <- new.env(parent = emptyenv())
   snr_filter <- function(obj, thr, ov) {
     if (thr == 0) return(obj)
-    tmp <- int2SNR(
-      MSIobject = obj, val_slot = .val, pixel_header = "sample_name",
-      background = "background_pixels", tissue = "tissue_pixels",
-      snr_thresh = thr, average = average_method,
-      snr_overrides = ov
-    )
+    tmp <- withCallingHandlers(
+      int2SNR(
+        MSIobject = obj, val_slot = .val, pixel_header = "sample_name",
+        background = "background_pixels", tissue = "tissue_pixels",
+        snr_thresh = thr, average = average_method,
+        snr_overrides = ov
+      ),
+      quantMSImageR_imputed_noise = function(w) {
+        # One entry per part of the sample (a piece, or the whole sample);
+        # the same part at another threshold overwrites its own entry.
+        part <- paste(w$run, collapse = ", ")
+        if (!nzchar(part)) part <- "."
+        cur <- .imputed[[fn_label]]
+        if (is.null(cur)) cur <- list()
+        cur[[part]] <- w
+        assign(fn_label, cur, envir = .imputed)
+        invokeRestart("muffleWarning")
+      })
     applySNR(MSIobject = tmp, val_slot = .val)
   }
 
@@ -677,6 +759,32 @@ generateTxtImages <- function(
       al       <- alignFeatures(combined, tissue)
       combined <- combineMSIs(al$obj1, al$obj2)
     }
+  }
+
+  # In study order, not the environment's.
+  .imp <- mget(intersect(fn_labels, ls(.imputed, all.names = TRUE)),
+               envir = .imputed)
+  if (length(.imp)) {
+    .n  <- vapply(.imp, function(ws)
+      length(unique(unlist(lapply(ws, function(w) w$features)))), integer(1))
+    .of <- vapply(.imp, function(ws)
+      max(vapply(ws, function(w) as.integer(w$n_features), integer(1))),
+      integer(1))
+    .msg <- sprintf(paste0(
+      "Median noise level set by the zero imputation, not by the background, ",
+      "in %d sample(s): %s. In those features more than half the background ",
+      "pixels are zero or missing, so the noise level is one tenth of the smallest ",
+      "non-zero background value and the SNR filter passes far more than its ",
+      "threshold suggests. average_method: mean is set by the background's own ",
+      "values instead. See ?int2SNR."),
+      length(.imp),
+      paste(sprintf("%s (%d of %d features)", names(.imp), .n, .of),
+            collapse = "; "))
+    # Classed so a caller can mute exactly this warning and nothing else.
+    .cond <- structure(
+      class = c("quantMSImageR_imputed_noise_study", "warning", "condition"),
+      list(message = .msg, call = NULL, samples = names(.imp)))
+    warning(.cond)
   }
 
   combined_NAbackground <- if (.needs_mask) back2NA(

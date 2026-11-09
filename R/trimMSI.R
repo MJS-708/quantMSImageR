@@ -1,18 +1,24 @@
-#' Remove pure-background border rows and columns from an MSI object
+#' Remove all-background rows and columns from an MSI object
 #'
 #' Drops any x-column or y-row in which **every** pixel is labelled as
 #' `"background_pixels"` (or the historical `"noise_pixels"`) in
-#' `pData(MSI_data)$sample_name`. This trims empty scan borders that arise from
-#' the Waters acquisition geometry without affecting tissue or mixed-content
-#' rows/columns.
+#' `pData(MSI_data)$sample_name`. This trims the empty scan borders that arise
+#' from the Waters acquisition geometry without affecting tissue or
+#' mixed-content rows/columns.
+#'
+#' The rule is applied to every row and column, not only the outer ones: an
+#' all-background row *between* two pieces of tissue is dropped too, closing
+#' the gap. What remains is set by the mask, so redrawing the tissue mask can
+#' change the size and origin of everything trimmed from it -- including the
+#' `.txt` matrices written by [generateTxtImages()].
 #'
 #' @import Cardinal
 #'
 #' @param MSI_data A `quant_MSImagingExperiment` object whose `pData()` contains
 #'   columns `x`, `y`, and `sample_name` (populated by `makeFactor()`).
 #'
-#' @return A subset `quant_MSImagingExperiment` with pure-background border
-#'   pixels removed.
+#' @return A subset `quant_MSImagingExperiment` with the all-background rows
+#'   and columns removed.
 #'
 #' @examples
 #' p <- system.file("extdata", "example.raw", "section01.RDS",

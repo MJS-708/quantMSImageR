@@ -236,7 +236,7 @@ ready for `selectTissuePixels()` and the rest of the workflow.
 | Function | Takes | Produces |
 |---|---|---|
 | `readMRM()` | `.raw` folder + ion-library CSV | `MSImagingExperiment`, `fData` joined to the library |
-| `trimMSI()` | object with a tissue mask | object with pure-background border rows/columns dropped |
+| `trimMSI()` | object with a tissue mask | object with every all-background row/column dropped |
 | `removeBlankMzs()` | object | object with features that have no data removed |
 | `alignFeatures()` | two objects | both reduced to common features, m/z-keyed |
 | `combineMSIs()` | two or more aligned objects | one object, each acquisition its own `run` |

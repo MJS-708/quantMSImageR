@@ -91,6 +91,18 @@ tenth of the smallest non-zero background value for that feature, so a
 feature whose background is entirely zero or \code{NA} is skipped and its \code{snr}
 stays \code{NA}.
 
+When \strong{more than half} of a feature's background pixels are zero -- common
+in DESI-MRM, where many transitions read exactly zero off tissue -- the
+median \emph{is} that imputed value. The noise level is then set by the
+imputation rule rather than by the background, and \code{snr_thresh = t} passes
+any pixel above \code{t / 10} times the dimmest non-zero background value: at
+\code{t = 10}, anything at least as bright as the dimmest background pixel.
+\code{int2SNR()} warns when this happens, naming the features (the warning has
+class \code{quantMSImageR_imputed_noise}). \code{average = "mean"} is computed from
+the background's own values, to which the imputed zeros add almost nothing,
+and gives a stricter noise level for such features. Results are unchanged
+by the warning; it says how much the filter is doing.
+
 Run this \strong{after} internal-standard normalisation (\code{\link[=int2response]{int2response()}}) when
 one is used. A threshold of 3 is a detection-level criterion; a stricter
 threshold is advisable before converting a feature to calibrated amounts.

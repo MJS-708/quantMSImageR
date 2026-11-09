@@ -122,6 +122,43 @@ test_that("no_background gives explicit alternatives to failing", {
   expect_equal(spectra(cp_res, "snr"), spectra(cp_res, "intensity"))
 })
 
+mostly_zero_bg_obj <- function() {
+  # Three tissue and three background pixels. "sparse" has two of its three
+  # background pixels at zero, so its median noise level is the imputed value
+  # (4 / 10); "dense" has a real background.
+  fdata <- MassDataFrame(mz = c(500, 510), name = c("sparse", "dense"))
+  pdata <- PositionDataFrame(run       = rep("s1", 6),
+                              coord     = expand.grid(x = 1:3, y = 1:2),
+                              sample_ID = rep(c("Tissue", "Background"), each = 3))
+  ints  <- rbind(c(10, 20, 30, 0, 0, 4),
+                 c(10, 20, 30, 2, 3, 4))
+  as(MSImagingExperiment(spectraData = ints, featureData = fdata,
+                          pixelData = pdata),
+     "quant_MSImagingExperiment")
+}
+
+test_that("a median noise level that is only the imputed value is flagged", {
+  snr <- function(...) int2SNR(mostly_zero_bg_obj(), val_slot = "intensity",
+                               background = "Background", tissue = "Tissue",
+                               pixel_header = "sample_ID", ...)
+
+  w <- tryCatch(snr(snr_thresh = 3),
+                quantMSImageR_imputed_noise = function(w) w)
+  expect_s3_class(w, "quantMSImageR_imputed_noise")
+  expect_equal(w$features, "sparse")
+  expect_equal(w$n_features, 2L)
+  expect_match(conditionMessage(w), "1 of 2 features")
+
+  # The warning reports; it changes nothing. The values are the existing rule's.
+  res <- suppressWarnings(snr(snr_thresh = 3))
+  expect_equal(as.numeric(spectra(res, "snr")[1, 1:3]), c(10, 20, 30) / 0.4)
+
+  # The mean is not set by the imputation, and a threshold of 0 filters
+  # nothing, so neither warns.
+  expect_no_warning(snr(snr_thresh = 3, average = "mean"))
+  expect_no_warning(snr(snr_thresh = 0))
+})
+
 test_that("snr_thresh = 0 passes values through without failing", {
   # No filtering was requested, so a missing background is not a failure to do
   # something the caller wanted. This is the smoke-test pass run before ROIs

@@ -21,6 +21,18 @@ setGeneric("int2SNR", function(MSIobject, ...) standardGeneric("int2SNR"))
 #' feature whose background is entirely zero or `NA` is skipped and its `snr`
 #' stays `NA`.
 #'
+#' When **more than half** of a feature's background pixels are zero -- common
+#' in DESI-MRM, where many transitions read exactly zero off tissue -- the
+#' median *is* that imputed value. The noise level is then set by the
+#' imputation rule rather than by the background, and `snr_thresh = t` passes
+#' any pixel above `t / 10` times the dimmest non-zero background value: at
+#' `t = 10`, anything at least as bright as the dimmest background pixel.
+#' `int2SNR()` warns when this happens, naming the features (the warning has
+#' class `quantMSImageR_imputed_noise`). `average = "mean"` is computed from
+#' the background's own values, to which the imputed zeros add almost nothing,
+#' and gives a stricter noise level for such features. Results are unchanged
+#' by the warning; it says how much the filter is doing.
+#'
 #' Run this **after** internal-standard normalisation ([int2response()]) when
 #' one is used. A threshold of 3 is a detection-level criterion; a stricter
 #' threshold is advisable before converting a feature to calibrated amounts.
@@ -134,6 +146,9 @@ setMethod("int2SNR", "quant_MSImagingExperiment",
 
             spectra(MSIobject, "snr") = matrix(nrow = nrow(MSIobject), ncol = ncol(MSIobject))
 
+            # Features whose median noise level is just the imputed value.
+            imputed_feats <- character()
+
             # Iterate over features in study
             for(mz_ind in seq_len(nrow(fData(MSIobject)))){
 
@@ -154,6 +169,13 @@ setMethod("int2SNR", "quant_MSImagingExperiment",
 
               # Feature-specific SNR threshold if provided, else the global one.
               feat_nm <- as.character(fData(MSIobject)$name[mz_ind])
+
+              # More than half the background zero: the median IS the imputed
+              # value, so the imputation rule sets the threshold, not the
+              # background. Only the median can land here -- the mean of a
+              # vector holding a non-zero value is above min/10.
+              if (noise_level == mv_impute)
+                imputed_feats <- c(imputed_feats, feat_nm)
               thr_i <- if (!is.null(snr_overrides) &&
                            feat_nm %in% names(snr_overrides))
                          snr_overrides[[feat_nm]] else snr_thresh
@@ -167,5 +189,41 @@ setMethod("int2SNR", "quant_MSImagingExperiment",
 
             }
 
+            # Nothing is filtered at 0, so the noise level would not matter.
+            if (length(imputed_feats) && snr_thresh > 0)
+              .warn_imputed_noise(MSIobject, imputed_feats, snr_thresh)
+
             return(MSIobject)
           })
+
+#' Warn that a median noise level is the imputed value
+#'
+#' A classed warning, so [generateTxtImages()] can collect one per acquisition
+#' and report them once for the study rather than once per SNR threshold.
+#'
+#' @param MSIobject The object `int2SNR()` was given.
+#' @param feats Names of the features affected.
+#' @param thr The global SNR threshold, for the message.
+#' @keywords internal
+#' @noRd
+.warn_imputed_noise <- function(MSIobject, feats, thr) {
+  run <- if ("run" %in% names(pData(MSIobject)))
+           unique(as.character(pData(MSIobject)$run)) else character()
+  n <- nrow(MSIobject)
+  shown <- paste(utils::head(feats, 5), collapse = ", ")
+  if (length(feats) > 5) shown <- paste0(shown, ", ...")
+  msg <- sprintf(paste0(
+    "int2SNR%s: in %d of %d features (%s) more than half the background ",
+    "pixels are zero or missing, so the median noise level is the imputed value -- one ",
+    "tenth of the smallest non-zero background value. An SNR of %g there ",
+    "passes anything above %g x the dimmest non-zero background pixel. ",
+    "average = \"mean\" (parameters: average_method: mean) is set by the ",
+    "background's own values instead. See ?int2SNR."),
+    if (length(run)) paste0(" (", paste(run, collapse = ", "), ")") else "",
+    length(feats), n, shown, thr, thr / 10)
+  cond <- structure(
+    class = c("quantMSImageR_imputed_noise", "warning", "condition"),
+    list(message = msg, call = NULL, run = run, features = feats,
+         n_features = n))
+  warning(cond)
+}

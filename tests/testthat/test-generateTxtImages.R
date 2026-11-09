@@ -8,6 +8,13 @@ pos04_folder <- extdata                          # data_path: contains pos04_tes
 pos04_name   <- "pos04_test"                     # acquisition name (folder = pos04_test.raw/)
 lib_ion_path <- file.path(extdata, "ion_library_pos04.csv")
 
+# pos04_test has one feature whose background is mostly zero, so every SNR run
+# on it carries the study-level imputed-noise warning. Tests about something
+# else mute exactly that warning; it has its own test below.
+quiet_imputed <- function(expr)
+  withCallingHandlers(expr, quantMSImageR_imputed_noise_study = function(w)
+    invokeRestart("muffleWarning"))
+
 test_that("generateTxtImages returns the expected named list", {
   result <- generateTxtImages(
     fns          = pos04_name,
@@ -47,14 +54,14 @@ test_that("output_txt = TRUE creates expected subdirectories", {
   dir.create(tmp, recursive = TRUE)
   on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
 
-  result <- generateTxtImages(
+  result <- quiet_imputed(generateTxtImages(
     fns          = pos04_name,
     data_path    = pos04_folder,
     image_dir    = tmp,
     lib_ion_path = lib_ion_path,
     snr_thresh   = 1,
     output_txt   = TRUE
-  )
+  ))
 
   acq_dir <- file.path(tmp, pos04_name)
   expect_true(dir.exists(acq_dir))
@@ -64,14 +71,14 @@ test_that("output_txt = TRUE creates expected subdirectories", {
 })
 
 test_that("combined_snr has fewer non-NA pixels than combined (SNR filter applied)", {
-  result <- generateTxtImages(
+  result <- quiet_imputed(generateTxtImages(
     fns          = pos04_name,
     data_path    = pos04_folder,
     image_dir    = tempdir(),
     lib_ion_path = lib_ion_path,
     snr_thresh   = 3,
     output_txt   = FALSE
-  )
+  ))
 
   n_non_na_raw <- sum(!is.na(spectraData(result$combined)[["intensity"]]))
   n_non_na_snr <- sum(!is.na(spectraData(result$combined_snr)[["intensity"]]))
@@ -89,10 +96,47 @@ test_that("invalid average_method is rejected early", {
   )
 })
 
+test_that("thresh, perc and rot_clockwise take one valid value", {
+  # Checked before anything is read, so dummy paths are enough.
+  call_with <- function(...)
+    generateTxtImages(fns = "dummy", data_path = ".", image_dir = tempdir(),
+                      lib_ion_path = "dummy.csv", ...)
+
+  # 180 is degrees; rot90() would read it as 180 %% 4 = 0, no rotation.
+  expect_error(call_with(rot_clockwise = 180), "quarter turns")
+  expect_error(call_with(rot_clockwise = 1.5), "rot_clockwise")
+  expect_error(call_with(thresh = c(20, 25)), "one number")
+  expect_error(call_with(perc = 101), "one number")
+  expect_error(call_with(perc = "high"), "perc")
+})
+
+test_that("the imputed-noise warning is reported once for the study", {
+  # int2SNR() warns once per SNR threshold; the study-level summary replaces
+  # those with a single warning naming the sample by its label.
+  ws <- list()
+  withCallingHandlers(
+    suppressMessages(generateTxtImages(
+      fns = pos04_name, data_path = pos04_folder, image_dir = tempdir(),
+      lib_ion_path = lib_ion_path, snr_thresh = c(1, 3), output_txt = FALSE)),
+    warning = function(w) {
+      ws[[length(ws) + 1L]] <<- w
+      invokeRestart("muffleWarning")
+    })
+
+  study <- Filter(function(w) inherits(w, "quantMSImageR_imputed_noise_study"), ws)
+  expect_length(study, 1L)
+  expect_match(conditionMessage(study[[1]]), "pos04_test (1 of 7 features)",
+               fixed = TRUE)
+  expect_equal(study[[1]]$samples, "pos04_test")
+  # The per-acquisition warnings it replaces do not leak out.
+  expect_false(any(vapply(ws, inherits, logical(1),
+                          what = "quantMSImageR_imputed_noise")))
+})
+
 test_that("regions of interest are off unless asked for", {
-  result <- suppressMessages(generateTxtImages(
+  result <- quiet_imputed(suppressMessages(generateTxtImages(
     fns = pos04_name, data_path = pos04_folder, image_dir = tempdir(),
-    lib_ion_path = lib_ion_path, snr_thresh = 1, output_txt = FALSE))
+    lib_ion_path = lib_ion_path, snr_thresh = 1, output_txt = FALSE)))
   expect_false(result$rois)
   expect_false("roi_label" %in% names(pData(result$combined)))
 })
@@ -111,10 +155,10 @@ test_that("roi_labels.csv is attached by pixel position", {
                        roi_label = "airway", roi_id = "airway_01"),
             file.path(raw, "roi_labels.csv"), row.names = FALSE)
 
-  result <- suppressMessages(generateTxtImages(
+  result <- quiet_imputed(suppressMessages(generateTxtImages(
     fns = pos04_name, data_path = tmp, image_dir = tmp,
     lib_ion_path = lib_ion_path, snr_thresh = 1, output_txt = FALSE,
-    rois = "auto"))
+    rois = "auto")))
   pd <- pData(result$combined)
   bg <- as.character(pd$sample_name) == "background_pixels"
 

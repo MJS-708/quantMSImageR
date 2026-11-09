@@ -2,7 +2,7 @@
 % Please edit documentation in R/trimMSI.R
 \name{trimMSI}
 \alias{trimMSI}
-\title{Remove pure-background border rows and columns from an MSI object}
+\title{Remove all-background rows and columns from an MSI object}
 \usage{
 trimMSI(MSI_data)
 }
@@ -11,15 +11,22 @@ trimMSI(MSI_data)
 columns \code{x}, \code{y}, and \code{sample_name} (populated by \code{makeFactor()}).}
 }
 \value{
-A subset \code{quant_MSImagingExperiment} with pure-background border
-pixels removed.
+A subset \code{quant_MSImagingExperiment} with the all-background rows
+and columns removed.
 }
 \description{
 Drops any x-column or y-row in which \strong{every} pixel is labelled as
 \code{"background_pixels"} (or the historical \code{"noise_pixels"}) in
-\code{pData(MSI_data)$sample_name}. This trims empty scan borders that arise from
-the Waters acquisition geometry without affecting tissue or mixed-content
-rows/columns.
+\code{pData(MSI_data)$sample_name}. This trims the empty scan borders that arise
+from the Waters acquisition geometry without affecting tissue or
+mixed-content rows/columns.
+}
+\details{
+The rule is applied to every row and column, not only the outer ones: an
+all-background row \emph{between} two pieces of tissue is dropped too, closing
+the gap. What remains is set by the mask, so redrawing the tissue mask can
+change the size and origin of everything trimmed from it -- including the
+\code{.txt} matrices written by \code{\link[=generateTxtImages]{generateTxtImages()}}.
 }
 \examples{
 p <- system.file("extdata", "example.raw", "section01.RDS",
