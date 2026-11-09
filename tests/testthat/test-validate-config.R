@@ -273,3 +273,58 @@ test_that("output$ion_images$percentile takes a percentile", {
     expect_true(any(grepl("ion_images", validateConfig(cfg)$errors)))
   }
 })
+
+test_that("ion_images$scale_within names a level the report knows", {
+  cfg <- good_cfg()
+  for (v in c("all", "block", "group", "Block")) {
+    cfg$output$ion_images <- list(scale_within = v)
+    expect_length(validateConfig(cfg)$errors, 0)
+  }
+  # The report would read this as "all" without a word.
+  cfg$output$ion_images <- list(scale_within = "patient")
+  expect_true(any(grepl("scale_within", validateConfig(cfg)$errors)))
+})
+
+test_that("rot_clockwise counts quarter turns, not degrees", {
+  cfg <- good_cfg()
+  for (v in 0:3) {
+    cfg$parameters$rot_clockwise <- v
+    expect_length(validateConfig(cfg)$errors, 0)
+  }
+  # 180 reaches rot90() as 180 %% 4 = 0: no rotation, and no error until now.
+  cfg$parameters$rot_clockwise <- 180
+  e <- validateConfig(cfg)$errors
+  expect_true(any(grepl("rot_clockwise", e)))
+  expect_true(any(grepl("180 degrees is 2", e, fixed = TRUE)))
+
+  for (v in list(-1, 1.5, "two", c(1, 2))) {
+    cfg$parameters$rot_clockwise <- v
+    expect_true(any(grepl("rot_clockwise", validateConfig(cfg)$errors)),
+                info = paste(v, collapse = ","))
+  }
+})
+
+test_that("thresh and perc take one percentile each", {
+  cfg <- good_cfg()
+  cfg$parameters$thresh <- 20
+  cfg$parameters$perc   <- 97
+  expect_length(validateConfig(cfg)$errors, 0)
+  expect_false(any(grepl("thresh", validateConfig(cfg)$warnings)))
+
+  # Only snr_thresh is swept: a list here used to half-work.
+  for (k in c("thresh", "perc")) {
+    for (v in list(c(20, 25), -1, 101, "high")) {
+      cfg2 <- cfg
+      cfg2$parameters[[k]] <- v
+      expect_true(any(grepl(paste0("parameters$", k), validateConfig(cfg2)$errors,
+                            fixed = TRUE)),
+                  info = paste(k, paste(v, collapse = ",")))
+    }
+  }
+
+  # A floor at or above the cap is degenerate: a warning, not a refusal.
+  cfg$parameters$thresh <- 97
+  v <- validateConfig(cfg)
+  expect_length(v$errors, 0)
+  expect_true(any(grepl("not below parameters$perc", v$warnings, fixed = TRUE)))
+})

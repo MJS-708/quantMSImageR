@@ -350,6 +350,41 @@ validateConfig = function(config, check_paths = TRUE){
         "parameters$average_method = '%s'; use 'mean' or 'median'.", am))
     else .chk_add(chk, "average_method", "ok")
 
+    # .txt image settings. Each takes ONE value -- only snr_thresh is swept --
+    # and a list would otherwise reach the folder names and imageR() and
+    # half-work rather than fail.
+    .pct = list()
+    for(k in c("thresh", "perc")){
+      v = par[[k]]
+      if(is.null(v)) next
+      x = suppressWarnings(as.numeric(unlist(v)))
+      if(length(x) != 1L || is.na(x) || x < 0 || x > 100)
+        .chk_add(chk, sprintf("parameters$%s", k), "error", sprintf(
+          "parameters$%s = %s must be one number from 0 to 100 (a percentile). Only snr_thresh takes a list.",
+          k, paste(unlist(v), collapse = ", ")))
+      else { .chk_add(chk, sprintf("parameters$%s", k), "ok"); .pct[[k]] = x }
+    }
+    # The cap makes the top values equal, so a floor at or above it is
+    # degenerate: it removes nothing, or everything under the cap.
+    if(!is.null(.pct$thresh) && !is.null(.pct$perc) && .pct$thresh >= .pct$perc)
+      .chk_add(chk, "parameters$thresh", "warning", sprintf(
+        "parameters$thresh (%g) is not below parameters$perc (%g), so the cold-spot floor in the _hs/_cs .txt images is degenerate. Keep thresh below perc.",
+        .pct$thresh, .pct$perc))
+
+    # Quarter turns, not degrees. pracma::rot90() reads k %% 4, so 180 means
+    # no rotation at all -- the result looks plausible and is wrong.
+    rc = par$rot_clockwise
+    if(!is.null(rc)){
+      x = suppressWarnings(as.numeric(unlist(rc)))
+      if(length(x) != 1L || is.na(x) || !x %in% 0:3)
+        .chk_add(chk, "parameters$rot_clockwise", "error", sprintf(
+          "parameters$rot_clockwise = %s; use 0, 1, 2 or 3 -- the number of quarter turns clockwise, not degrees.%s It rotates the .txt images only.",
+          paste(unlist(rc), collapse = ", "),
+          if(length(x) == 1L && !is.na(x) && x > 0 && x %% 90 == 0)
+            sprintf(" %g degrees is %g.", x, (x / 90) %% 4) else ""))
+      else .chk_add(chk, "parameters$rot_clockwise", "ok")
+    }
+
     # Internal standard
     is_name = par$is_name
     use_is  = !is.null(is_name) && nzchar(is_name) && !identical(is_name, "None")
@@ -520,8 +555,9 @@ validateConfig = function(config, check_paths = TRUE){
   }
 
   # ---- ion image display -----------------------------------------------------
-  # `rows`, `cols`, `scale_within` and `scale` are accepted but not yet read by
-  # the report: configs carry them so they are ready, and a typo is still caught.
+  # `percentile` and `scale_within` are read by the report. `rows`, `cols` and
+  # `scale` are accepted but not read yet: configs carry them so they are
+  # ready, and a typo in a key name is still caught.
   ii = config$output$ion_images
   if(!is.null(ii)){
     ii_keys = c("percentile", "rows", "cols", "scale_within", "scale")
@@ -533,10 +569,19 @@ validateConfig = function(config, check_paths = TRUE){
     if(!ok)
       .chk_add(chk, "output$ion_images", "error", paste0(
         "output$ion_images takes percentile: (a number above 0 and up to 100, ",
-        "the percentile every image in the report caps its colour scale at), ",
-        "and accepts rows:, cols:, scale_within: and scale: for later use. ",
+        "the percentile every image in the report caps its colour scale at) ",
+        "and scale_within:, and accepts rows:, cols: and scale: for later use. ",
         "parameters$perc is the separate cap for the .txt images."))
     else .chk_add(chk, "output$ion_images", "ok")
+
+    # The report reads anything else as "all", without a word.
+    sw = if(is.list(ii)) ii$scale_within else NULL
+    if(!is.null(sw) && !(length(sw) == 1L &&
+                         tolower(as.character(sw)) %in% c("all", "block", "group")))
+      .chk_add(chk, "output$ion_images$scale_within", "error", sprintf(
+        "output$ion_images$scale_within = '%s'; use all (one colour scale for the study), block or group.",
+        paste(sw, collapse = ", ")))
+    else if(!is.null(sw)) .chk_add(chk, "output$ion_images$scale_within", "ok")
   }
 
   # ---- regions of interest ---------------------------------------------------

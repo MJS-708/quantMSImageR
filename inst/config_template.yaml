@@ -56,12 +56,14 @@ parameters:
                                         #    saturates whatever the data says) | per_sample | contribution
   heatmap_scale:  "both"                # contribution heatmap only: shared = features comparable | feature = each on its own scale | both = one section per quantile showing each
   heatmap_quantiles: [0.25, 0.5, 0.75, 0.95, 0.98]   # pixel quantiles to draw a heatmap section for; fewer = shorter report
-  thresh:         20                    # cold-spot percentile removed
-  perc:           99                    # hot-spot percentile suppressed in the txt images
+  thresh:         20                    # cold-spot percentile removed      } txt images only, ONE value
+  perc:           99                    # hot-spot percentile suppressed    } each, per sample; thresh < perc
                                         #   (these feed other software, so they keep their range;
                                         #    output$ion_images$percentile caps the report images)
-  rot_clockwise:  0                     # image rotation: 0/1/2/3 x 90 deg
-  average_method: "median"              # background summary: mean | median
+  rot_clockwise:  0                     # txt image rotation: 0/1/2/3 quarter turns clockwise (NOT degrees: 180 deg = 2)
+  average_method: "median"              # background summary: mean | median. With median, a feature whose
+                                        #   background is mostly zero gets the imputed noise level (min/10)
+                                        #   and a weak filter -- runStudy() warns which; see ?int2SNR
 
   # Internal-standard normalisation.
   type_header:    "Type"                # ion-library column holding the feature type (E.g., Analyte and Internal standard)
