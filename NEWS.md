@@ -1,4 +1,4 @@
-# quantMSImageR 0.99.11
+# quantMSImageR 0.99.12
 
 First Bioconductor release (Bioconductor 3.24). quantMSImageR processes and
 quantifies targeted DESI-MRM mass spectrometry imaging data, extending
@@ -61,7 +61,9 @@ carries calibration and tissue metadata.
   images for ImageJ and image registration, and one HTML report per threshold.
   The report holds heatmaps, group comparisons, colocalisation, ion images
   with an animated overview (also written as a `.gif`), regions of interest and
-  an embedded tables workbook.
+  an embedded tables workbook. On Windows its figures are drawn with the cairo
+  PNG device: the default GDI device runs out of graphics handles part-way
+  through a large study's ion images.
 * `validateConfig()` checks a config -- paths, ion-library columns, enumerated
   values, calibration and internal-standard settings -- and reports every
   problem at once. `runStudy()` will not start on an invalid config.

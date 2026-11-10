@@ -66,6 +66,22 @@ knitr::opts_chunk$set(echo = FALSE,
                dpi = .fig_dpi,
                fig.retina = 1)
 
+# On Windows, png() defaults to the GDI device, which holds about 15 GDI objects
+# for every plot drawn on it until the device closes. knitr keeps one device
+# open per chunk, and the ion-image chunk draws four images per feature, so a
+# study of a few dozen features reaches Windows' limit of 10,000 per process and
+# the render stops ("processing of the plot ran out of memory"). The cairo
+# device holds none. Other platforms already default to cairo or Quartz, and a
+# dev.args set by the caller is left alone.
+.png_type <- if (.Platform$OS.type == "windows" && isTRUE(capabilities("cairo")))
+               "cairo" else NULL
+if (!is.null(.png_type) && is.null(knitr::opts_chunk$get("dev.args")))
+  knitr::opts_chunk$set(dev.args = list(type = .png_type))
+# The heatmaps open their own device, so they take the same type, and every
+# image in the report is drawn the same way.
+.png <- function(...)
+  if (is.null(.png_type)) grDevices::png(...) else grDevices::png(..., type = .png_type)
+
 # Define a function to safely plot or show a blank plot
 safe_plot <- function(p) {
   tryCatch({
@@ -492,8 +508,8 @@ if (exists("heatmap_labs") && exists("heatmap_order"))
   .extra <- attr(p, "contribution_legend")
   .tmp   <- tempfile(fileext = ".png")
   .sz    <- .hm_dev_size(p, extra = .extra)
-  grDevices::png(.tmp, width = .sz[1], height = .sz[2], units = "in",
-                 res = .fig_dpi)
+  .png(.tmp, width = .sz[1], height = .sz[2], units = "in",
+       res = .fig_dpi)
   .ok <- tryCatch({
       ComplexHeatmap::draw(p, merge_legends = TRUE,
                            annotation_legend_list = .extra); TRUE
@@ -842,8 +858,8 @@ Each column normalised by its own extreme, so every',
   # instead of into the HTML. Render to a temp PNG and embed via base64.
   .tmp <- tempfile(fileext = ".png")
   .sz  <- .hm_dev_size(p, extra = .extra)
-  grDevices::png(.tmp, width = .sz[1], height = .sz[2], units = "in",
-                 res = .fig_dpi)
+  .png(.tmp, width = .sz[1], height = .sz[2], units = "in",
+       res = .fig_dpi)
   # Draw with merge_legends = TRUE so the value, Group and feature-class keys
   # pack into one legend column -- this also avoids a ComplexHeatmap viewport
   # bug ("depth applied to NULL") that some versions hit when several
